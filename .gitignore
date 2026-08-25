@@ -1,0 +1,35 @@
+# Java
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Модели и кэши компиляции — весят гигабайты, не версионируются
+models/
+.ov_cache/
+*.blob
+*.onnx
+*.bin
+*.xml.bin
+
+# Личные артефакты голоса — не должны покидать машину
+voice/
+*.wav
+!testdata/audio/**/*.wav
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Windows
+Thumbs.db
+desktop.ini
