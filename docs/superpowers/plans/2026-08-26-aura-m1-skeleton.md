@@ -4746,7 +4746,7 @@ git commit -m "feat(agents): run Codex turns via exec and exec resume --last"
 **Interfaces:**
 - Consumes: `ProjectRegistry` (Task 6), `PermissionPolicy` + `ConfirmationProvider` (Task 7, 8), `HookServer` (Task 9), `SettingsFileWriter` (Task 10), `SessionSupervisor` + `ClaudeSession` + `CodexSession` (Task 11, 12, 14)
 - Produces:
-  - `record AuraConfig(Path claudeExe, Path codexExe, Path projectsFile, Path hookJar, Path javaExe, Path runDir, Duration idleTimeout, Duration confirmTimeout)` со статическими `load(Path yaml)` и `defaults()`
+  - `record AuraConfig(Path claudeExe, Path codexExe, Path projectsFile, Path hookJar, Path javaExe, Path runDir, Duration idleTimeout, Duration confirmTimeout)` с методом `Path socketPath()` и статическими `load(Path yaml)` и `defaults()`
   - `class TaskDispatcher` с `DispatchResult dispatch(String phrase)` и статическим
     `List<String> buildCommand(Project project, AuraConfig config, String sessionId, Path settingsFile)`
   - `sealed interface DispatchResult` с `record Sent(String projectName)` и `record ProjectUnknown()`
@@ -4773,14 +4773,29 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TaskDispatcherTest {
 
+    /** Для проверок сборки команды: каталог запуска не используется. */
     private static final AuraConfig CONFIG = new AuraConfig(
         Path.of("claude"), Path.of("codex"),
         Path.of("projects.yaml"), Path.of("C:", "aura", "aura-hook.jar"),
         Path.of("C:", "jdk", "bin", "java.exe"), Path.of("C:", "run"),
         Duration.ofMinutes(15), Duration.ofSeconds(20));
+
+    /**
+     * Для проверок отправки: диспетчер пишет файл настроек на диск, поэтому
+     * каталог запуска должен быть временным. Тест, создающий C:\run, — это
+     * тест, который гадит в системе того, кто его запустил.
+     */
+    private static AuraConfig configIn(Path runDir) {
+        return new AuraConfig(
+            Path.of("claude"), Path.of("codex"),
+            Path.of("projects.yaml"), runDir.resolve("aura-hook.jar"),
+            Path.of("C:", "jdk", "bin", "java.exe"), runDir,
+            Duration.ofMinutes(15), Duration.ofSeconds(20));
+    }
 
     private static Project project(String name, Agent agent, String... aliases) {
         return new Project(name, List.of(aliases), Path.of("C:", "work", name), agent,
@@ -4828,16 +4843,19 @@ class TaskDispatcherTest {
         assertThat(command).doesNotContain("--dangerously-bypass-approvals-and-sandbox");
     }
 
+    private static ProjectRegistry twoProjects() {
+        return new ProjectRegistry(List.of(
+            project("backend", Agent.CLAUDE, "бэкенд"),
+            project("frontend", Agent.CLAUDE, "фронтенд")));
+    }
+
     @Test
-    void phraseNamingAProjectReachesThatProjectsSession() {
+    void phraseNamingAProjectReachesThatProjectsSession(@TempDir Path tmp) {
         RecordingSession session = new RecordingSession();
         var supervisor = new SessionSupervisor((cfg, sink) -> session,
             Duration.ofMinutes(10), Clock.systemUTC());
-        var registry = new ProjectRegistry(List.of(
-            project("backend", Agent.CLAUDE, "бэкенд"),
-            project("frontend", Agent.CLAUDE, "фронтенд")));
 
-        var dispatcher = new TaskDispatcher(registry, supervisor, CONFIG, e -> {});
+        var dispatcher = new TaskDispatcher(twoProjects(), supervisor, configIn(tmp), e -> {});
         var result = dispatcher.dispatch("в проекте бэкенд почини падающие тесты");
 
         assertThat(result).isInstanceOf(TaskDispatcher.Sent.class);
@@ -4847,15 +4865,33 @@ class TaskDispatcherTest {
     }
 
     @Test
-    void phraseWithoutProjectFallsBackToTheLastActiveOne() {
+    void dispatchWritesTheSettingsFileTheCommandPointsAt(@TempDir Path tmp) throws Exception {
+        // Без этого агент получает --settings на несуществующий файл и остаётся
+        // без хука: разрешения перестают спрашиваться, и никто этого не замечает.
+        var supervisor = new SessionSupervisor((cfg, sink) -> new RecordingSession(),
+            Duration.ofMinutes(10), Clock.systemUTC());
+        AuraConfig config = configIn(tmp);
+
+        var dispatcher = new TaskDispatcher(twoProjects(), supervisor, config, e -> {});
+        dispatcher.dispatch("в проекте бэкенд почини тесты");
+
+        Path settings = tmp.resolve("backend-settings.json");
+        assertThat(settings).exists();
+        String content = java.nio.file.Files.readString(settings,
+            java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(content)
+            .contains("PreToolUse")
+            .contains(config.socketPath().toString());
+        supervisor.close();
+    }
+
+    @Test
+    void phraseWithoutProjectFallsBackToTheLastActiveOne(@TempDir Path tmp) {
         RecordingSession session = new RecordingSession();
         var supervisor = new SessionSupervisor((cfg, sink) -> session,
             Duration.ofMinutes(10), Clock.systemUTC());
-        var registry = new ProjectRegistry(List.of(
-            project("backend", Agent.CLAUDE, "бэкенд"),
-            project("frontend", Agent.CLAUDE, "фронтенд")));
 
-        var dispatcher = new TaskDispatcher(registry, supervisor, CONFIG, e -> {});
+        var dispatcher = new TaskDispatcher(twoProjects(), supervisor, configIn(tmp), e -> {});
         dispatcher.dispatch("в проекте бэкенд почини тесты");
         var result = dispatcher.dispatch("а теперь прогони линтер");
 
@@ -4865,14 +4901,11 @@ class TaskDispatcherTest {
     }
 
     @Test
-    void unnamedProjectWithoutHistoryIsReportedRatherThanGuessed() {
+    void unnamedProjectWithoutHistoryIsReportedRatherThanGuessed(@TempDir Path tmp) {
         var supervisor = new SessionSupervisor((cfg, sink) -> new RecordingSession(),
             Duration.ofMinutes(10), Clock.systemUTC());
-        var registry = new ProjectRegistry(List.of(
-            project("backend", Agent.CLAUDE, "бэкенд"),
-            project("frontend", Agent.CLAUDE, "фронтенд")));
 
-        var dispatcher = new TaskDispatcher(registry, supervisor, CONFIG, e -> {});
+        var dispatcher = new TaskDispatcher(twoProjects(), supervisor, configIn(tmp), e -> {});
         var result = dispatcher.dispatch("почини падающие тесты");
 
         assertThat(result).isInstanceOf(TaskDispatcher.ProjectUnknown.class);
@@ -4914,6 +4947,15 @@ public record AuraConfig(
     Duration idleTimeout,
     Duration confirmTimeout
 ) {
+
+    /**
+     * Единственный сокет, через который хуки говорят с приложением. Путь
+     * вычисляется в одном месте: {@code Main} слушает именно его, а
+     * {@code TaskDispatcher} именно его записывает в файл настроек агента.
+     */
+    public Path socketPath() {
+        return runDir.resolve("aura.sock");
+    }
 
     public static AuraConfig defaults() {
         Path appData = Path.of(System.getenv().getOrDefault("APPDATA",
@@ -5036,6 +5078,13 @@ public final class TaskDispatcher {
             project.name().getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
         Path settings = config.runDir().resolve(project.name() + "-settings.json");
 
+        // Файл настроек пишется перед каждым запуском, а не один раз при
+        // установке: пути к сокету и к jar меняются вместе с конфигурацией, а
+        // агент, получивший --settings на несуществующий файл, просто останется
+        // без хука — молча и без единой ошибки.
+        SettingsFileWriter.write(settings, config.socketPath(),
+            config.hookJar(), config.javaExe());
+
         SessionConfig sessionConfig = new SessionConfig(
             buildCommand(project, config, sessionId, settings), project.path(), sessionId);
 
@@ -5091,7 +5140,7 @@ public final class TaskDispatcher {
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
 Run: `mvn -q -pl aura-app -am test`
-Expected: PASS, шесть тестов `TaskDispatcherTest`.
+Expected: PASS, семь тестов `TaskDispatcherTest`.
 
 - [ ] **Step 6: Написать трей и точку входа**
 
@@ -5226,7 +5275,7 @@ public final class Main {
             ConfirmationProvider.guarded(new TrayConfirmationProvider());
 
         HookServer hookServer = new HookServer(
-            config.runDir().resolve("aura.sock"),
+            config.socketPath(),
             request -> {
                 // Самое длинное совпадение, а не первое: если в реестре есть и
                 // C:\work, и C:\work\backend, применить надо политику backend.
