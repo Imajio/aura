@@ -15,12 +15,12 @@
 
 - Устройство исполнения назначается на стадию, а не на приложение: статические
   формы на NPU, авторегрессивный декод на встроенной графике
-  ([ADR 0001](docs/adr/0001-politika-ustroystv.md)).
+  ([ADR 0001](../docs/adr/0001-politika-ustroystv.md)).
 - Озвучка запускается сменой состояния работы, а не таймером, и регулируется
-  трёхпозиционной болтливостью ([ADR 0002](docs/adr/0002-triggery-narratora.md)).
+  трёхпозиционной болтливостью ([ADR 0002](../docs/adr/0002-triggery-narratora.md)).
 - Опасные вызовы проходят через хук `PreToolUse` с отказом по умолчанию
-  ([ADR 0003](docs/adr/0003-golosovoe-podtverzhdenie.md)).
+  ([ADR 0003](../docs/adr/0003-golosovoe-podtverzhdenie.md)).
 - Сессия агента — долгоживущий процесс на проект
-  ([ADR 0004](docs/adr/0004-topologiya-sessii.md)).
+  ([ADR 0004](../docs/adr/0004-topologiya-sessii.md)).
 - Канал между хуком и приложением — сокет AF_UNIX, а не именованный канал:
   JDK 21 на Windows 11 поднимает его без нативных зависимостей.
