@@ -74,9 +74,11 @@ class CodexEventParserTest {
         CodexEventParser parser = new CodexEventParser(FIXED);
         parser.parseLine("""
             {"type":"thread.started","thread_id":"t1"}""");
+        // Команда намеренно не тест-раннер: прогон тестов станет отдельным видом
+        // события в Task 5, и этот тест должен остаться про обычный вызов.
         List<AgentEvent> events = parser.parseLine("""
             {"type":"item.completed","item":{"id":"i9","type":"command_execution",
-             "command":"pytest","exit_code":1,"aggregated_output":"1 failed"}}""");
+             "command":"git push","exit_code":1,"aggregated_output":"rejected: non-fast-forward"}}""");
 
         assertThat(events).singleElement().satisfies(e -> {
             assertThat(e.kind()).isEqualTo(EventKind.ERROR);
@@ -113,5 +115,23 @@ class CodexEventParserTest {
     void malformedLineYieldsNoEventsAndDoesNotThrow() {
         CodexEventParser parser = new CodexEventParser(FIXED);
         assertThat(parser.parseLine("{неполный")).isEmpty();
+    }
+
+    @Test
+    void longCommandOutputIsBoundedInTheHint() {
+        // Подсказка кормит языковую модель; сырой вывод сборки — это килобайты.
+        CodexEventParser parser = new CodexEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"thread.started","thread_id":"t1"}""");
+
+        String long_ = "x".repeat(500);
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"item.completed","item":{"id":"i1","type":"command_execution",
+             "command":"git status","exit_code":0,"aggregated_output":"%s"}}""".formatted(long_));
+
+        assertThat(events).singleElement().satisfies(e -> {
+            assertThat(e.summaryHint()).hasSizeLessThanOrEqualTo(201);
+            assertThat(e.summaryHint()).endsWith("…");
+        });
     }
 }

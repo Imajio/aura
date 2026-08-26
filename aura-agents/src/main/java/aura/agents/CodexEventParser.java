@@ -38,7 +38,7 @@ public final class CodexEventParser {
         try {
             root = MAPPER.readTree(jsonLine);
         } catch (Exception e) {
-            log.debug("нераспознанная строка потока codex: {}", jsonLine);
+            log.debug("нераспознанная строка потока codex: {}", SummaryText.abbreviate(jsonLine));
             return List.of();
         }
 
@@ -68,7 +68,7 @@ public final class CodexEventParser {
         if ("agent_message".equals(itemType)) {
             return started ? List.of() : List.of(base(raw)
                 .kind(EventKind.ASSISTANT_TEXT)
-                .summaryHint(item.path("text").asText(""))
+                .summaryHint(SummaryText.abbreviate(item.path("text").asText("")))
                 .build());
         }
 
@@ -99,7 +99,7 @@ public final class CodexEventParser {
             .target(target)
             .toolUseId(item.path("id").asText(""))
             .ok(ok)
-            .summaryHint(item.path("aggregated_output").asText(""))
+            .summaryHint(SummaryText.abbreviate(item.path("aggregated_output").asText("")))
             .build());
     }
 

@@ -45,7 +45,7 @@ public final class ClaudeEventParser {
         try {
             root = MAPPER.readTree(jsonLine);
         } catch (Exception e) {
-            log.debug("нераспознанная строка потока claude: {}", abbreviate(jsonLine));
+            log.debug("нераспознанная строка потока claude: {}", SummaryText.abbreviate(jsonLine));
             return List.of();
         }
 
@@ -90,7 +90,7 @@ public final class ClaudeEventParser {
                         .kind(EventKind.ASSISTANT_TEXT)
                         .toolClass(ToolClass.OTHER)
                         .target("")
-                        .summaryHint(abbreviate(text))
+                        .summaryHint(SummaryText.abbreviate(text))
                         .build());
                 }
             } else if ("tool_use".equals(blockType)) {
@@ -141,7 +141,7 @@ public final class ClaudeEventParser {
                 .target(target)
                 .toolUseId(id)
                 .ok(!isError)
-                .summaryHint(abbreviate(resultText(root, block)))
+                .summaryHint(SummaryText.abbreviate(resultText(root, block)))
                 .build());
         }
         return out;
@@ -200,11 +200,4 @@ public final class ClaudeEventParser {
         return clock.instant();
     }
 
-    private static String abbreviate(String s) {
-        if (s == null) {
-            return "";
-        }
-        String flat = s.replace('\n', ' ').replace('\r', ' ').trim();
-        return flat.length() <= 200 ? flat : flat.substring(0, 200) + "…";
-    }
 }
