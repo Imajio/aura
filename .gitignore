@@ -23,6 +23,9 @@ models/
 voice/
 recordings/
 
+# Рабочая область субагентного исполнения планов — черновики, не история
+.superpowers/
+
 # IDE
 .idea/
 .vscode/

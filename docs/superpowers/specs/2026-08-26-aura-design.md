@@ -599,25 +599,31 @@ power:
 
 ## 18. Структура репозитория
 
+Один репозиторий на весь продукт. Код, фикстуры, сайдкар и документы живут
+вместе: тест, которому нужны данные из соседнего репозитория, — это тест,
+который однажды сломается у того, кто склонировал только половину.
+
 ```
-C:\Aura
-├─ docs\
-│  ├─ PRD.md
-│  ├─ RISKS.md
-│  ├─ adr\0001..0004
-│  └─ superpowers\specs\2026-08-26-aura-design.md
-├─ testdata\fixtures\          # снятые с живых CLI потоки событий
-├─ aura\                       # Java 21, Maven multi-module
-│  ├─ pom.xml
-│  ├─ aura-core\
-│  ├─ aura-ipc\
-│  ├─ aura-agents\
-│  ├─ aura-narration\
-│  ├─ aura-policy\
-│  ├─ aura-app\
-│  └─ aura-hook\
-└─ sidecar\
-   └─ aura_speech\             # Python, OpenVINO
+C:\Aura\aura                   # корень репозитория
+├─ pom.xml                     # Java 21, Maven multi-module
+├─ aura-core\
+├─ aura-ipc\
+├─ aura-agents\
+├─ aura-narration\             # появляется в M3
+├─ aura-policy\
+├─ aura-app\
+├─ aura-hook\
+├─ sidecar\
+│  └─ aura_speech\             # Python, OpenVINO
+├─ testdata\
+│  └─ fixtures\                # снятые с живых CLI потоки событий
+└─ docs\
+   ├─ PRD.md
+   ├─ RISKS.md
+   ├─ adr\0001..0004
+   └─ superpowers\
+      ├─ specs\2026-08-26-aura-design.md
+      └─ plans\2026-08-26-aura-m1-skeleton.md
 ```
 
 ## 19. Порядок реализации

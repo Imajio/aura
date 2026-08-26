@@ -27,7 +27,7 @@
 ## Структура файлов
 
 ```
-aura/
+C:\Aura\aura   (корень репозитория)
 ├─ pom.xml                                  родительский POM, версии зависимостей
 ├─ aura-core/
 │  ├─ pom.xml
@@ -79,9 +79,12 @@ aura/
       ├─ TrayApp.java                       иконка, меню, диалог ввода
       └─ Main.java                          точка входа
 
-sidecar/
-└─ aura_speech/
-   └─ stub.py                               заглушка протокола без моделей
+├─ sidecar/
+│  └─ aura_speech/
+│     └─ stub.py                            заглушка протокола без моделей
+├─ testdata/
+│  └─ fixtures/                             потоки событий, снятые с живых CLI
+└─ docs/                                    PRD, дизайн, ADR, риски, планы
 ```
 
 Границы держатся так: `aura-core` не знает про JSON и процессы, `aura-agents` не знает про трей, `aura-policy` не знает, кто задаёт вопрос пользователю, `aura-ipc` не знает, что означают инструменты. Всё связывается только в `aura-app`.
@@ -91,17 +94,17 @@ sidecar/
 ## Task 1: Каркас сборки
 
 **Files:**
-- Create: `aura/pom.xml`
-- Create: `aura/aura-core/pom.xml`, `aura/aura-agents/pom.xml`, `aura/aura-policy/pom.xml`, `aura/aura-ipc/pom.xml`, `aura/aura-hook/pom.xml`, `aura/aura-app/pom.xml`
-- Test: `aura/aura-core/src/test/java/aura/core/BuildSmokeTest.java`
+- Create: `pom.xml`
+- Create: `aura-core/pom.xml`, `aura-agents/pom.xml`, `aura-policy/pom.xml`, `aura-ipc/pom.xml`, `aura-hook/pom.xml`, `aura-app/pom.xml`
+- Test: `aura-core/src/test/java/aura/core/BuildSmokeTest.java`
 
 **Interfaces:**
 - Consumes: ничего
-- Produces: собираемый проект; все последующие задачи выполняются командой `mvn -f aura/pom.xml test`
+- Produces: собираемый проект; все последующие задачи выполняются командой `mvn test`
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-core/src/test/java/aura/core/BuildSmokeTest.java`:
+Создать `aura-core/src/test/java/aura/core/BuildSmokeTest.java`:
 
 ```java
 package aura.core;
@@ -132,12 +135,12 @@ class BuildSmokeTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q test`
+Run: `mvn -q test`
 Expected: FAIL — `pom.xml` не существует, Maven сообщает `The specified user settings file does not exist` или `Non-readable POM`.
 
 - [ ] **Step 3: Написать родительский POM**
 
-Создать `aura/pom.xml`:
+Создать `pom.xml`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -238,7 +241,7 @@ Expected: FAIL — `pom.xml` не существует, Maven сообщает `
 
 - [ ] **Step 4: Написать POM каждого модуля**
 
-`aura/aura-core/pom.xml` — единственный модуль без зависимостей времени выполнения:
+`aura-core/pom.xml` — единственный модуль без зависимостей времени выполнения:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -255,7 +258,7 @@ Expected: FAIL — `pom.xml` не существует, Maven сообщает `
 </project>
 ```
 
-`aura/aura-agents/pom.xml`, `aura/aura-policy/pom.xml`, `aura/aura-ipc/pom.xml` — одинаковы по форме, отличаются только `<artifactId>`; каждый добавляет `aura-core`, Jackson и SLF4J:
+`aura-agents/pom.xml`, `aura-policy/pom.xml`, `aura-ipc/pom.xml` — одинаковы по форме, отличаются только `<artifactId>`; каждый добавляет `aura-core`, Jackson и SLF4J:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -290,7 +293,7 @@ Expected: FAIL — `pom.xml` не существует, Maven сообщает `
 
 Для `aura-policy` заменить `<artifactId>` на `aura-policy`. Для `aura-ipc` — на `aura-ipc`.
 
-`aura/aura-hook/pom.xml` зависит от `aura-ipc` и собирается в исполняемый jar:
+`aura-hook/pom.xml` зависит от `aura-ipc` и собирается в исполняемый jar:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -339,7 +342,7 @@ Expected: FAIL — `pom.xml` не существует, Maven сообщает `
 </project>
 ```
 
-`aura/aura-app/pom.xml` зависит от всех модулей и от SnakeYAML с Logback:
+`aura-app/pom.xml` зависит от всех модулей и от SnakeYAML с Logback:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -409,7 +412,7 @@ Expected: FAIL — `pom.xml` не существует, Maven сообщает `
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q test`
+Run: `mvn -q test`
 Expected: PASS, два теста в `BuildSmokeTest`, шесть модулей собраны.
 
 Если Maven не находит версию зависимости — поднять её в пределах той же минорной ветки в `<properties>` родительского POM и повторить. Версии в списке существуют на момент написания плана; сеть или зеркало могут отличаться.
@@ -417,7 +420,7 @@ Expected: PASS, два теста в `BuildSmokeTest`, шесть модулей
 - [ ] **Step 6: Закоммитить**
 
 ```bash
-git add aura/
+git add -A
 git commit -m "build: add Maven multi-module skeleton for M1"
 ```
 
@@ -426,12 +429,12 @@ git commit -m "build: add Maven multi-module skeleton for M1"
 ## Task 2: Доменные типы события
 
 **Files:**
-- Create: `aura/aura-core/src/main/java/aura/core/Agent.java`
-- Create: `aura/aura-core/src/main/java/aura/core/EventKind.java`
-- Create: `aura/aura-core/src/main/java/aura/core/ToolClass.java`
-- Create: `aura/aura-core/src/main/java/aura/core/AgentEvent.java`
-- Test: `aura/aura-core/src/test/java/aura/core/ToolClassTest.java`
-- Test: `aura/aura-core/src/test/java/aura/core/AgentEventTest.java`
+- Create: `aura-core/src/main/java/aura/core/Agent.java`
+- Create: `aura-core/src/main/java/aura/core/EventKind.java`
+- Create: `aura-core/src/main/java/aura/core/ToolClass.java`
+- Create: `aura-core/src/main/java/aura/core/AgentEvent.java`
+- Test: `aura-core/src/test/java/aura/core/ToolClassTest.java`
+- Test: `aura-core/src/test/java/aura/core/AgentEventTest.java`
 
 **Interfaces:**
 - Consumes: ничего
@@ -443,7 +446,7 @@ git commit -m "build: add Maven multi-module skeleton for M1"
 
 - [ ] **Step 1: Написать падающий тест на классификацию инструментов**
 
-Создать `aura/aura-core/src/test/java/aura/core/ToolClassTest.java`:
+Создать `aura-core/src/test/java/aura/core/ToolClassTest.java`:
 
 ```java
 package aura.core;
@@ -498,12 +501,12 @@ class ToolClassTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-core test`
+Run: `mvn -q -pl aura-core test`
 Expected: FAIL — компиляция не проходит, `cannot find symbol: class ToolClass`.
 
 - [ ] **Step 3: Написать перечисления**
 
-`aura/aura-core/src/main/java/aura/core/Agent.java`:
+`aura-core/src/main/java/aura/core/Agent.java`:
 
 ```java
 package aura.core;
@@ -515,7 +518,7 @@ public enum Agent {
 }
 ```
 
-`aura/aura-core/src/main/java/aura/core/EventKind.java`:
+`aura-core/src/main/java/aura/core/EventKind.java`:
 
 ```java
 package aura.core;
@@ -539,7 +542,7 @@ public enum EventKind {
 }
 ```
 
-`aura/aura-core/src/main/java/aura/core/ToolClass.java`:
+`aura-core/src/main/java/aura/core/ToolClass.java`:
 
 ```java
 package aura.core;
@@ -595,12 +598,12 @@ public enum ToolClass {
 
 - [ ] **Step 4: Запустить тест классификации и убедиться, что проходит**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-core test`
+Run: `mvn -q -pl aura-core test`
 Expected: PASS.
 
 - [ ] **Step 5: Написать падающий тест на событие**
 
-Создать `aura/aura-core/src/test/java/aura/core/AgentEventTest.java`:
+Создать `aura-core/src/test/java/aura/core/AgentEventTest.java`:
 
 ```java
 package aura.core;
@@ -656,7 +659,7 @@ class AgentEventTest {
 
 - [ ] **Step 6: Написать `AgentEvent`**
 
-`aura/aura-core/src/main/java/aura/core/AgentEvent.java`:
+`aura-core/src/main/java/aura/core/AgentEvent.java`:
 
 ```java
 package aura.core;
@@ -741,13 +744,13 @@ public record AgentEvent(
 
 - [ ] **Step 7: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-core test`
+Run: `mvn -q -pl aura-core test`
 Expected: PASS, все тесты `ToolClassTest` и `AgentEventTest`.
 
 - [ ] **Step 8: Закоммитить**
 
 ```bash
-git add aura/aura-core/
+git add aura-core/
 git commit -m "feat(core): add canonical AgentEvent and tool classification"
 ```
 
@@ -756,8 +759,8 @@ git commit -m "feat(core): add canonical AgentEvent and tool classification"
 ## Task 3: Адаптер Claude Code
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/ClaudeEventParser.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/ClaudeEventParser.java`
+- Test: `aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`
 - Читает: `testdata/fixtures/claude-stream-json-tool-call.jsonl` (менять нельзя)
 
 **Interfaces:**
@@ -766,7 +769,7 @@ git commit -m "feat(core): add canonical AgentEvent and tool classification"
 
 - [ ] **Step 1: Написать падающий тест на фикстуре**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`:
 
 ```java
 package aura.agents;
@@ -789,7 +792,7 @@ import org.junit.jupiter.api.Test;
 
 class ClaudeEventParserTest {
 
-    private static final Path FIXTURE = Path.of("..", "..", "testdata", "fixtures",
+    private static final Path FIXTURE = Path.of("..", "testdata", "fixtures",
         "claude-stream-json-tool-call.jsonl");
 
     private static final Clock FIXED =
@@ -916,12 +919,12 @@ class ClaudeEventParserTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class ClaudeEventParser`.
 
 - [ ] **Step 3: Написать парсер**
 
-`aura/aura-agents/src/main/java/aura/agents/ClaudeEventParser.java`:
+`aura-agents/src/main/java/aura/agents/ClaudeEventParser.java`:
 
 ```java
 package aura.agents;
@@ -1138,15 +1141,15 @@ public final class ClaudeEventParser {
 
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, восемь тестов.
 
-Если путь до фикстуры не находится — Maven запускает тесты с рабочим каталогом модуля (`aura/aura-agents`), поэтому `../../testdata/...` верен. При запуске из IDE выставить рабочий каталог модуля.
+Если путь до фикстуры не находится — Maven запускает тесты с рабочим каталогом модуля (`aura-agents`), поэтому `../testdata/...` верен. При запуске из IDE выставить рабочий каталог модуля.
 
 - [ ] **Step 5: Закоммитить**
 
 ```bash
-git add aura/aura-agents/
+git add aura-agents/
 git commit -m "feat(agents): normalize Claude Code stream-json into AgentEvent"
 ```
 
@@ -1155,8 +1158,8 @@ git commit -m "feat(agents): normalize Claude Code stream-json into AgentEvent"
 ## Task 4: Адаптер Codex
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/CodexEventParser.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/CodexEventParser.java`
+- Test: `aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`
 - Читает: `testdata/fixtures/codex-exec-json-simple.jsonl` (менять нельзя)
 
 **Interfaces:**
@@ -1165,7 +1168,7 @@ git commit -m "feat(agents): normalize Claude Code stream-json into AgentEvent"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`:
 
 ```java
 package aura.agents;
@@ -1188,7 +1191,7 @@ import org.junit.jupiter.api.Test;
 
 class CodexEventParserTest {
 
-    private static final Path FIXTURE = Path.of("..", "..", "testdata", "fixtures",
+    private static final Path FIXTURE = Path.of("..", "testdata", "fixtures",
         "codex-exec-json-simple.jsonl");
 
     private static final Clock FIXED =
@@ -1289,12 +1292,12 @@ class CodexEventParserTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class CodexEventParser`.
 
 - [ ] **Step 3: Написать парсер**
 
-`aura/aura-agents/src/main/java/aura/agents/CodexEventParser.java`:
+`aura-agents/src/main/java/aura/agents/CodexEventParser.java`:
 
 ```java
 package aura.agents;
@@ -1425,13 +1428,13 @@ public final class CodexEventParser {
 
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, шесть тестов `CodexEventParserTest` плюс восемь из Task 3.
 
 - [ ] **Step 5: Закоммитить**
 
 ```bash
-git add aura/aura-agents/
+git add aura-agents/
 git commit -m "feat(agents): normalize Codex exec --json into AgentEvent"
 ```
 
@@ -1440,8 +1443,8 @@ git commit -m "feat(agents): normalize Codex exec --json into AgentEvent"
 ## Task 5: Распознавание результата тестов
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/TestResultDetector.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/TestResultDetectorTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/TestResultDetector.java`
+- Test: `aura-agents/src/test/java/aura/agents/TestResultDetectorTest.java`
 
 **Interfaces:**
 - Consumes: `ToolClass.EXEC` из Task 2
@@ -1453,7 +1456,7 @@ git commit -m "feat(agents): normalize Codex exec --json into AgentEvent"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/TestResultDetectorTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/TestResultDetectorTest.java`:
 
 ```java
 package aura.agents;
@@ -1520,12 +1523,12 @@ class TestResultDetectorTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class TestResultDetector`.
 
 - [ ] **Step 3: Написать эвристику**
 
-`aura/aura-agents/src/main/java/aura/agents/TestResultDetector.java`:
+`aura-agents/src/main/java/aura/agents/TestResultDetector.java`:
 
 ```java
 package aura.agents;
@@ -1610,7 +1613,7 @@ public final class TestResultDetector {
 
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, семь тестов `TestResultDetectorTest`.
 
 - [ ] **Step 5: Написать падающий тест на подключение эвристики к обоим адаптерам**
@@ -1619,7 +1622,7 @@ Expected: PASS, семь тестов `TestResultDetectorTest`.
 триггер будущего нарратора, поэтому оно должно рождаться в адаптерах, а не
 где-то выше.
 
-Дописать в `aura/aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`:
+Дописать в `aura-agents/src/test/java/aura/agents/ClaudeEventParserTest.java`:
 
 ```java
     @Test
@@ -1681,7 +1684,7 @@ Expected: PASS, семь тестов `TestResultDetectorTest`.
     }
 ```
 
-Дописать в `aura/aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`:
+Дописать в `aura-agents/src/test/java/aura/agents/CodexEventParserTest.java`:
 
 ```java
     @Test
@@ -1769,13 +1772,13 @@ Expected: PASS, семь тестов `TestResultDetectorTest`.
 
 - [ ] **Step 8: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS — все тесты обоих адаптеров плюс три новых на `TEST_RESULT`.
 
 - [ ] **Step 9: Закоммитить**
 
 ```bash
-git add aura/aura-agents/
+git add aura-agents/
 git commit -m "feat(agents): raise test outcomes as their own event kind"
 ```
 
@@ -1784,11 +1787,11 @@ git commit -m "feat(agents): raise test outcomes as their own event kind"
 ## Task 6: Реестр проектов
 
 **Files:**
-- Create: `aura/aura-core/src/main/java/aura/core/Project.java`
-- Create: `aura/aura-core/src/main/java/aura/core/ProjectRegistry.java`
-- Create: `aura/aura-app/src/main/java/aura/app/ProjectRegistryLoader.java`
-- Test: `aura/aura-core/src/test/java/aura/core/ProjectRegistryTest.java`
-- Test: `aura/aura-app/src/test/java/aura/app/ProjectRegistryLoaderTest.java`
+- Create: `aura-core/src/main/java/aura/core/Project.java`
+- Create: `aura-core/src/main/java/aura/core/ProjectRegistry.java`
+- Create: `aura-app/src/main/java/aura/app/ProjectRegistryLoader.java`
+- Test: `aura-core/src/test/java/aura/core/ProjectRegistryTest.java`
+- Test: `aura-app/src/test/java/aura/app/ProjectRegistryLoaderTest.java`
 
 **Interfaces:**
 - Consumes: `Agent` из Task 2
@@ -1801,7 +1804,7 @@ git commit -m "feat(agents): raise test outcomes as their own event kind"
 
 - [ ] **Step 1: Написать падающий тест на сопоставление**
 
-Создать `aura/aura-core/src/test/java/aura/core/ProjectRegistryTest.java`:
+Создать `aura-core/src/test/java/aura/core/ProjectRegistryTest.java`:
 
 ```java
 package aura.core;
@@ -1869,12 +1872,12 @@ class ProjectRegistryTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-core test`
+Run: `mvn -q -pl aura-core test`
 Expected: FAIL — `cannot find symbol: class Project`.
 
 - [ ] **Step 3: Написать `Project` и `ProjectRegistry`**
 
-`aura/aura-core/src/main/java/aura/core/Project.java`:
+`aura-core/src/main/java/aura/core/Project.java`:
 
 ```java
 package aura.core;
@@ -1919,7 +1922,7 @@ public record Project(
 }
 ```
 
-`aura/aura-core/src/main/java/aura/core/ProjectRegistry.java`:
+`aura-core/src/main/java/aura/core/ProjectRegistry.java`:
 
 ```java
 package aura.core;
@@ -2018,12 +2021,12 @@ public final class ProjectRegistry {
 
 - [ ] **Step 4: Запустить тест реестра и убедиться, что проходит**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-core test`
+Run: `mvn -q -pl aura-core test`
 Expected: PASS, шесть тестов `ProjectRegistryTest`.
 
 - [ ] **Step 5: Написать падающий тест на загрузчик YAML**
 
-Создать `aura/aura-app/src/test/java/aura/app/ProjectRegistryLoaderTest.java`:
+Создать `aura-app/src/test/java/aura/app/ProjectRegistryLoaderTest.java`:
 
 ```java
 package aura.app;
@@ -2097,7 +2100,7 @@ class ProjectRegistryLoaderTest {
 
 - [ ] **Step 6: Написать загрузчик**
 
-`aura/aura-app/src/main/java/aura/app/ProjectRegistryLoader.java`:
+`aura-app/src/main/java/aura/app/ProjectRegistryLoader.java`:
 
 ```java
 package aura.app;
@@ -2188,13 +2191,13 @@ public final class ProjectRegistryLoader {
 
 - [ ] **Step 7: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q test`
+Run: `mvn -q test`
 Expected: PASS во всех модулях.
 
 - [ ] **Step 8: Закоммитить**
 
 ```bash
-git add aura/aura-core/ aura/aura-app/
+git add aura-core/ aura-app/
 git commit -m "feat(core): resolve projects by name and by spoken phrase"
 ```
 
@@ -2203,10 +2206,10 @@ git commit -m "feat(core): resolve projects by name and by spoken phrase"
 ## Task 7: Политика разрешений
 
 **Files:**
-- Create: `aura/aura-policy/src/main/java/aura/policy/Decision.java`
-- Create: `aura/aura-policy/src/main/java/aura/policy/ToolRequest.java`
-- Create: `aura/aura-policy/src/main/java/aura/policy/PermissionPolicy.java`
-- Test: `aura/aura-policy/src/test/java/aura/policy/PermissionPolicyTest.java`
+- Create: `aura-policy/src/main/java/aura/policy/Decision.java`
+- Create: `aura-policy/src/main/java/aura/policy/ToolRequest.java`
+- Create: `aura-policy/src/main/java/aura/policy/PermissionPolicy.java`
+- Test: `aura-policy/src/test/java/aura/policy/PermissionPolicyTest.java`
 
 **Interfaces:**
 - Consumes: `Project` из Task 6
@@ -2217,7 +2220,7 @@ git commit -m "feat(core): resolve projects by name and by spoken phrase"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-policy/src/test/java/aura/policy/PermissionPolicyTest.java`:
+Создать `aura-policy/src/test/java/aura/policy/PermissionPolicyTest.java`:
 
 ```java
 package aura.policy;
@@ -2305,12 +2308,12 @@ class PermissionPolicyTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-policy -am test`
+Run: `mvn -q -pl aura-policy -am test`
 Expected: FAIL — `cannot find symbol: class PermissionPolicy`.
 
 - [ ] **Step 3: Написать типы и политику**
 
-`aura/aura-policy/src/main/java/aura/policy/Decision.java`:
+`aura-policy/src/main/java/aura/policy/Decision.java`:
 
 ```java
 package aura.policy;
@@ -2323,7 +2326,7 @@ public enum Decision {
 }
 ```
 
-`aura/aura-policy/src/main/java/aura/policy/ToolRequest.java`:
+`aura-policy/src/main/java/aura/policy/ToolRequest.java`:
 
 ```java
 package aura.policy;
@@ -2344,7 +2347,7 @@ public record ToolRequest(String toolName, String toolInputJson, Path cwd) {
 }
 ```
 
-`aura/aura-policy/src/main/java/aura/policy/PermissionPolicy.java`:
+`aura-policy/src/main/java/aura/policy/PermissionPolicy.java`:
 
 ```java
 package aura.policy;
@@ -2449,13 +2452,13 @@ public final class PermissionPolicy {
 
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-policy -am test`
+Run: `mvn -q -pl aura-policy -am test`
 Expected: PASS, девять тестов.
 
 - [ ] **Step 5: Закоммитить**
 
 ```bash
-git add aura/aura-policy/
+git add aura-policy/
 git commit -m "feat(policy): classify tool calls as allow, confirm or deny"
 ```
 
@@ -2464,9 +2467,9 @@ git commit -m "feat(policy): classify tool calls as allow, confirm or deny"
 ## Task 8: Подтверждение и отказ по умолчанию
 
 **Files:**
-- Create: `aura/aura-policy/src/main/java/aura/policy/ConfirmationProvider.java`
-- Create: `aura/aura-policy/src/main/java/aura/policy/TrayConfirmationProvider.java`
-- Test: `aura/aura-policy/src/test/java/aura/policy/ConfirmationProviderTest.java`
+- Create: `aura-policy/src/main/java/aura/policy/ConfirmationProvider.java`
+- Create: `aura-policy/src/main/java/aura/policy/TrayConfirmationProvider.java`
+- Test: `aura-policy/src/test/java/aura/policy/ConfirmationProviderTest.java`
 
 **Interfaces:**
 - Consumes: `Decision`, `ToolRequest` из Task 7
@@ -2478,7 +2481,7 @@ git commit -m "feat(policy): classify tool calls as allow, confirm or deny"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-policy/src/test/java/aura/policy/ConfirmationProviderTest.java`:
+Создать `aura-policy/src/test/java/aura/policy/ConfirmationProviderTest.java`:
 
 ```java
 package aura.policy;
@@ -2557,12 +2560,12 @@ class ConfirmationProviderTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-policy -am test`
+Run: `mvn -q -pl aura-policy -am test`
 Expected: FAIL — `cannot find symbol: interface ConfirmationProvider`.
 
 - [ ] **Step 3: Написать интерфейс с защитой**
 
-`aura/aura-policy/src/main/java/aura/policy/ConfirmationProvider.java`:
+`aura-policy/src/main/java/aura/policy/ConfirmationProvider.java`:
 
 ```java
 package aura.policy;
@@ -2639,7 +2642,7 @@ public interface ConfirmationProvider {
 
 - [ ] **Step 4: Написать диалог трея**
 
-`aura/aura-policy/src/main/java/aura/policy/TrayConfirmationProvider.java`:
+`aura-policy/src/main/java/aura/policy/TrayConfirmationProvider.java`:
 
 ```java
 package aura.policy;
@@ -2706,7 +2709,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-policy -am test`
+Run: `mvn -q -pl aura-policy -am test`
 Expected: PASS, шесть тестов `ConfirmationProviderTest`.
 
 `TrayConfirmationProvider` автотестом не покрывается: он открывает окно. Его проверка — ручной шаг в Task 14.
@@ -2714,7 +2717,7 @@ Expected: PASS, шесть тестов `ConfirmationProviderTest`.
 - [ ] **Step 6: Закоммитить**
 
 ```bash
-git add aura/aura-policy/
+git add aura-policy/
 git commit -m "feat(policy): add confirmation gate that defaults to deny"
 ```
 
@@ -2723,11 +2726,11 @@ git commit -m "feat(policy): add confirmation gate that defaults to deny"
 ## Task 9: Канал между хуком и приложением
 
 **Files:**
-- Create: `aura/aura-ipc/src/main/java/aura/ipc/HookRequest.java`
-- Create: `aura/aura-ipc/src/main/java/aura/ipc/HookResponse.java`
-- Create: `aura/aura-ipc/src/main/java/aura/ipc/HookServer.java`
-- Create: `aura/aura-ipc/src/main/java/aura/ipc/HookClient.java`
-- Test: `aura/aura-ipc/src/test/java/aura/ipc/HookChannelTest.java`
+- Create: `aura-ipc/src/main/java/aura/ipc/HookRequest.java`
+- Create: `aura-ipc/src/main/java/aura/ipc/HookResponse.java`
+- Create: `aura-ipc/src/main/java/aura/ipc/HookServer.java`
+- Create: `aura-ipc/src/main/java/aura/ipc/HookClient.java`
+- Test: `aura-ipc/src/test/java/aura/ipc/HookChannelTest.java`
 
 **Interfaces:**
 - Consumes: ничего из предыдущих задач (модуль намеренно не знает про `Decision`)
@@ -2741,7 +2744,7 @@ git commit -m "feat(policy): add confirmation gate that defaults to deny"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-ipc/src/test/java/aura/ipc/HookChannelTest.java`:
+Создать `aura-ipc/src/test/java/aura/ipc/HookChannelTest.java`:
 
 ```java
 package aura.ipc;
@@ -2827,12 +2830,12 @@ class HookChannelTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-ipc -am test`
+Run: `mvn -q -pl aura-ipc -am test`
 Expected: FAIL — `cannot find symbol: class HookServer`.
 
 - [ ] **Step 3: Написать типы запроса и ответа**
 
-`aura/aura-ipc/src/main/java/aura/ipc/HookRequest.java`:
+`aura-ipc/src/main/java/aura/ipc/HookRequest.java`:
 
 ```java
 package aura.ipc;
@@ -2842,7 +2845,7 @@ public record HookRequest(String sessionId, String toolName, String toolInputJso
 }
 ```
 
-`aura/aura-ipc/src/main/java/aura/ipc/HookResponse.java`:
+`aura-ipc/src/main/java/aura/ipc/HookResponse.java`:
 
 ```java
 package aura.ipc;
@@ -2861,7 +2864,7 @@ public record HookResponse(String permissionDecision, String reason) {
 
 - [ ] **Step 4: Написать сервер и клиент**
 
-`aura/aura-ipc/src/main/java/aura/ipc/HookServer.java`:
+`aura-ipc/src/main/java/aura/ipc/HookServer.java`:
 
 ```java
 package aura.ipc;
@@ -2985,7 +2988,7 @@ public final class HookServer implements AutoCloseable {
 }
 ```
 
-`aura/aura-ipc/src/main/java/aura/ipc/HookClient.java`:
+`aura-ipc/src/main/java/aura/ipc/HookClient.java`:
 
 ```java
 package aura.ipc;
@@ -3057,13 +3060,13 @@ public final class HookClient {
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-ipc -am test`
+Run: `mvn -q -pl aura-ipc -am test`
 Expected: PASS, пять тестов `HookChannelTest`.
 
 - [ ] **Step 6: Закоммитить**
 
 ```bash
-git add aura/aura-ipc/
+git add aura-ipc/
 git commit -m "feat(ipc): connect hook processes over an AF_UNIX socket"
 ```
 
@@ -3072,10 +3075,10 @@ git commit -m "feat(ipc): connect hook processes over an AF_UNIX socket"
 ## Task 10: Исполняемый хук и файл настроек агента
 
 **Files:**
-- Create: `aura/aura-hook/src/main/java/aura/hook/HookMain.java`
-- Create: `aura/aura-app/src/main/java/aura/app/SettingsFileWriter.java`
-- Test: `aura/aura-hook/src/test/java/aura/hook/HookMainTest.java`
-- Test: `aura/aura-app/src/test/java/aura/app/SettingsFileWriterTest.java`
+- Create: `aura-hook/src/main/java/aura/hook/HookMain.java`
+- Create: `aura-app/src/main/java/aura/app/SettingsFileWriter.java`
+- Test: `aura-hook/src/test/java/aura/hook/HookMainTest.java`
+- Test: `aura-app/src/test/java/aura/app/SettingsFileWriterTest.java`
 
 **Interfaces:**
 - Consumes: `HookRequest`, `HookResponse`, `HookClient`, `HookServer` из Task 9
@@ -3134,7 +3137,7 @@ for line in open('probe.jsonl', encoding='utf-8'):
 
 - [ ] **Step 2: Написать падающий тест хука**
 
-Создать `aura/aura-hook/src/test/java/aura/hook/HookMainTest.java`:
+Создать `aura-hook/src/test/java/aura/hook/HookMainTest.java`:
 
 ```java
 package aura.hook;
@@ -3211,12 +3214,12 @@ class HookMainTest {
 
 - [ ] **Step 3: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-hook -am test`
+Run: `mvn -q -pl aura-hook -am test`
 Expected: FAIL — `cannot find symbol: class HookMain`.
 
 - [ ] **Step 4: Написать хук**
 
-`aura/aura-hook/src/main/java/aura/hook/HookMain.java`:
+`aura-hook/src/main/java/aura/hook/HookMain.java`:
 
 ```java
 package aura.hook;
@@ -3298,7 +3301,7 @@ public final class HookMain {
 
 - [ ] **Step 5: Написать генератор файла настроек**
 
-Создать `aura/aura-app/src/test/java/aura/app/SettingsFileWriterTest.java`:
+Создать `aura-app/src/test/java/aura/app/SettingsFileWriterTest.java`:
 
 ```java
 package aura.app;
@@ -3350,7 +3353,7 @@ class SettingsFileWriterTest {
 }
 ```
 
-`aura/aura-app/src/main/java/aura/app/SettingsFileWriter.java`:
+`aura-app/src/main/java/aura/app/SettingsFileWriter.java`:
 
 ```java
 package aura.app;
@@ -3418,13 +3421,13 @@ public final class SettingsFileWriter {
 
 - [ ] **Step 6: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q test`
+Run: `mvn -q test`
 Expected: PASS во всех модулях, включая четыре теста `HookMainTest` и два `SettingsFileWriterTest`.
 
 - [ ] **Step 7: Закоммитить**
 
 ```bash
-git add aura/aura-hook/ aura/aura-app/
+git add aura-hook/ aura-app/
 git commit -m "feat(hook): ask Aura before each tool call, deny when unreachable"
 ```
 
@@ -3433,11 +3436,11 @@ git commit -m "feat(hook): ask Aura before each tool call, deny when unreachable
 ## Task 11: Долгоживущая сессия агента
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/SessionConfig.java`
-- Create: `aura/aura-agents/src/main/java/aura/agents/AgentSession.java`
-- Create: `aura/aura-agents/src/main/java/aura/agents/ClaudeSession.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/FakeAgentMain.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/ClaudeSessionTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/SessionConfig.java`
+- Create: `aura-agents/src/main/java/aura/agents/AgentSession.java`
+- Create: `aura-agents/src/main/java/aura/agents/ClaudeSession.java`
+- Test: `aura-agents/src/test/java/aura/agents/FakeAgentMain.java`
+- Test: `aura-agents/src/test/java/aura/agents/ClaudeSessionTest.java`
 
 **Interfaces:**
 - Consumes: `ClaudeEventParser` из Task 3, `AgentEvent` из Task 2
@@ -3450,7 +3453,7 @@ git commit -m "feat(hook): ask Aura before each tool call, deny when unreachable
 
 - [ ] **Step 1: Написать поддельного агента**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/FakeAgentMain.java`:
+Создать `aura-agents/src/test/java/aura/agents/FakeAgentMain.java`:
 
 ```java
 package aura.agents;
@@ -3511,7 +3514,7 @@ public final class FakeAgentMain {
 
 - [ ] **Step 2: Написать падающий тест сессии**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/ClaudeSessionTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/ClaudeSessionTest.java`:
 
 ```java
 package aura.agents;
@@ -3595,7 +3598,7 @@ class ClaudeSessionTest {
 }
 ```
 
-Добавить в `aura/aura-agents/pom.xml` тестовую зависимость Awaitility, а в родительский POM — её версию:
+Добавить в `aura-agents/pom.xml` тестовую зависимость Awaitility, а в родительский POM — её версию:
 
 ```xml
 <!-- в <properties> родительского POM -->
@@ -3618,12 +3621,12 @@ class ClaudeSessionTest {
 
 - [ ] **Step 3: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class ClaudeSession`.
 
 - [ ] **Step 4: Написать типы сессии**
 
-`aura/aura-agents/src/main/java/aura/agents/SessionConfig.java`:
+`aura-agents/src/main/java/aura/agents/SessionConfig.java`:
 
 ```java
 package aura.agents;
@@ -3651,7 +3654,7 @@ public record SessionConfig(List<String> command, Path workingDir, String sessio
 }
 ```
 
-`aura/aura-agents/src/main/java/aura/agents/AgentSession.java`:
+`aura-agents/src/main/java/aura/agents/AgentSession.java`:
 
 ```java
 package aura.agents;
@@ -3677,7 +3680,7 @@ public interface AgentSession extends AutoCloseable {
 
 - [ ] **Step 5: Написать `ClaudeSession`**
 
-`aura/aura-agents/src/main/java/aura/agents/ClaudeSession.java`:
+`aura-agents/src/main/java/aura/agents/ClaudeSession.java`:
 
 ```java
 package aura.agents;
@@ -3811,13 +3814,13 @@ public final class ClaudeSession implements AgentSession {
 
 - [ ] **Step 6: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, четыре теста `ClaudeSessionTest`.
 
 - [ ] **Step 7: Закоммитить**
 
 ```bash
-git add aura/aura-agents/ aura/pom.xml
+git add aura-agents/ pom.xml
 git commit -m "feat(agents): keep one long-lived Claude process per project"
 ```
 
@@ -3826,8 +3829,8 @@ git commit -m "feat(agents): keep one long-lived Claude process per project"
 ## Task 12: Супервизор сессий
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/SessionSupervisor.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/SessionSupervisorTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/SessionSupervisor.java`
+- Test: `aura-agents/src/test/java/aura/agents/SessionSupervisorTest.java`
 
 **Interfaces:**
 - Consumes: `AgentSession`, `SessionConfig`, `ClaudeSession.start` из Task 11
@@ -3840,7 +3843,7 @@ git commit -m "feat(agents): keep one long-lived Claude process per project"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/SessionSupervisorTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/SessionSupervisorTest.java`:
 
 ```java
 package aura.agents;
@@ -4006,12 +4009,12 @@ class SessionSupervisorTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class SessionSupervisor`.
 
 - [ ] **Step 3: Написать супервизор**
 
-`aura/aura-agents/src/main/java/aura/agents/SessionSupervisor.java`:
+`aura-agents/src/main/java/aura/agents/SessionSupervisor.java`:
 
 ```java
 package aura.agents;
@@ -4115,13 +4118,13 @@ public final class SessionSupervisor implements AutoCloseable {
 
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, семь тестов `SessionSupervisorTest`.
 
 - [ ] **Step 5: Закоммитить**
 
 ```bash
-git add aura/aura-agents/
+git add aura-agents/
 git commit -m "feat(agents): supervise one session per project with idle timeout"
 ```
 
@@ -4131,8 +4134,8 @@ git commit -m "feat(agents): supervise one session per project with idle timeout
 
 **Files:**
 - Create: `sidecar/aura_speech/stub.py`
-- Create: `aura/aura-ipc/src/main/java/aura/ipc/SpeechClient.java`
-- Test: `aura/aura-ipc/src/test/java/aura/ipc/SpeechClientTest.java`
+- Create: `aura-ipc/src/main/java/aura/ipc/SpeechClient.java`
+- Test: `aura-ipc/src/test/java/aura/ipc/SpeechClientTest.java`
 
 **Interfaces:**
 - Consumes: ничего из предыдущих задач
@@ -4211,7 +4214,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Написать падающий тест контракта**
 
-Создать `aura/aura-ipc/src/test/java/aura/ipc/SpeechClientTest.java`:
+Создать `aura-ipc/src/test/java/aura/ipc/SpeechClientTest.java`:
 
 ```java
 package aura.ipc;
@@ -4232,7 +4235,7 @@ import org.junit.jupiter.api.Test;
 
 class SpeechClientTest {
 
-    private static final Path STUB = Path.of("..", "..", "sidecar", "aura_speech", "stub.py");
+    private static final Path STUB = Path.of("..", "sidecar", "aura_speech", "stub.py");
 
     private static String python() {
         String fromEnv = System.getenv("AURA_PYTHON");
@@ -4323,16 +4326,16 @@ class SpeechClientTest {
 }
 ```
 
-Добавить Awaitility в тестовые зависимости `aura/aura-ipc/pom.xml` тем же блоком, что и в Task 11.
+Добавить Awaitility в тестовые зависимости `aura-ipc/pom.xml` тем же блоком, что и в Task 11.
 
 - [ ] **Step 3: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-ipc -am test`
+Run: `mvn -q -pl aura-ipc -am test`
 Expected: FAIL — `cannot find symbol: class SpeechClient`.
 
 - [ ] **Step 4: Написать клиент**
 
-`aura/aura-ipc/src/main/java/aura/ipc/SpeechClient.java`:
+`aura-ipc/src/main/java/aura/ipc/SpeechClient.java`:
 
 ```java
 package aura.ipc;
@@ -4441,7 +4444,7 @@ public final class SpeechClient implements AutoCloseable {
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-ipc -am test`
+Run: `mvn -q -pl aura-ipc -am test`
 Expected: PASS, пять тестов `SpeechClientTest` плюс пять из Task 9.
 
 Если Python называется иначе — выставить `AURA_PYTHON` и повторить.
@@ -4449,7 +4452,7 @@ Expected: PASS, пять тестов `SpeechClientTest` плюс пять из 
 - [ ] **Step 6: Закоммитить**
 
 ```bash
-git add sidecar/ aura/aura-ipc/
+git add sidecar/ aura-ipc/
 git commit -m "feat(ipc): pin the sidecar JSON-lines contract with a model-free stub"
 ```
 
@@ -4458,9 +4461,9 @@ git commit -m "feat(ipc): pin the sidecar JSON-lines contract with a model-free 
 ## Task 14: Сессия Codex
 
 **Files:**
-- Create: `aura/aura-agents/src/main/java/aura/agents/CodexSession.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/FakeCodexMain.java`
-- Test: `aura/aura-agents/src/test/java/aura/agents/CodexSessionTest.java`
+- Create: `aura-agents/src/main/java/aura/agents/CodexSession.java`
+- Test: `aura-agents/src/test/java/aura/agents/FakeCodexMain.java`
+- Test: `aura-agents/src/test/java/aura/agents/CodexSessionTest.java`
 
 **Interfaces:**
 - Consumes: `AgentSession`, `SessionConfig` из Task 11, `CodexEventParser` из Task 4
@@ -4471,7 +4474,7 @@ git commit -m "feat(ipc): pin the sidecar JSON-lines contract with a model-free 
 
 - [ ] **Step 1: Написать поддельного Codex**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/FakeCodexMain.java`:
+Создать `aura-agents/src/test/java/aura/agents/FakeCodexMain.java`:
 
 ```java
 package aura.agents;
@@ -4515,7 +4518,7 @@ public final class FakeCodexMain {
 
 - [ ] **Step 2: Написать падающий тест**
 
-Создать `aura/aura-agents/src/test/java/aura/agents/CodexSessionTest.java`:
+Создать `aura-agents/src/test/java/aura/agents/CodexSessionTest.java`:
 
 ```java
 package aura.agents;
@@ -4595,12 +4598,12 @@ class CodexSessionTest {
 
 - [ ] **Step 3: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: FAIL — `cannot find symbol: class CodexSession`.
 
 - [ ] **Step 4: Написать сессию**
 
-`aura/aura-agents/src/main/java/aura/agents/CodexSession.java`:
+`aura-agents/src/main/java/aura/agents/CodexSession.java`:
 
 ```java
 package aura.agents;
@@ -4718,13 +4721,13 @@ public final class CodexSession implements AgentSession {
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-agents -am test`
+Run: `mvn -q -pl aura-agents -am test`
 Expected: PASS, три теста `CodexSessionTest`.
 
 - [ ] **Step 6: Закоммитить**
 
 ```bash
-git add aura/aura-agents/
+git add aura-agents/
 git commit -m "feat(agents): run Codex turns via exec and exec resume --last"
 ```
 
@@ -4733,12 +4736,12 @@ git commit -m "feat(agents): run Codex turns via exec and exec resume --last"
 ## Task 15: Сборка приложения, трей и живая проверка
 
 **Files:**
-- Create: `aura/aura-app/src/main/java/aura/app/AuraConfig.java`
-- Create: `aura/aura-app/src/main/java/aura/app/TaskDispatcher.java`
-- Create: `aura/aura-app/src/main/java/aura/app/TrayApp.java`
-- Create: `aura/aura-app/src/main/java/aura/app/Main.java`
-- Create: `aura/aura-app/src/main/resources/logback.xml`
-- Test: `aura/aura-app/src/test/java/aura/app/TaskDispatcherTest.java`
+- Create: `aura-app/src/main/java/aura/app/AuraConfig.java`
+- Create: `aura-app/src/main/java/aura/app/TaskDispatcher.java`
+- Create: `aura-app/src/main/java/aura/app/TrayApp.java`
+- Create: `aura-app/src/main/java/aura/app/Main.java`
+- Create: `aura-app/src/main/resources/logback.xml`
+- Test: `aura-app/src/test/java/aura/app/TaskDispatcherTest.java`
 
 **Interfaces:**
 - Consumes: `ProjectRegistry` (Task 6), `PermissionPolicy` + `ConfirmationProvider` (Task 7, 8), `HookServer` (Task 9), `SettingsFileWriter` (Task 10), `SessionSupervisor` + `ClaudeSession` + `CodexSession` (Task 11, 12, 14)
@@ -4751,7 +4754,7 @@ git commit -m "feat(agents): run Codex turns via exec and exec resume --last"
 
 - [ ] **Step 1: Написать падающий тест сборки команды и маршрутизации**
 
-Создать `aura/aura-app/src/test/java/aura/app/TaskDispatcherTest.java`:
+Создать `aura-app/src/test/java/aura/app/TaskDispatcherTest.java`:
 
 ```java
 package aura.app;
@@ -4880,12 +4883,12 @@ class TaskDispatcherTest {
 
 - [ ] **Step 2: Запустить и убедиться, что падает**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-app -am test`
+Run: `mvn -q -pl aura-app -am test`
 Expected: FAIL — `cannot find symbol: class AuraConfig`.
 
 - [ ] **Step 3: Написать конфигурацию**
 
-`aura/aura-app/src/main/java/aura/app/AuraConfig.java`:
+`aura-app/src/main/java/aura/app/AuraConfig.java`:
 
 ```java
 package aura.app;
@@ -4966,7 +4969,7 @@ public record AuraConfig(
 
 - [ ] **Step 4: Написать диспетчер**
 
-`aura/aura-app/src/main/java/aura/app/TaskDispatcher.java`:
+`aura-app/src/main/java/aura/app/TaskDispatcher.java`:
 
 ```java
 package aura.app;
@@ -5087,12 +5090,12 @@ public final class TaskDispatcher {
 
 - [ ] **Step 5: Запустить тесты и убедиться, что проходят**
 
-Run: `mvn -f aura/pom.xml -q -pl aura-app -am test`
+Run: `mvn -q -pl aura-app -am test`
 Expected: PASS, шесть тестов `TaskDispatcherTest`.
 
 - [ ] **Step 6: Написать трей и точку входа**
 
-`aura/aura-app/src/main/java/aura/app/TrayApp.java`:
+`aura-app/src/main/java/aura/app/TrayApp.java`:
 
 ```java
 package aura.app;
@@ -5175,7 +5178,7 @@ public final class TrayApp {
 }
 ```
 
-`aura/aura-app/src/main/java/aura/app/Main.java`:
+`aura-app/src/main/java/aura/app/Main.java`:
 
 ```java
 package aura.app;
@@ -5292,7 +5295,7 @@ public final class Main {
 }
 ```
 
-`aura/aura-app/src/main/resources/logback.xml`:
+`aura-app/src/main/resources/logback.xml`:
 
 ```xml
 <configuration>
@@ -5310,9 +5313,9 @@ public final class Main {
 
 - [ ] **Step 7: Собрать всё и убедиться, что тесты зелёные**
 
-Run: `mvn -f aura/pom.xml -q clean package`
-Expected: BUILD SUCCESS, все тесты проходят, собраны `aura/aura-hook/target/aura-hook.jar`
-и `aura/aura-app/target/aura-app.jar`.
+Run: `mvn -q clean package`
+Expected: BUILD SUCCESS, все тесты проходят, собраны `aura-hook/target/aura-hook.jar`
+и `aura-app/target/aura-app.jar`.
 
 Прописать реальный путь к `aura-hook.jar` в `%APPDATA%\Aura\config.yaml`:
 
@@ -5328,7 +5331,7 @@ hookJar: C:\Aura\aura\aura-hook\target\aura-hook.jar
 projects:
   - name: sandbox
     aliases: ["песочница", "sandbox"]
-    path: C:\Aura\testdata\sandbox
+    path: C:\Aura\aura\testdata\sandbox
     agent: claude
     allow: ["Read", "Grep", "Glob"]
     confirm: ["Bash", "Write", "Edit"]
@@ -5338,8 +5341,8 @@ projects:
 Создать каталог `C:\Aura\testdata\sandbox` с одним файлом внутри, затем запустить:
 
 ```bash
-mkdir -p /c/Aura/testdata/sandbox && echo "hello" > /c/Aura/testdata/sandbox/readme.txt
-java -jar aura/aura-app/target/aura-app.jar
+mkdir -p /c/Aura/aura/testdata/sandbox && echo "hello" > /c/Aura/aura/testdata/sandbox/readme.txt
+java -jar aura-app/target/aura-app.jar
 ```
 
 Проверить по очереди:
@@ -5358,7 +5361,7 @@ RISK-6 уже закрыт в Task 10 скриптом-заглушкой: фо�
 наш `aura-hook`, сокет, политика проекта и окно подтверждения работают вместе.
 
 ```bash
-cd /c/Aura/testdata/sandbox
+cd /c/Aura/aura/testdata/sandbox
 echo 'Run the bash command: dir' | claude -p --output-format stream-json --verbose \
   --settings "$LOCALAPPDATA/Aura/run/sandbox-settings.json" > /tmp/hook-check.jsonl
 python -c "
@@ -5380,7 +5383,7 @@ for l in open('/tmp/hook-check.jsonl', encoding='utf-8'):
 - [ ] **Step 10: Закоммитить**
 
 ```bash
-git add aura/ docs/RISKS.md
+git add -A
 git commit -m "feat(app): wire tray, dispatcher and permission hook into a running M1"
 ```
 
@@ -5390,7 +5393,7 @@ git commit -m "feat(app): wire tray, dispatcher and permission hook into a runni
 
 Этап считается сделанным, когда:
 
-1. `mvn -f aura/pom.xml clean package` зелёный, все тесты проходят.
+1. `mvn clean package` зелёный, все тесты проходят.
 2. Задача, введённая текстом в трее, доходит до настоящего агента в настоящем проекте.
 3. В логе виден поток канонических событий, а не сырой JSON обоих CLI.
 4. Опасный вызов поднимает окно подтверждения; отказ и таймаут не пускают вызов.

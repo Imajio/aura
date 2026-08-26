@@ -19,6 +19,8 @@
 | [ADR 0002](docs/adr/0002-triggery-narratora.md) | когда приложение открывает рот |
 | [ADR 0003](docs/adr/0003-golosovoe-podtverzhdenie.md) | разрешения и голосовое подтверждение |
 | [ADR 0004](docs/adr/0004-topologiya-sessii.md) | как держится сессия агента |
+| [План M1](docs/superpowers/plans/2026-08-26-aura-m1-skeleton.md) | первый этап, по шагам |
+| [CONTRIBUTING](CONTRIBUTING.md) | ветки, коммиты, тесты, что не коммитить |
 
 ## Целевая платформа
 
@@ -28,8 +30,19 @@ Core Ultra 9 285H: NPU архитектуры 3720, Arc 140T, OpenVINO 2026.3.
 ## Раскладка
 
 ```
-docs\           требования, дизайн, решения, риски
-testdata\       потоки событий, снятые с живых claude и codex
-aura\           Java 21, Maven multi-module — оркестрация
+pom.xml         родительский POM, Java 21, Maven multi-module
+aura-*\         модули оркестрации
 sidecar\        Python, OpenVINO — звук и все модели
+testdata\       потоки событий, снятые с живых claude и codex
+docs\           требования, дизайн, решения, риски
 ```
+
+## Сборка
+
+```bash
+mvn clean package        # всё, включая тесты
+mvn -q -pl aura-core test
+java -jar aura-app/target/aura-app.jar
+```
+
+Работа над кодом ведётся по правилам из [CONTRIBUTING.md](CONTRIBUTING.md).
