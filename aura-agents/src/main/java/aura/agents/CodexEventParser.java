@@ -93,13 +93,26 @@ public final class CodexEventParser {
         }
 
         boolean ok = !item.hasNonNull("exit_code") || item.get("exit_code").asInt() == 0;
+        String output = item.path("aggregated_output").asText("");
+        EventKind kind = ok ? EventKind.TOOL_END : EventKind.ERROR;
+        String hint = SummaryText.abbreviate(output);
+
+        if (kind == EventKind.TOOL_END && cls == ToolClass.EXEC) {
+            var outcome = TestResultDetector.detect(target, output);
+            if (outcome.isPresent()) {
+                kind = EventKind.TEST_RESULT;
+                ok = outcome.get().ok();
+                hint = outcome.get().passed() + " passed, " + outcome.get().failed() + " failed";
+            }
+        }
+
         return List.of(base(raw)
-            .kind(ok ? EventKind.TOOL_END : EventKind.ERROR)
+            .kind(kind)
             .toolClass(cls)
             .target(target)
             .toolUseId(item.path("id").asText(""))
             .ok(ok)
-            .summaryHint(SummaryText.abbreviate(item.path("aggregated_output").asText("")))
+            .summaryHint(hint)
             .build());
     }
 

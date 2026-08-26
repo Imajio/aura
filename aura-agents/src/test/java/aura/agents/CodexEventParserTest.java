@@ -134,4 +134,20 @@ class CodexEventParserTest {
             assertThat(e.summaryHint()).endsWith("…");
         });
     }
+
+    @Test
+    void testRunnerCommandBecomesTestResult() {
+        CodexEventParser parser = new CodexEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"thread.started","thread_id":"t1"}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"item.completed","item":{"id":"i1","type":"command_execution",
+             "command":"pytest -q","exit_code":0,"aggregated_output":"4 passed in 0.2s"}}""");
+
+        assertThat(events).singleElement().satisfies(e -> {
+            assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
+            assertThat(e.ok()).isTrue();
+        });
+    }
 }

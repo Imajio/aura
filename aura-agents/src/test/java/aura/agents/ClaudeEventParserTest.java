@@ -140,4 +140,62 @@ class ClaudeEventParserTest {
         assertThat(parser.parseLine("это не json")).isEmpty();
         assertThat(parser.parseLine("")).isEmpty();
     }
+
+    @Test
+    void successfulTestRunBecomesTestResultRatherThanPlainToolEnd() {
+        ClaudeEventParser parser = new ClaudeEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"system","subtype":"init","session_id":"s1","cwd":"C:/x"}""");
+        parser.parseLine("""
+            {"type":"assistant","session_id":"s1","message":{"content":[
+              {"type":"tool_use","id":"toolu_t","name":"Bash","input":{"command":"pytest -q"}}]}}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"user","session_id":"s1","message":{"content":[
+              {"type":"tool_result","tool_use_id":"toolu_t","content":"4 passed in 0.3s","is_error":false}]},
+             "tool_use_result":{"stdout":"4 passed in 0.3s","stderr":""}}""");
+
+        assertThat(events).singleElement().satisfies(e -> {
+            assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
+            assertThat(e.ok()).isTrue();
+            assertThat(e.summaryHint()).contains("4").contains("passed");
+        });
+    }
+
+    @Test
+    void failingTestRunIsTestResultWithOkFalse() {
+        ClaudeEventParser parser = new ClaudeEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"system","subtype":"init","session_id":"s1","cwd":"C:/x"}""");
+        parser.parseLine("""
+            {"type":"assistant","session_id":"s1","message":{"content":[
+              {"type":"tool_use","id":"toolu_t","name":"Bash","input":{"command":"pytest"}}]}}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"user","session_id":"s1","message":{"content":[
+              {"type":"tool_result","tool_use_id":"toolu_t","content":"3 passed, 1 failed","is_error":false}]},
+             "tool_use_result":{"stdout":"3 passed, 1 failed","stderr":""}}""");
+
+        assertThat(events).singleElement().satisfies(e -> {
+            assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
+            assertThat(e.ok()).isFalse();
+        });
+    }
+
+    @Test
+    void ordinaryCommandStaysToolEnd() {
+        ClaudeEventParser parser = new ClaudeEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"system","subtype":"init","session_id":"s1","cwd":"C:/x"}""");
+        parser.parseLine("""
+            {"type":"assistant","session_id":"s1","message":{"content":[
+              {"type":"tool_use","id":"toolu_g","name":"Bash","input":{"command":"git status"}}]}}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"user","session_id":"s1","message":{"content":[
+              {"type":"tool_result","tool_use_id":"toolu_g","content":"clean","is_error":false}]}}""");
+
+        assertThat(events).singleElement()
+            .satisfies(e -> assertThat(e.kind()).isEqualTo(EventKind.TOOL_END));
+    }
 }

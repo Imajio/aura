@@ -135,13 +135,28 @@ public final class ClaudeEventParser {
                 : subagent ? EventKind.SUBAGENT_END
                 : EventKind.TOOL_END;
 
+            String output = resultText(root, block);
+            String hint = SummaryText.abbreviate(output);
+            Boolean ok = !isError;
+
+            // Результат тестов — отдельный вид события: это главная новость в
+            // работе агента, и нарратор обязан отличать её от обычной команды.
+            if (kind == EventKind.TOOL_END && cls == ToolClass.EXEC) {
+                var outcome = TestResultDetector.detect(target, output);
+                if (outcome.isPresent()) {
+                    kind = EventKind.TEST_RESULT;
+                    ok = outcome.get().ok();
+                    hint = outcome.get().passed() + " passed, " + outcome.get().failed() + " failed";
+                }
+            }
+
             out.add(base(root, raw)
                 .kind(kind)
                 .toolClass(cls)
                 .target(target)
                 .toolUseId(id)
-                .ok(!isError)
-                .summaryHint(SummaryText.abbreviate(resultText(root, block)))
+                .ok(ok)
+                .summaryHint(hint)
                 .build());
         }
         return out;
