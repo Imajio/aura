@@ -12,14 +12,14 @@
 
 | Документ | О чём |
 |---|---|
-| [PRD](../docs/PRD.md) | зачем это, для кого, границы, нефункциональные требования, критерии приёмки |
-| [Архитектурный дизайн](../docs/superpowers/specs/2026-08-26-aura-design.md) | компоненты, протоколы, модели, отказы, тесты, порядок реализации |
-| [RISKS](../docs/RISKS.md) | открытые риски и эксперименты, которые их закрывают |
-| [ADR 0001](../docs/adr/0001-politika-ustroystv.md) | какая стадия на каком устройстве исполняется |
-| [ADR 0002](../docs/adr/0002-triggery-narratora.md) | когда приложение открывает рот |
-| [ADR 0003](../docs/adr/0003-golosovoe-podtverzhdenie.md) | разрешения и голосовое подтверждение |
-| [ADR 0004](../docs/adr/0004-topologiya-sessii.md) | как держится сессия агента |
-| [План M1](../docs/superpowers/plans/2026-08-26-aura-m1-skeleton.md) | первый этап, по шагам |
+| [Требования](../docs/product-requirements.md) | зачем это, для кого, границы, нефункциональные требования, критерии приёмки |
+| [Архитектура](../docs/architecture.md) | компоненты, протоколы, модели, отказы, тесты, порядок реализации |
+| [Реестр рисков](../docs/risk-register.md) | открытые риски и эксперименты, которые их закрывают |
+| [ADR 0001](../docs/adr/0001-execution-device-per-stage.md) | какая стадия на каком устройстве исполняется |
+| [ADR 0002](../docs/adr/0002-narration-trigger-policy.md) | когда приложение открывает рот |
+| [ADR 0003](../docs/adr/0003-tool-permissions-and-voice-confirmation.md) | разрешения и голосовое подтверждение |
+| [ADR 0004](../docs/adr/0004-agent-session-topology.md) | как держится сессия агента |
+| [План M1](../docs/plans/m1-skeleton-and-events.md) | первый этап, по шагам |
 | [CONTRIBUTING](CONTRIBUTING.md) | ветки, коммиты, тесты, что не коммитить |
 
 ## Целевая платформа
