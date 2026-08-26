@@ -27,7 +27,7 @@
                         │                                     │
                         │  НИКОГДА не касается PCM            │
                         └──┬───────────┬────────────┬─────────┘
-            stdio JSONL    │           │ stdio JSONL│ named pipe
+            stdio JSONL    │           │ stdio JSONL│ AF_UNIX     
                            ▼           ▼            ▼
              ┌──────────────────┐ ┌──────────┐ ┌─────────────┐
              │  aura-speech     │ │ claude / │ │ aura-hook   │
@@ -68,7 +68,7 @@
 | Модуль | Делает | Интерфейс наружу | Зависит от |
 |---|---|---|---|
 | `aura-core` | доменные типы, конечный автомат, часы | чистые функции и типы | ничего (без I/O) |
-| `aura-ipc` | клиент протокола сайдкара, сервер именованного канала | `SpeechClient`, `HookServer` | `aura-core` |
+| `aura-ipc` | клиент протокола сайдкара, сервер локального сокета | `SpeechClient`, `HookServer` | `aura-core` |
 | `aura-agents` | запуск и надзор `claude` и `codex`, нормализация событий | `AgentSession`, поток `AgentEvent` | `aura-core` |
 | `aura-narration` | решает **когда** и **о чём** говорить | `NarrationPolicy.onEvent() → Optional<NarrationRequest>` | `aura-core` |
 | `aura-policy` | разрешения: allow / confirm / deny | `PermissionPolicy.decide()` | `aura-core` |
@@ -382,7 +382,7 @@ Aura генерирует временный файл настроек и пер
 ```
 агент хочет Bash("rm -rf build")
   -> aura-hook читает описание вызова со stdin
-  -> подключается к \\.\pipe\aura-<sessionId>, блокируется
+  -> подключается к сокету AF_UNIX %LOCALAPPDATA%\Aura\run\<sessionId>.sock, блокируется
   -> Java: PermissionPolicy.decide() -> CONFIRM
   -> SLM формулирует вопрос, TTS произносит
   -> сайдкар: expect{grammar:"confirm", timeout_ms:20000}   (кодовое слово не нужно)
