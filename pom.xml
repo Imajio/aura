@@ -48,6 +48,11 @@
         <version>${slf4j.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-nop</artifactId>
+        <version>${slf4j.version}</version>
+      </dependency>
+      <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
         <version>${logback.version}</version>
@@ -76,6 +81,18 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Привязка SLF4J для тестов. Без неё каждый прогон печатает предупреждение
+      "No SLF4J providers were found", и вывод тестов перестаёт быть чистым.
+      Выбран NOP, а не logback: тесты проверяют поведение кода, а не его логи,
+      а logback без конфигурации печатает весь debug в консоль и шумит сильнее,
+      чем предупреждение, которое мы убираем.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
