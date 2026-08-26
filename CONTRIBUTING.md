@@ -36,6 +36,12 @@
 Область — имя модуля без префикса: `core`, `agents`, `policy`, `ipc`, `hook`,
 `app`, `sidecar`.
 
+**Область опускается, когда изменение не принадлежит ни одному модулю**: правка
+сборки всего реактора, структуры репозитория, оснастки, документов верхнего
+уровня. Придумывать область под такой коммит хуже, чем обойтись без неё:
+`build(build):` ничего не сообщает, а `build(core):` прямо врёт о границах
+изменения.
+
 ```
 feat(agents): normalize Codex exec --json into AgentEvent
 fix(policy): escalate writes outside the project to confirmation
