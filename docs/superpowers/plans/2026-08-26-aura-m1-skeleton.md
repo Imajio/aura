@@ -17,7 +17,7 @@
 - **`aura-core` не имеет зависимостей времени выполнения.** Ни Jackson, ни SnakeYAML, ни SLF4J. Сырой JSON хранится в событии строкой, а не деревом.
 - **`bypassPermissions` не используется никогда** — ни в коде, ни в конфигах, ни в тестах.
 - **Отказ по умолчанию.** Таймаут, ошибка сокета, нераспознанный ответ — всё это `DENY`. `ALLOW` возвращается только при явном согласии.
-- **Тесты не ходят в сеть и не поднимают настоящий `claude`.** Процессные тесты используют поддельного агента из тестовых исходников. Единственное исключение — шаг ручной проверки в Task 14, он помечен явно.
+- **Тесты не ходят в сеть и не поднимают настоящий `claude`.** Процессные тесты используют поддельного агента из тестовых исходников. Ровно два шага плана запускают настоящий агент, и оба помечены явно: Task 10 Step 1 (проверка контракта хука, закрывает RISK-6) и Task 15 Step 9 (сквозная проверка цепочки).
 - **Фикстуры в `testdata/fixtures/` — снятые с живых процессов, менять их нельзя.** Если адаптер не сходится с фикстурой, чинится адаптер.
 - **Все пути к файлам в коде строятся через `Path.of`**, без конкатенации строк с разделителями.
 - Модуль `aura-narration` в M1 не создаётся — он относится к M3.
@@ -2471,7 +2471,7 @@ git commit -m "feat(policy): classify tool calls as allow, confirm or deny"
 **Interfaces:**
 - Consumes: `Decision`, `ToolRequest` из Task 7
 - Produces:
-  - `interface ConfirmationProvider { Decision confirm(ToolRequest request, Duration timeout); }` со статическим `ConfirmationProvider.guarded(ConfirmationProvider delegate)`
+  - `interface ConfirmationProvider { Decision confirm(ToolRequest request, Duration timeout); }` со статическими `ConfirmationProvider.guarded(ConfirmationProvider delegate)` и `ConfirmationProvider.guarded(ConfirmationProvider delegate, Duration grace)`
   - `class TrayConfirmationProvider implements ConfirmationProvider`
 
 Смысл `guarded`: обёртка, превращающая таймаут, исключение и любой ответ кроме `ALLOW` в `DENY`. Голосовая реализация из M4 подключится к тому же интерфейсу и получит ту же защиту бесплатно.
@@ -2531,6 +2531,8 @@ class ConfirmationProviderTest {
     @Test
     void slowAnswerIsCutOffByTimeoutAndBecomesDeny() {
         AtomicBoolean finished = new AtomicBoolean(false);
+        // Запас нулевой: здесь проверяется сам обрыв, а не поведение диалога,
+        // который закрывает себя сам.
         ConfirmationProvider guarded = ConfirmationProvider.guarded((r, t) -> {
             try {
                 Thread.sleep(2000);
@@ -2540,7 +2542,7 @@ class ConfirmationProviderTest {
             }
             finished.set(true);
             return Decision.ALLOW;
-        });
+        }, Duration.ZERO);
 
         long started = System.nanoTime();
         Decision decision = guarded.confirm(REQUEST, Duration.ofMillis(200));
@@ -2593,6 +2595,16 @@ public interface ConfirmationProvider {
      * в каждой реализации по отдельности.
      */
     static ConfirmationProvider guarded(ConfirmationProvider delegate) {
+        return guarded(delegate, Duration.ofSeconds(2));
+    }
+
+    /**
+     * То же самое с явным запасом поверх тайм-аута. Запас существует ради
+     * реализаций, которые закрывают себя сами (диалог гасит окно ровно на
+     * тайм-ауте): без запаса обёртка и реализация гонялись бы за одну и ту же
+     * миллисекунду. Нулевой запас означает жёсткий обрыв.
+     */
+    static ConfirmationProvider guarded(ConfirmationProvider delegate, Duration grace) {
         Logger log = LoggerFactory.getLogger(ConfirmationProvider.class);
         return (request, timeout) -> {
             ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
@@ -2603,10 +2615,8 @@ public interface ConfirmationProvider {
             try {
                 Callable<Decision> task = () -> delegate.confirm(request, timeout);
                 Future<Decision> future = executor.submit(task);
-                // Реализация обязана уложиться в timeout сама (диалог сам себя
-                // закрывает). Здесь — страховка с запасом: она ловит зависшую
-                // реализацию, а не работает вместо неё.
-                Decision answer = future.get(timeout.toMillis() + 2000, TimeUnit.MILLISECONDS);
+                Decision answer = future.get(
+                    timeout.plus(grace).toMillis(), TimeUnit.MILLISECONDS);
                 if (answer == Decision.ALLOW) {
                     return Decision.ALLOW;
                 }
@@ -3075,7 +3085,54 @@ git commit -m "feat(ipc): connect hook processes over an AF_UNIX socket"
 
 Разделение `main` и `decide` нужно, чтобы логика тестировалась без запуска процесса.
 
-- [ ] **Step 1: Написать падающий тест хука**
+- [ ] **Step 1: Закрыть RISK-6 до того, как написана хоть строка `HookMain`**
+
+ADR 0003 требует выяснить контракт хука **до** реализации, а не после. Проверка
+стоит полчаса и не нуждается ни в одной строке нашего кода: достаточно скрипта,
+который всегда отвечает отказом.
+
+```bash
+SCRATCH="${TMPDIR:-/tmp}/aura-hook-probe"
+mkdir -p "$SCRATCH/work" && cd "$SCRATCH"
+
+cat > always-deny.cmd <<'CMD'
+@echo off
+echo {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"проверка контракта"}}
+CMD
+
+cat > probe-settings.json <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*",
+        "hooks": [ { "type": "command", "command": "$SCRATCH\\\\always-deny.cmd" } ] }
+    ]
+  }
+}
+JSON
+
+cd "$SCRATCH/work"
+echo 'Run the bash command: dir' | claude -p --output-format stream-json --verbose \
+  --settings "$SCRATCH/probe-settings.json" > probe.jsonl 2>probe.err
+
+python -c "
+import json
+for line in open('probe.jsonl', encoding='utf-8'):
+    o = json.loads(line)
+    if o.get('type') == 'result':
+        print('denials:', json.dumps(o.get('permission_denials'), ensure_ascii=False))
+        print('result  :', o.get('result'))
+"
+```
+
+Что должно получиться: `permission_denials` непуст и содержит запись про `Bash`,
+команда `dir` не исполнена.
+
+Записать наблюдения в `docs/RISKS.md`: перевести RISK-6 в закрытые с датой и
+фактическим форматом ответа. **Если формат отличается от ожидаемого — исправить
+ожидания в коде ниже по этой задаче, а не подгонять проверку.**
+
+- [ ] **Step 2: Написать падающий тест хука**
 
 Создать `aura/aura-hook/src/test/java/aura/hook/HookMainTest.java`:
 
@@ -3152,12 +3209,12 @@ class HookMainTest {
 }
 ```
 
-- [ ] **Step 2: Запустить и убедиться, что падает**
+- [ ] **Step 3: Запустить и убедиться, что падает**
 
 Run: `mvn -f aura/pom.xml -q -pl aura-hook -am test`
 Expected: FAIL — `cannot find symbol: class HookMain`.
 
-- [ ] **Step 3: Написать хук**
+- [ ] **Step 4: Написать хук**
 
 `aura/aura-hook/src/main/java/aura/hook/HookMain.java`:
 
@@ -3239,7 +3296,7 @@ public final class HookMain {
 }
 ```
 
-- [ ] **Step 4: Написать генератор файла настроек**
+- [ ] **Step 5: Написать генератор файла настроек**
 
 Создать `aura/aura-app/src/test/java/aura/app/SettingsFileWriterTest.java`:
 
@@ -3359,12 +3416,12 @@ public final class SettingsFileWriter {
 }
 ```
 
-- [ ] **Step 5: Запустить тесты и убедиться, что проходят**
+- [ ] **Step 6: Запустить тесты и убедиться, что проходят**
 
 Run: `mvn -f aura/pom.xml -q test`
 Expected: PASS во всех модулях, включая четыре теста `HookMainTest` и два `SettingsFileWriterTest`.
 
-- [ ] **Step 6: Закоммитить**
+- [ ] **Step 7: Закоммитить**
 
 ```bash
 git add aura/aura-hook/ aura/aura-app/
@@ -3421,6 +3478,7 @@ public final class FakeAgentMain {
 
         var reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         String line;
+        int turn = 0;
         while ((line = reader.readLine()) != null) {
             if (line.isBlank()) {
                 continue;
@@ -3428,12 +3486,17 @@ public final class FakeAgentMain {
             if (line.contains("\"СТОП\"")) {
                 break;
             }
+            // Идентификатор вызова уникален на ход. Одинаковый id на всех ходах
+            // прятал бы коллизию в таблице ожидающих вызовов парсера: тест
+            // проходил бы по случайности.
+            String toolUseId = "toolu_fake_" + (++turn);
+
             System.out.println("{\"type\":\"assistant\",\"session_id\":\"" + sessionId
-                + "\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_fake\","
-                + "\"name\":\"Bash\",\"input\":{\"command\":\"echo hi\"}}]}}");
+                + "\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"" + toolUseId
+                + "\",\"name\":\"Bash\",\"input\":{\"command\":\"echo hi\"}}]}}");
             System.out.println("{\"type\":\"user\",\"session_id\":\"" + sessionId
                 + "\",\"message\":{\"content\":[{\"type\":\"tool_result\","
-                + "\"tool_use_id\":\"toolu_fake\",\"content\":\"hi\",\"is_error\":false}]},"
+                + "\"tool_use_id\":\"" + toolUseId + "\",\"content\":\"hi\",\"is_error\":false}]},"
                 + "\"tool_use_result\":{\"stdout\":\"hi\",\"stderr\":\"\"}}");
             System.out.println("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\""
                 + sessionId + "\",\"result\":\"готово\",\"is_error\":false}");
@@ -5162,9 +5225,13 @@ public final class Main {
         HookServer hookServer = new HookServer(
             config.runDir().resolve("aura.sock"),
             request -> {
+                // Самое длинное совпадение, а не первое: если в реестре есть и
+                // C:\work, и C:\work\backend, применить надо политику backend.
+                Path cwd = Path.of(request.cwd()).normalize();
                 Optional<Project> project = registry.all().stream()
-                    .filter(p -> Path.of(request.cwd()).normalize().startsWith(p.path().normalize()))
-                    .findFirst();
+                    .filter(p -> cwd.startsWith(p.path().normalize()))
+                    .max(java.util.Comparator.comparingInt(
+                        p -> p.path().normalize().toString().length()));
                 if (project.isEmpty()) {
                     return HookResponse.deny("каталог вне реестра проектов Aura");
                 }
@@ -5284,9 +5351,11 @@ java -jar aura/aura-app/target/aura-app.jar
 5. Повторить и нажать «Да» → команда исполняется.
 6. Повторить и **ничего не нажимать 20 секунд** → окно закрывается само, вызов отклонён.
 
-- [ ] **Step 9: Закрыть RISK-6 живой проверкой контракта хука**
+- [ ] **Step 9: Проверить сквозную цепочку на настоящем агенте**
 
-Это единственный шаг плана, который запускает настоящий `claude`. Он нужен, чтобы убедиться, что формат ответа хука понят правильно, а не угадан.
+RISK-6 уже закрыт в Task 10 скриптом-заглушкой: формат ответа хука известен. Здесь
+проверяется другое — что вся цепочка собрана верно: сгенерированный файл настроек,
+наш `aura-hook`, сокет, политика проекта и окно подтверждения работают вместе.
 
 ```bash
 cd /c/Aura/testdata/sandbox
@@ -5301,9 +5370,12 @@ for l in open('/tmp/hook-check.jsonl', encoding='utf-8'):
 "
 ```
 
-Ожидается: при нажатии «Нет» в окне подтверждения массив `permission_denials` непуст и содержит запись про `Bash`. Если массив пуст, а команда исполнилась — контракт хука понят неверно; исправить `HookMain.render` по фактическому поведению и обновить RISK-6 в `docs/RISKS.md`.
+Ожидается: при нажатии «Нет» в окне подтверждения массив `permission_denials`
+непуст и содержит запись про `Bash`, команда не исполнена.
 
-Записать результат в `docs/RISKS.md`: перевести RISK-6 в закрытые с датой и наблюдением.
+Если массив пуст, а команда исполнилась — сломано звено между Task 10 и Task 15,
+а не контракт: смотреть по порядку, что дошло до `aura-hook` (аргумент с путём к
+сокету), что дошло до сокета (лог `HookServer`), какой вердикт вернула политика.
 
 - [ ] **Step 10: Закоммитить**
 
@@ -5323,7 +5395,7 @@ git commit -m "feat(app): wire tray, dispatcher and permission hook into a runni
 3. В логе виден поток канонических событий, а не сырой JSON обоих CLI.
 4. Опасный вызов поднимает окно подтверждения; отказ и таймаут не пускают вызов.
 5. Каталог вне реестра проектов не запускается ни при каких условиях.
-6. RISK-6 закрыт живой проверкой и отмечен в `docs/RISKS.md`.
+6. RISK-6 закрыт в Task 10 и отмечен в `docs/RISKS.md`; сквозная цепочка подтверждена в Task 15.
 
 ## Что осознанно не сделано в M1
 
