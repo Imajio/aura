@@ -57,4 +57,43 @@ class TestResultDetectorTest {
         assertThat(TestResultDetector.detect(null, null)).isEmpty();
         assertThat(TestResultDetector.detect("pytest", null)).isEmpty();
     }
+
+    @Test
+    void mvnwWrapperScriptIsRecognisedAsARunner() {
+        // \bmvn\b alone does not match "mvnw" (no boundary between "mvn" and "w").
+        assertThat(TestResultDetector.detect("./mvnw test", "4 passed")).isPresent();
+    }
+
+    @Test
+    void surefireTakesTheBuildAggregateNotTheFirstClass() {
+        String output = """
+            Running FooTest
+            Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+            Running BarTest
+            Tests run: 12, Failures: 2, Errors: 1, Skipped: 0
+            """;
+        var outcome = TestResultDetector.detect("mvn -q test", output).orElseThrow();
+        assertThat(outcome.failed()).isEqualTo(3);
+        assertThat(outcome.ok()).isFalse();
+    }
+
+    @Test
+    void jestSummaryWithSkippedInBetweenIsCountedInFull() {
+        var outcome = TestResultDetector
+            .detect("npm test", "Tests:       1 failed, 2 skipped, 17 passed, 20 total").orElseThrow();
+        assertThat(outcome.passed()).isEqualTo(17);
+        assertThat(outcome.failed()).isEqualTo(1);
+    }
+
+    @Test
+    void verbosePytestOutputUsesTheFinalSummary() {
+        String output = """
+            tests/test_auth.py::test_case_1 PASSED
+            tests/test_auth.py::test_case_2 PASSED
+            4 passed in 0.31s
+            """;
+        var outcome = TestResultDetector.detect("pytest -v", output).orElseThrow();
+        assertThat(outcome.passed()).isEqualTo(4);
+        assertThat(outcome.ok()).isTrue();
+    }
 }
