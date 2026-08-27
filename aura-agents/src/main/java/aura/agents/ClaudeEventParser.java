@@ -139,9 +139,11 @@ public final class ClaudeEventParser {
             String hint = SummaryText.abbreviate(output);
             Boolean ok = !isError;
 
-            // Результат тестов — отдельный вид события: это главная новость в
-            // работе агента, и нарратор обязан отличать её от обычной команды.
-            if (kind == EventKind.TOOL_END && cls == ToolClass.EXEC) {
+            // Test outcome is its own event kind regardless of exit status: a red
+            // run is the case this feature exists for, so the detector must run
+            // whether the command reported success or failure. Subagent
+            // completions are excluded because a Task invocation is not a command.
+            if (cls == ToolClass.EXEC && !subagent) {
                 var outcome = TestResultDetector.detect(target, output);
                 if (outcome.isPresent()) {
                     kind = EventKind.TEST_RESULT;

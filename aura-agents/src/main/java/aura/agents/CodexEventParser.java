@@ -97,7 +97,10 @@ public final class CodexEventParser {
         EventKind kind = ok ? EventKind.TOOL_END : EventKind.ERROR;
         String hint = SummaryText.abbreviate(output);
 
-        if (kind == EventKind.TOOL_END && cls == ToolClass.EXEC) {
+        // Test outcome is its own event kind regardless of exit status: a red run
+        // is the case this feature exists for, so the detector must run whether
+        // the command exited zero or not.
+        if (cls == ToolClass.EXEC) {
             var outcome = TestResultDetector.detect(target, output);
             if (outcome.isPresent()) {
                 kind = EventKind.TEST_RESULT;

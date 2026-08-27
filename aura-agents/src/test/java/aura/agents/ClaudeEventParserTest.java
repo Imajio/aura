@@ -164,6 +164,10 @@ class ClaudeEventParserTest {
 
     @Test
     void failingTestRunIsTestResultWithOkFalse() {
+        // Form captured from a live claude run: a command exiting non-zero arrives
+        // as is_error=true, with the output in the block's content rather than in
+        // tool_use_result.stdout.
+        // See testdata/fixtures/claude-stream-json-failing-command.jsonl
         ClaudeEventParser parser = new ClaudeEventParser(FIXED);
         parser.parseLine("""
             {"type":"system","subtype":"init","session_id":"s1","cwd":"C:/x"}""");
@@ -173,11 +177,28 @@ class ClaudeEventParserTest {
 
         List<AgentEvent> events = parser.parseLine("""
             {"type":"user","session_id":"s1","message":{"content":[
-              {"type":"tool_result","tool_use_id":"toolu_t","content":"3 passed, 1 failed","is_error":false}]},
-             "tool_use_result":{"stdout":"3 passed, 1 failed","stderr":""}}""");
+              {"type":"tool_result","tool_use_id":"toolu_t",
+               "content":"Exit code 1\\n3 passed, 1 failed","is_error":true}]}}""");
 
         assertThat(events).singleElement().satisfies(e -> {
             assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
+            assertThat(e.ok()).isFalse();
+        });
+    }
+
+    @Test
+    void recordedFailingCommandFixtureYieldsErrorNotSilence() throws Exception {
+        Path fixture = Path.of("..", "testdata", "fixtures",
+            "claude-stream-json-failing-command.jsonl");
+        ClaudeEventParser parser = new ClaudeEventParser(FIXED);
+        List<AgentEvent> all = new ArrayList<>();
+        for (String line : Files.readAllLines(fixture, StandardCharsets.UTF_8)) {
+            if (!line.isBlank()) {
+                all.addAll(parser.parseLine(line));
+            }
+        }
+        assertThat(all).anySatisfy(e -> {
+            assertThat(e.toolClass()).isEqualTo(ToolClass.EXEC);
             assertThat(e.ok()).isFalse();
         });
     }

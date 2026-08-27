@@ -150,4 +150,20 @@ class CodexEventParserTest {
             assertThat(e.ok()).isTrue();
         });
     }
+
+    @Test
+    void failingTestRunnerCommandBecomesTestResultNotPlainError() {
+        CodexEventParser parser = new CodexEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"thread.started","thread_id":"t1"}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"item.completed","item":{"id":"i1","type":"command_execution",
+             "command":"pytest -q","exit_code":1,"aggregated_output":"3 passed, 1 failed"}}""");
+
+        assertThat(events).singleElement().satisfies(e -> {
+            assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
+            assertThat(e.ok()).isFalse();
+        });
+    }
 }
