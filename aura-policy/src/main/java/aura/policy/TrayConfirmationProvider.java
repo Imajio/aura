@@ -48,6 +48,11 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
                 answer[0] = (value instanceof Integer i && i == JOptionPane.YES_OPTION)
                     ? Decision.ALLOW : Decision.DENY;
             });
+        } catch (InterruptedException e) {
+            // Restore the flag before returning. Swallowing it would leave a caller
+            // that is itself being cancelled unable to see its own shutdown.
+            Thread.currentThread().interrupt();
+            return Decision.DENY;
         } catch (Exception e) {
             return Decision.DENY;
         }

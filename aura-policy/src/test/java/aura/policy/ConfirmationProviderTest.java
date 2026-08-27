@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class ConfirmationProviderTest {
@@ -68,5 +69,33 @@ class ConfirmationProviderTest {
         assertThat(decision).isEqualTo(Decision.DENY);
         assertThat(elapsedMs).isLessThan(1500);
         assertThat(finished).isFalse();
+    }
+
+    @Test
+    void interruptingTheCallerDeniesAndKeepsTheInterruptFlag() throws Exception {
+        ConfirmationProvider guarded = ConfirmationProvider.guarded((r, t) -> {
+            try {
+                Thread.sleep(5_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return Decision.DENY;
+            }
+            return Decision.ALLOW;
+        }, Duration.ofSeconds(10));
+
+        AtomicReference<Decision> answer = new AtomicReference<>();
+        AtomicBoolean flagKept = new AtomicBoolean();
+        Thread caller = new Thread(() -> {
+            answer.set(guarded.confirm(REQUEST, Duration.ofSeconds(10)));
+            flagKept.set(Thread.currentThread().isInterrupted());
+        }, "test-caller");
+
+        caller.start();
+        Thread.sleep(200);
+        caller.interrupt();
+        caller.join(5_000);
+
+        assertThat(answer).hasValue(Decision.DENY);
+        assertThat(flagKept).isTrue();
     }
 }

@@ -42,12 +42,13 @@ public interface ConfirmationProvider {
     static ConfirmationProvider guarded(ConfirmationProvider delegate, Duration grace) {
         Logger log = LoggerFactory.getLogger(ConfirmationProvider.class);
         return (request, timeout) -> {
-            ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "aura-confirm");
-                t.setDaemon(true);
-                return t;
-            });
+            ExecutorService executor = null;
             try {
+                executor = Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, "aura-confirm");
+                    t.setDaemon(true);
+                    return t;
+                });
                 Callable<Decision> task = () -> delegate.confirm(request, timeout);
                 Future<Decision> future = executor.submit(task);
                 Decision answer = future.get(
@@ -56,16 +57,24 @@ public interface ConfirmationProvider {
                     return Decision.ALLOW;
                 }
                 if (answer != Decision.DENY) {
-                    log.warn("confirmation returned {} for {} — treating as denial",
+                    log.warn("confirmation returned {} for {} — treating it as a refusal",
                         answer, request.toolName());
                 }
                 return Decision.DENY;
+            } catch (InterruptedException e) {
+                // Restore the flag before returning. Swallowing it would leave a caller
+                // that is itself being cancelled unable to see its own shutdown.
+                Thread.currentThread().interrupt();
+                log.info("confirmation interrupted for {} — denying", request.toolName());
+                return Decision.DENY;
             } catch (Exception e) {
-                log.info("confirmation not obtained for {} ({}) — denying",
+                log.info("no confirmation obtained for {} ({}) — denying",
                     request.toolName(), e.getClass().getSimpleName());
                 return Decision.DENY;
             } finally {
-                executor.shutdownNow();
+                if (executor != null) {
+                    executor.shutdownNow();
+                }
             }
         };
     }
