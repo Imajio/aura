@@ -8,8 +8,10 @@ import json
 import sys
 
 # Pin both pipes to UTF-8. A piped child on Windows inherits the console code page
-# (cp1252 here), which cannot represent Cyrillic at all and encodes with errors="strict":
-# the first Russian narration line would raise UnicodeEncodeError and kill the sidecar,
+# (cp1252 here). Its surrogateescape error handler only rescues bytes that failed to
+# decode — it cannot encode a genuine character the codec has no mapping for, and
+# cp1252 has none for Cyrillic. So an echoed string survives while the first freshly
+# generated Russian narration line raises UnicodeEncodeError and kills the sidecar,
 # with the traceback going to a stderr stream the client logs below its default level.
 sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 sys.stdin.reconfigure(encoding="utf-8")
