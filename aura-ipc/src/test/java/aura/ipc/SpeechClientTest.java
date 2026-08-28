@@ -5,12 +5,15 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -24,8 +27,22 @@ class SpeechClientTest {
     }
 
     @BeforeAll
-    static void sidecarStubExists() {
+    static void aRunnableInterpreterIsAvailable() {
         assumeTrue(Files.isRegularFile(STUB), "sidecar stub not found");
+        // Checking that stub.py exists proves nothing — it is tracked and always present.
+        // What varies between machines is Python, so ask Python.
+        try {
+            Process probe = new ProcessBuilder(python(), "--version")
+                .redirectErrorStream(true)
+                .start();
+            assumeTrue(probe.waitFor(20, TimeUnit.SECONDS), "python did not answer --version");
+            assumeTrue(probe.exitValue() == 0, "python --version exited non-zero");
+        } catch (IOException e) {
+            Assumptions.abort("no runnable python interpreter: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Assumptions.abort("interrupted while probing for python");
+        }
     }
 
     private SpeechClient startStub(List<JsonNode> sink) throws Exception {

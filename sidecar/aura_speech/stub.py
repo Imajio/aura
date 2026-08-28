@@ -7,6 +7,13 @@ audio arrives in M2. Plays nothing and listens to nothing.
 import json
 import sys
 
+# Pin both pipes to UTF-8. A piped child on Windows inherits the console code page
+# (cp1252 here), which cannot represent Cyrillic at all and encodes with errors="strict":
+# the first Russian narration line would raise UnicodeEncodeError and kill the sidecar,
+# with the traceback going to a stderr stream the client logs below its default level.
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+sys.stdin.reconfigure(encoding="utf-8")
+
 
 def emit(payload):
     sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")

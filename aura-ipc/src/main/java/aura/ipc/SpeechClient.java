@@ -37,10 +37,17 @@ public final class SpeechClient implements AutoCloseable {
             new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
 
         this.stdoutReader = pump(process.getInputStream(), line -> {
+            JsonNode event;
             try {
-                onEvent.accept(MAPPER.readTree(line));
+                event = MAPPER.readTree(line);
             } catch (Exception e) {
                 log.warn("sidecar sent an unreadable line: {}", line);
+                return;
+            }
+            try {
+                onEvent.accept(event);
+            } catch (Exception e) {
+                log.warn("event consumer threw while handling a sidecar event", e);
             }
         }, "aura-speech-stdout");
 
