@@ -105,6 +105,10 @@ public final class ClaudeSession implements AgentSession {
         // an orphaned pytest would keep running if only the parent were killed.
         process.descendants().forEach(ProcessHandle::destroyForcibly);
         process.destroyForcibly();
+        // What actually releases the pump threads is destroyForcibly() above: closing the
+        // child's end of the pipes surfaces as EOF on the next read. A blocking read on a
+        // process pipe does not answer an interrupt — these calls are belt-and-braces, not
+        // the mechanism.
         stdoutReader.interrupt();
         stderrReader.interrupt();
     }

@@ -44,7 +44,7 @@ public final class FakeAgentMain {
                 + "\"tool_use_id\":\"" + toolUseId + "\",\"content\":\"hi\",\"is_error\":false}]},"
                 + "\"tool_use_result\":{\"stdout\":\"hi\",\"stderr\":\"\"}}");
             System.out.println("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\""
-                + sessionId + "\",\"result\":\"готово\",\"is_error\":false}");
+                + sessionId + "\",\"result\":\"done\",\"is_error\":false}");
             System.out.flush();
         }
     }
