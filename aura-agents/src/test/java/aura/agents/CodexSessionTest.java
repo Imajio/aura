@@ -13,11 +13,17 @@ import org.junit.jupiter.api.Test;
 
 class CodexSessionTest {
 
+    private static String java() {
+        return Path.of(System.getProperty("java.home"), "bin", "java").toString();
+    }
+
+    private static String classpath() {
+        return System.getProperty("java.class.path");
+    }
+
     private static SessionConfig fakeCodexConfig() {
-        String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-        String classpath = System.getProperty("java.class.path");
         return new SessionConfig(
-            List.of(java, "-cp", classpath, "aura.agents.FakeCodexMain", "exec", "--json"),
+            List.of(java(), "-cp", classpath(), "aura.agents.FakeCodexMain", "exec", "--json"),
             Path.of("."),
             "t-fake");
     }
@@ -69,5 +75,47 @@ class CodexSessionTest {
                 events.stream().anyMatch(e -> e.kind() == EventKind.DONE));
             assertThat(session.alive()).isTrue();
         }
+    }
+
+    @Test
+    void closeKillsTheProcessTreeNotJustTheParent() throws Exception {
+        // The stop word a later milestone builds will rest on this. Killing only the
+        // parent leaves an orphaned child (a pytest, an npm run) still working, with
+        // nothing left to report to it, while the user believes they stopped it.
+        List<AgentEvent> events = new CopyOnWriteArrayList<>();
+        SessionConfig hanging = new SessionConfig(
+            List.of(java(), "-cp", classpath(), "aura.agents.FakeCodexMain",
+                "exec", "--json", "--hang"),
+            Path.of("."),
+            "t-hang");
+
+        long parentPid;
+        long childPid;
+        try (CodexSession session = CodexSession.start(hanging, events::add)) {
+            session.send("почини тесты");
+
+            await().atMost(Duration.ofSeconds(15)).until(() ->
+                events.stream().anyMatch(e -> e.summaryHint().startsWith("pids=")));
+
+            String pids = events.stream()
+                .map(AgentEvent::summaryHint)
+                .filter(hint -> hint.startsWith("pids="))
+                .findFirst()
+                .orElseThrow()
+                .substring("pids=".length());
+            parentPid = Long.parseLong(pids.split(",")[0]);
+            childPid = Long.parseLong(pids.split(",")[1]);
+
+            assertThat(ProcessHandle.of(parentPid)).get().matches(ProcessHandle::isAlive);
+            assertThat(ProcessHandle.of(childPid)).get().matches(ProcessHandle::isAlive);
+        }
+
+        // Checked as two separate named awaits rather than one combined condition, so a
+        // failure here names which one of the two survived close(), not just that the
+        // pair did not both go away.
+        await("parent process exits").atMost(Duration.ofSeconds(15)).until(() ->
+            !ProcessHandle.of(parentPid).map(ProcessHandle::isAlive).orElse(false));
+        await("child process exits").atMost(Duration.ofSeconds(15)).until(() ->
+            !ProcessHandle.of(childPid).map(ProcessHandle::isAlive).orElse(false));
     }
 }
