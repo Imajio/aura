@@ -8,7 +8,15 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -71,7 +79,7 @@ class SessionSupervisorTest {
     }
 
     @Test
-    void deadSessionIsReplacedOnNextRequest() throws Exception {
+    void deadSessionIsReplacedAndTheDeadOneIsClosed() throws Exception {
         AtomicInteger created = new AtomicInteger();
         FakeSession[] made = new FakeSession[1];
         var supervisor = new SessionSupervisor((cfg, sink) -> {
@@ -81,10 +89,13 @@ class SessionSupervisorTest {
         }, Duration.ofMinutes(10), new MovableClock());
 
         supervisor.sessionFor("backend", CONFIG, e -> {});
-        made[0].aliveFlag = false;
+        FakeSession first = made[0];   // hold it before the factory overwrites the slot
+        first.aliveFlag = false;
+
         supervisor.sessionFor("backend", CONFIG, e -> {});
 
         assertThat(created).hasValue(2);
+        assertThat(first.closed).isTrue();
         supervisor.close();
     }
 
@@ -155,5 +166,45 @@ class SessionSupervisorTest {
         supervisor.close();
 
         assertThat(made).allMatch(s -> s.closed);
+    }
+
+    @Test
+    void concurrentRequestsForOneKeyYieldExactlyOneSession() throws Exception {
+        AtomicInteger created = new AtomicInteger();
+        List<FakeSession> made = new CopyOnWriteArrayList<>();
+        var supervisor = new SessionSupervisor((cfg, sink) -> {
+            created.incrementAndGet();
+            FakeSession session = new FakeSession();
+            made.add(session);
+            return session;
+        }, Duration.ofMinutes(10), new MovableClock());
+
+        int threads = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        Set<AgentSession> handedOut =
+            Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    start.await();
+                    handedOut.add(supervisor.sessionFor("backend", CONFIG, e -> {}));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        start.countDown();
+        assertThat(done.await(10, TimeUnit.SECONDS)).isTrue();
+        pool.shutdownNow();
+
+        assertThat(created).hasValue(1);
+        assertThat(handedOut).hasSize(1);
+        assertThat(made).noneMatch(session -> session.closed);
+        supervisor.close();
     }
 }

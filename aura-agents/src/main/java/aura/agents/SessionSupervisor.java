@@ -42,23 +42,24 @@ public final class SessionSupervisor implements AutoCloseable {
 
     /** Returns a live session for the key, creating or recreating it as needed. */
     public AgentSession sessionFor(String key, SessionConfig config, Consumer<AgentEvent> sink) {
-        Entry existing = sessions.get(key);
-        if (existing != null && existing.session().alive()) {
-            sessions.put(key, new Entry(existing.session(), clock.instant()));
-            return existing.session();
-        }
-        if (existing != null) {
-            log.info("session {} is dead - recreating", key);
-            safeClose(existing.session());
-        }
-        try {
-            AgentSession created = factory.create(config, sink);
-            sessions.put(key, new Entry(created, clock.instant()));
-            return created;
-        } catch (Exception e) {
-            sessions.remove(key);
-            throw new IllegalStateException("failed to start agent for " + key, e);
-        }
+        // Entire decision happens inside compute: read, judge, replace. Split into
+        // separate map calls, and two callers arriving together each create a session
+        // while the second overwrites the first — leaving a live agent process nobody owns.
+        Entry entry = sessions.compute(key, (name, existing) -> {
+            if (existing != null && existing.session().alive()) {
+                return new Entry(existing.session(), clock.instant());
+            }
+            if (existing != null) {
+                log.info("session {} is dead - recreating", name);
+                safeClose(existing.session());
+            }
+            try {
+                return new Entry(factory.create(config, sink), clock.instant());
+            } catch (Exception e) {
+                throw new IllegalStateException("failed to start agent for " + name, e);
+            }
+        });
+        return entry.session();
     }
 
     public void stop(String key) {
@@ -72,14 +73,21 @@ public final class SessionSupervisor implements AutoCloseable {
     /** Closes sessions that haven't been accessed longer than the timeout. */
     public int closeIdle() {
         Instant now = clock.instant();
-        List<String> expired = new ArrayList<>();
-        sessions.forEach((key, entry) -> {
-            if (Duration.between(entry.lastUsed(), now).compareTo(idleTimeout) > 0) {
-                expired.add(key);
+        int closed = 0;
+        for (Map.Entry<String, Entry> mapped : sessions.entrySet()) {
+            Entry entry = mapped.getValue();
+            if (Duration.between(entry.lastUsed(), now).compareTo(idleTimeout) <= 0) {
+                continue;
             }
-        });
-        expired.forEach(this::stop);
-        return expired.size();
+            // Compare-and-remove: a caller that refreshed this key since the scan began
+            // has replaced the entry, and this sweep must leave their session alone.
+            if (sessions.remove(mapped.getKey(), entry)) {
+                log.info("closing idle session {}", mapped.getKey());
+                safeClose(entry.session());
+                closed++;
+            }
+        }
+        return closed;
     }
 
     @Override
@@ -91,7 +99,7 @@ public final class SessionSupervisor implements AutoCloseable {
         try {
             session.close();
         } catch (Exception e) {
-            log.debug("session closed with error: {}", e.toString());
+            log.warn("session closed with error: {}", e.toString(), e);
         }
     }
 }
