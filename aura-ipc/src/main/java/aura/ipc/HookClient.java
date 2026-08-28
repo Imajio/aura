@@ -58,7 +58,15 @@ public final class HookClient {
         } catch (Exception e) {
             return HookResponse.deny("Aura is unreachable: " + e.getClass().getSimpleName());
         } finally {
+            // Wait briefly for the watchdog to actually die before clearing our flag: if it
+            // fired at the exact edge of the timeout, this keeps its caller.interrupt() from
+            // landing after ask() has already returned to its caller.
             watchdog.interrupt();
+            try {
+                watchdog.join(100);
+            } catch (InterruptedException ignored) {
+                // the watchdog itself raced us here — fall through and clear the flag below
+            }
             Thread.interrupted();
         }
     }
