@@ -67,4 +67,45 @@ class HookMainTest {
         assertThat(MAPPER.readTree(out).at("/hookSpecificOutput/permissionDecision").asText())
             .isEqualTo("deny");
     }
+
+    @Test
+    void aReplyWithNoVerdictIsPrintedAsARefusal(@TempDir Path tmp) throws Exception {
+        // A garbled or truncated server reply parses into a record with null fields.
+        // Printing that verbatim would leave the agent with no decision at all.
+        Path socket = tmp.resolve("aura.sock");
+        try (HookServer server = new HookServer(socket, req -> new HookResponse(null, null))) {
+            server.start();
+
+            String out = HookMain.decide(CLAUDE_PAYLOAD, socket, Duration.ofSeconds(5));
+            JsonNode node = MAPPER.readTree(out);
+
+            assertThat(node.at("/hookSpecificOutput/permissionDecision").asText()).isEqualTo("deny");
+            assertThat(node.at("/hookSpecificOutput/permissionDecisionReason").asText()).isEmpty();
+        }
+    }
+
+    @Test
+    void anUnrecognisedVerdictIsPrintedAsARefusal(@TempDir Path tmp) throws Exception {
+        Path socket = tmp.resolve("aura.sock");
+        try (HookServer server = new HookServer(socket, req -> new HookResponse("maybe", "unsure"))) {
+            server.start();
+
+            String out = HookMain.decide(CLAUDE_PAYLOAD, socket, Duration.ofSeconds(5));
+            assertThat(MAPPER.readTree(out).at("/hookSpecificOutput/permissionDecision").asText())
+                .isEqualTo("deny");
+        }
+    }
+
+    @Test
+    void theArgumentWinsOverTheEnvironmentVariable() {
+        // The argument is authoritative precisely because env propagation to a hook
+        // process is not something we control.
+        assertThat(HookMain.socketPath(new String[] {"C:\\from\\argument.sock"}))
+            .isEqualTo(Path.of("C:\\from\\argument.sock"));
+        // Path.of("   ") itself is rejected by the Windows filesystem provider (a path
+        // segment cannot end in whitespace), so the blank case is asserted on the
+        // stringified result instead of constructing that invalid Path for comparison.
+        assertThat(HookMain.socketPath(new String[] {"   "}).toString()).isNotEqualTo("   ");
+        assertThat(HookMain.socketPath(new String[] {})).isNotNull();
+    }
 }

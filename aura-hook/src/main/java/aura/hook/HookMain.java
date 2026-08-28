@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * The {@code PreToolUse} hook that Claude Code runs before every tool call. Reads the
@@ -23,6 +25,9 @@ public final class HookMain {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(25);
+
+    /** Claude Code understands exactly these three. Anything else is not a verdict. */
+    private static final Set<String> KNOWN_DECISIONS = Set.of("allow", "deny", "ask");
 
     public static void main(String[] args) throws Exception {
         String stdin = new String(readAll(System.in), StandardCharsets.UTF_8);
@@ -58,12 +63,26 @@ public final class HookMain {
     private static String render(HookResponse response) {
         ObjectNode inner = MAPPER.createObjectNode();
         inner.put("hookEventName", "PreToolUse");
-        inner.put("permissionDecision", response.permissionDecision());
+        inner.put("permissionDecision", normalize(response.permissionDecision()));
         inner.put("permissionDecisionReason", response.reason() == null ? "" : response.reason());
 
         ObjectNode root = MAPPER.createObjectNode();
         root.set("hookSpecificOutput", inner);
         return root.toString();
+    }
+
+    /**
+     * A missing or unrecognised verdict is a refusal, never an absence of one.
+     *
+     * <p>Printing {@code null} here would leave the agent with no decision to act on,
+     * and it would fall back to its own permission flow — the one outcome this hook
+     * exists to prevent.
+     */
+    private static String normalize(String decision) {
+        if (decision == null || !KNOWN_DECISIONS.contains(decision.toLowerCase(Locale.ROOT))) {
+            return "deny";
+        }
+        return decision.toLowerCase(Locale.ROOT);
     }
 
     private static byte[] readAll(InputStream in) throws Exception {
