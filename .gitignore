@@ -5,6 +5,9 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 .mvn/timing.properties
 
+# Written by the shade plugin next to the module POM it rewrites
+dependency-reduced-pom.xml
+
 # Python
 __pycache__/
 *.py[cod]
