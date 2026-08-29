@@ -1,8 +1,8 @@
 package aura.core;
 
 /**
- * Вид события в канонической форме. Оба адаптера обязаны укладываться в этот
- * набор: всё, что не распознано, становится {@link #OTHER} и не роняет поток.
+ * An event kind in canonical form. Both adapters must fit into this set:
+ * anything unrecognised becomes {@link #OTHER} and does not drop the stream.
  */
 public enum EventKind {
     SESSION_START,

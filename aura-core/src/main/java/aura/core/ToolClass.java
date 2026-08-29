@@ -4,8 +4,8 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Класс инструмента. Нарратор говорит о смене класса, а не о каждом вызове,
- * поэтому классификация — часть домена, а не деталь адаптера.
+ * A tool's class. The narrator speaks about a change of class, not about
+ * every call, so classification is part of the domain, not an adapter detail.
  */
 public enum ToolClass {
     SEARCH,
@@ -31,7 +31,7 @@ public enum ToolClass {
         Map.entry("webfetch", NET),
         Map.entry("websearch", NET),
         Map.entry("task", TASK),
-        // Codex: типы элементов из exec --json
+        // Codex: item types from exec --json
         Map.entry("command_execution", EXEC),
         Map.entry("file_change", EDIT),
         Map.entry("web_search", NET),
@@ -39,7 +39,7 @@ public enum ToolClass {
         Map.entry("reasoning", OTHER)
     );
 
-    /** Никогда не бросает и никогда не возвращает null: неизвестное имя — это {@link #OTHER}. */
+    /** Never throws and never returns null: an unknown name is {@link #OTHER}. */
     public static ToolClass of(String toolName) {
         if (toolName == null || toolName.isBlank()) {
             return OTHER;

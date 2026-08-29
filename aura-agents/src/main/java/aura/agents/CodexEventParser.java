@@ -12,11 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Превращает поток {@code codex exec --json} в канонические события.
+ * Turns a {@code codex exec --json} stream into canonical events.
  *
- * <p>Полный перечень значений {@code item.type} на момент написания неизвестен
- * (см. RISK-2), поэтому схема расширяемая: незнакомый тип становится
- * {@link EventKind#OTHER} и не роняет поток.
+ * <p>The full set of {@code item.type} values is not known at the time of
+ * writing (see RISK-2), so the schema is treated as extensible: an unrecognised
+ * type becomes {@link EventKind#OTHER} and does not drop the stream.
  */
 public final class CodexEventParser {
 
@@ -38,7 +38,7 @@ public final class CodexEventParser {
         try {
             root = MAPPER.readTree(jsonLine);
         } catch (Exception e) {
-            log.debug("нераспознанная строка потока codex: {}", SummaryText.abbreviate(jsonLine));
+            log.debug("unrecognised line in the codex stream: {}", SummaryText.abbreviate(jsonLine));
             return List.of();
         }
 

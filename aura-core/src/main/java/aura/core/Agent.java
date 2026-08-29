@@ -1,6 +1,6 @@
 package aura.core;
 
-/** Какой CLI породил событие. */
+/** Which CLI produced the event. */
 public enum Agent {
     CLAUDE,
     CODEX

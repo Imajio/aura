@@ -4,12 +4,12 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Каноническое событие агента. Оба CLI сводятся к нему, и всё, что выше
- * адаптеров, знает только этот тип.
+ * The canonical agent event. Both CLIs reduce to this, and everything above
+ * the adapters knows only this type.
  *
- * <p>{@code summaryHint} — намеренно короткая выжимка для будущего нарратора,
- * а не полный вывод инструмента. {@code raw} хранится строкой, а не деревом,
- * чтобы модуль остался без зависимости на JSON-библиотеку.
+ * <p>{@code summaryHint} is a deliberately short digest for the future
+ * narrator, not the tool's full output. {@code raw} is kept as a string, not
+ * a tree, so this module stays free of a JSON library dependency.
  */
 public record AgentEvent(
     Instant ts,
@@ -36,7 +36,7 @@ public record AgentEvent(
         raw = raw == null ? "" : raw;
     }
 
-    /** Событие порождено подзадачей, а не основным потоком. */
+    /** The event was produced by a subtask, not the main thread. */
     public boolean fromSubagent() {
         return parentToolUseId != null && !parentToolUseId.isBlank();
     }

@@ -1,10 +1,10 @@
 package aura.agents;
 
 /**
- * Сжимает текст до размера подсказки для нарратора.
+ * Shrinks text down to narrator-hint size.
  *
- * <p>Живёт отдельно, потому что нужен обоим адаптерам: держать по копии в каждом
- * значило бы дословно продублировать логический блок.
+ * <p>Lives on its own because both adapters need it: keeping a copy in each
+ * would duplicate the same logical block verbatim.
  */
 final class SummaryText {
 
@@ -13,7 +13,7 @@ final class SummaryText {
     private SummaryText() {
     }
 
-    /** Сплющивает переводы строк и режет до {@value #MAX_LENGTH} символов. */
+    /** Flattens line breaks and cuts to {@value #MAX_LENGTH} characters. */
     static String abbreviate(String s) {
         if (s == null) {
             return "";

@@ -7,11 +7,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Выводит результат прогона тестов из команды и её вывода.
+ * Derives a test run's outcome from a command and its output.
  *
- * <p>Два условия должны выполниться одновременно: команда похожа на тест-раннер
- * и вывод похож на сводку. Одного вывода недостаточно — иначе {@code echo "4 passed"}
- * превратится в бодрый доклад о зелёных тестах.
+ * <p>Two conditions must hold at once: the command looks like a test runner
+ * and the output looks like a summary. Output alone is not enough — otherwise
+ * {@code echo "4 passed"} would turn into a cheerful report of green tests.
  */
 public final class TestResultDetector {
 

@@ -90,11 +90,11 @@
       <scope>test</scope>
     </dependency>
     <!--
-      Привязка SLF4J для тестов. Без неё каждый прогон печатает предупреждение
-      "No SLF4J providers were found", и вывод тестов перестаёт быть чистым.
-      Выбран NOP, а не logback: тесты проверяют поведение кода, а не его логи,
-      а logback без конфигурации печатает весь debug в консоль и шумит сильнее,
-      чем предупреждение, которое мы убираем.
+      SLF4J binding for tests. Without one, every run prints a "No SLF4J
+      providers were found" warning, and test output stops being clean.
+      NOP is chosen over logback: tests check the code's behaviour, not its
+      logs, and logback without configuration prints all of debug to the
+      console — noisier than the one warning it removes.
     -->
     <dependency>
       <groupId>org.slf4j</groupId>

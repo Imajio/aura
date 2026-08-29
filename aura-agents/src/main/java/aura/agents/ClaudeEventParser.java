@@ -17,9 +17,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Превращает поток {@code claude -p --output-format stream-json} в канонические
- * события. Хранит состояние: строка результата инструмента не содержит его имени,
- * поэтому класс и цель берутся из запомненного вызова. Один экземпляр на сессию.
+ * Turns a {@code claude -p --output-format stream-json} stream into canonical
+ * events. Stateful: a tool result line does not carry the tool's name, so its
+ * class and target are read back from the remembered call. One instance per
+ * session.
  */
 public final class ClaudeEventParser {
 
@@ -36,7 +37,7 @@ public final class ClaudeEventParser {
         this.clock = clock;
     }
 
-    /** Возвращает от нуля до нескольких событий. Никогда не бросает. */
+    /** Returns zero to several events. Never throws. */
     public List<AgentEvent> parseLine(String jsonLine) {
         if (jsonLine == null || jsonLine.isBlank()) {
             return List.of();
@@ -45,7 +46,7 @@ public final class ClaudeEventParser {
         try {
             root = MAPPER.readTree(jsonLine);
         } catch (Exception e) {
-            log.debug("нераспознанная строка потока claude: {}", SummaryText.abbreviate(jsonLine));
+            log.debug("unrecognised line in the claude stream: {}", SummaryText.abbreviate(jsonLine));
             return List.of();
         }
 
@@ -65,8 +66,8 @@ public final class ClaudeEventParser {
 
     private List<AgentEvent> parseSystem(JsonNode root, String raw) {
         String subtype = root.path("subtype").asText("");
-        // Строки hook_started и hook_response — побочный шум от пользовательских
-        // хуков. Они не относятся к работе агента и не должны попадать в поток.
+        // hook_started and hook_response lines are side noise from the user's own
+        // hooks. They are not part of the agent's work and must not reach the stream.
         if (subtype.startsWith("hook")) {
             return List.of();
         }
@@ -175,7 +176,7 @@ public final class ClaudeEventParser {
             .build();
     }
 
-    /** Что именно произносить о вызове: команда, путь или шаблон. */
+    /** What to say about the call: a command, a path, or a pattern. */
     private static String targetOf(String toolName, JsonNode input) {
         for (String field : new String[] {"command", "file_path", "path", "pattern", "url", "description"}) {
             if (input.hasNonNull(field)) {
@@ -211,7 +212,7 @@ public final class ClaudeEventParser {
             try {
                 return Instant.parse(root.get("timestamp").asText());
             } catch (DateTimeParseException ignored) {
-                // поток не обязан приносить время в каждой строке
+                // the stream is not required to carry a timestamp on every line
             }
         }
         return clock.instant();

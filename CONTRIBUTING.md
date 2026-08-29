@@ -1,127 +1,129 @@
-# Как здесь работают с кодом
+# Working on the code
 
-Правила короткие и обязательные. Они существуют, чтобы историю репозитория можно
-было читать через год, а не раскапывать.
+The rules are short and mandatory. They exist so the repository's history can
+be read a year from now, not excavated.
 
-## Ветки
+## Branches
 
-Ствол — `main`. В него не коммитят напрямую: любая работа идёт в короткоживущей
-ветке и возвращается слиянием.
+The trunk is `main`. Nothing is committed to it directly: all work happens on
+a short-lived branch and comes back by merge.
 
-| Префикс | Для чего |
+| Prefix | For |
 |---|---|
-| `feat/` | новая функциональность |
-| `fix/` | исправление дефекта |
-| `docs/` | только документы |
-| `chore/` | сборка, зависимости, оснастка |
-| `refactor/` | изменение формы без изменения поведения |
+| `feat/` | new functionality |
+| `fix/` | a defect fix |
+| `docs/` | documents only |
+| `chore/` | build, dependencies, tooling |
+| `refactor/` | a change of form without a change of behaviour |
 
-Имя ветки — префикс плюс короткий предмет через дефисы: `feat/m1-skeleton`,
-`fix/hook-timeout-deny`.
+A branch name is the prefix plus a short subject, hyphen-separated:
+`feat/m1-skeleton`, `fix/hook-timeout-deny`.
 
-Ветка живёт днями, а не неделями. Долгая ветка — это не аккуратность, а
-отложенный конфликт слияния.
+A branch lives days, not weeks. A long-lived branch is not thoroughness — it
+is a merge conflict deferred.
 
-## Коммиты
+## Commits
 
-Формат — [Conventional Commits](https://www.conventionalcommits.org/):
+Format — [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<тип>(<область>): <что сделано, повелительное наклонение, до 72 символов>
+<type>(<scope>): <what was done, imperative mood, under 72 characters>
 
-<почему это сделано; что сломалось бы без этого; чем платим>
+<why this was done; what would break without it; what it costs>
 ```
 
-Типы: `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `chore`.
-Область — имя модуля без префикса: `core`, `agents`, `policy`, `ipc`, `hook`,
-`app`, `sidecar`.
+Types: `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `chore`.
+Scope is the module's name without a prefix: `core`, `agents`, `policy`, `ipc`,
+`hook`, `app`, `sidecar`.
 
-**Область опускается, когда изменение не принадлежит ни одному модулю**: правка
-сборки всего реактора, структуры репозитория, оснастки, документов верхнего
-уровня. Придумывать область под такой коммит хуже, чем обойтись без неё:
-`build(build):` ничего не сообщает, а `build(core):` прямо врёт о границах
-изменения.
+**Scope is dropped when a change belongs to no single module**: a fix to the
+whole reactor's build, to the repository's structure, to tooling, to top-level
+documents. Inventing a scope for such a commit is worse than leaving it out:
+`build(build):` says nothing, and `build(core):` outright lies about the
+change's boundaries.
 
 ```
 feat(agents): normalize Codex exec --json into AgentEvent
 fix(policy): escalate writes outside the project to confirmation
 ```
 
-Три правила, которые важнее формата:
+Three rules that matter more than the format:
 
-1. **Один коммит — одно логическое изменение.** Если в теле сообщения хочется
-   союза «и», это два коммита.
-2. **Каждый коммит собирается и проходит тесты.** `git bisect` бесполезен на
-   истории, где половина коммитов не компилируется.
-3. **Тело отвечает на «почему», а не на «что».** Что сделано — видно в диффе.
+1. **One commit, one logical change.** If the message body wants the word
+   "and," that is two commits.
+2. **Every commit builds and passes its tests.** `git bisect` is useless on a
+   history where half the commits don't compile.
+3. **The body answers "why," not "what."** What was done is visible in the diff.
 
-Сообщения пишутся по-английски — как и всё остальное в репозитории.
+Messages are written in English — like everything else in the repository.
 
-## Язык
+## Language
 
-**Приложение целиком на английском:** имена, комментарии, javadoc, тексты логов и
-исключений, надписи в интерфейсе, реплики озвучки, сообщения коммитов, `README`,
-`CONTRIBUTING`, `CHANGELOG`. Код рассчитан на публикацию.
+**The application is entirely in English:** names, comments, javadoc, log and
+exception text, interface labels, the lines spoken aloud, commit messages,
+`README`, `CONTRIBUTING`, `CHANGELOG`. The code is meant to be published.
 
-**Русский — опция продукта, а не язык исходников.** Пользователь переключает
-профиль и получает русское распознавание, русскую озвучку и русский интерфейс;
-в коде это локализация, выбираемая в рантайме, а не зашитые русские литералы.
+**Russian is a product option, not the language of the sources.** The user
+switches a profile and gets Russian recognition, Russian speech and a Russian
+interface; in the code that is localization chosen at runtime, not hard-coded
+Russian literals.
 
-Единственное исключение — **тестовые данные, изображающие русскую речь
-пользователя**: распознанные фразы, псевдонимы проектов, реплики в тестах
-маршрутизации. Это вход и ожидаемый результат проверки. Перевести их — значит
-перестать проверять русскую опцию вовсе.
+The one exception is **test data standing in for the user's Russian speech**:
+recognised phrases, project aliases, routing-test utterances. That is the
+input and the expected result of a check. Translating it would stop the
+Russian option from being tested at all.
 
-Проектные документы лежат вне репозитория, в `..\docs\`, и тоже ведутся
-по-английски.
+Project documents live outside the repository, in `..\docs\`, and are also
+kept in English.
 
-## Порядок работы
+## Workflow
 
 ```bash
 git switch main && git pull --ff-only
-git switch -c feat/короткий-предмет
+git switch -c feat/short-topic
 
-# ... правки, обязательно с тестами ...
+# ... changes, always with tests ...
 mvn -q test
 
 git add -A && git commit
 ```
 
-Слияние в ствол — только `--no-ff`, чтобы ветка осталась различима в истории:
+Merging into the trunk is `--no-ff` only, so the branch stays visible in
+history:
 
 ```bash
 git switch main
-git merge --no-ff feat/короткий-предмет
+git merge --no-ff feat/short-topic
 ```
 
-История ствола не переписывается. `git push --force` в `main` запрещён;
-`git rebase` допустим только внутри своей ещё не слитой ветки.
+Trunk history is not rewritten. `git push --force` to `main` is forbidden;
+`git rebase` is allowed only inside your own not-yet-merged branch.
 
-## Тесты
+## Tests
 
-Тест пишется до реализации. Тест, который ничего не утверждает, хуже
-отсутствующего: он создаёт видимость покрытия.
+A test is written before the implementation. A test that asserts nothing is
+worse than no test: it creates the appearance of coverage.
 
-Тесты не ходят в сеть и не запускают настоящие агентские CLI. Процессная
-механика проверяется поддельными агентами из тестовых исходников, разбор
-событий — фикстурами в `testdata/fixtures/`.
+Tests do not touch the network and do not launch real agent CLIs. Process
+mechanics are checked against fake agents from the test sources; event parsing
+is checked against fixtures in `testdata/fixtures/`.
 
-**Фикстуры сняты с живых процессов и правке не подлежат.** Если адаптер с ними
-не сходится — чинится адаптер.
+**Fixtures are captured from live processes and are not to be edited.** If an
+adapter disagrees with one, the adapter is what gets fixed.
 
-## Чего в репозитории быть не должно
+## What must not be in the repository
 
-- Веса моделей и кэши скомпилированных блобов — гигабайты, живут в `models/`
-  и `.ov_cache/`, оба игнорируются.
-- Записи голоса и эталон диктора — `voice/`, `recordings/`. Это персональные
-  данные, они не покидают машину.
-- Секреты, токены, ключи. Никогда, даже в тестовых данных.
+- Model weights and compiled-blob caches — gigabytes, live in `models/` and
+  `.ov_cache/`, both ignored.
+- Voice recordings and the speaker reference — `voice/`, `recordings/`.
+  Personal data; it does not leave the machine.
+- Secrets, tokens, keys. Never, not even in test data.
 
-## Документы
+## Documents
 
-Решения фиксируются, а не пересказываются в чате. Спорный архитектурный выбор
-оформляется в `../docs/adr/` (документы проекта лежат рядом с репозиторием,
-а не внутри него) по образцу существующих: контекст, решение,
-последствия, рассмотренные альтернативы, доказательства.
+Decisions are recorded, not retold in chat. A disputed architectural choice is
+written up in `../docs/adr/` (the project's documents live alongside the
+repository, not inside it), following the pattern of the existing ones:
+context, decision, consequences, alternatives considered, evidence.
 
-Изменение поведения, заметное пользователю, отражается в `CHANGELOG.md`.
+A behaviour change visible to the user is reflected in `CHANGELOG.md`.
