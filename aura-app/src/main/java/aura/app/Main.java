@@ -3,7 +3,6 @@ package aura.app;
 import aura.agents.ClaudeSession;
 import aura.agents.CodexSession;
 import aura.agents.SessionSupervisor;
-import aura.core.Agent;
 import aura.core.AgentEvent;
 import aura.core.Project;
 import aura.core.ProjectRegistry;
