@@ -81,7 +81,11 @@ public final class CodexSession implements AgentSession {
             String line;
             while ((line = reader.readLine()) != null) {
                 for (AgentEvent event : parser.parseLine(line)) {
-                    sink.accept(event);
+                    try {
+                        sink.accept(event);
+                    } catch (Exception e) {
+                        log.warn("event sink threw an exception", e);
+                    }
                 }
             }
         } catch (Exception e) {

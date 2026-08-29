@@ -40,7 +40,7 @@ public record AuraConfig(
             Path.of("claude"),
             Path.of("codex"),
             appData.resolve("projects.yaml"),
-            Path.of("aura", "aura-hook", "target", "aura-hook.jar").toAbsolutePath(),
+            Path.of("aura-hook", "target", "aura-hook.jar").toAbsolutePath(),
             Path.of(System.getProperty("java.home"), "bin", "java.exe"),
             localAppData.resolve("run"),
             Duration.ofMinutes(15),
