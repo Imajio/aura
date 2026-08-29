@@ -22,7 +22,9 @@ import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+import javax.swing.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +32,13 @@ import org.slf4j.LoggerFactory;
 public final class Main {
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
+
+    // Aura normally starts from a shortcut with nobody watching it. A plain modal
+    // dialog blocks the calling thread until someone clicks OK, so an unattended
+    // launch would never reach System.exit and would sit forever looking alive.
+    // Bounding the dialog keeps it useful for whoever is at the keyboard while
+    // guaranteeing the process still terminates on its own.
+    private static final int STARTUP_DIALOG_TIMEOUT_MS = 30_000;
 
     public static void main(String[] args) {
         Path configFile = Path.of(System.getenv().getOrDefault("APPDATA",
@@ -129,11 +138,21 @@ public final class Main {
 
             tray[0] = new TrayApp(
                 phrase -> {
-                    var result = dispatcher.dispatch(phrase);
-                    if (result instanceof TaskDispatcher.ProjectUnknown) {
-                        tray[0].notice("Could not tell which project. Name the project in the phrase.");
-                    } else if (result instanceof TaskDispatcher.Sent sent) {
-                        tray[0].notice("Sent to project " + sent.projectName());
+                    try {
+                        var result = dispatcher.dispatch(phrase);
+                        if (result instanceof TaskDispatcher.ProjectUnknown) {
+                            tray[0].notice("Could not tell which project. Name the project in the phrase.");
+                        } else if (result instanceof TaskDispatcher.Sent sent) {
+                            tray[0].notice("Sent to project " + sent.projectName());
+                        }
+                    } catch (IllegalStateException e) {
+                        // The commonest first cause is claude/codex not resolving on the
+                        // GUI process's PATH, since the default is the bare binary name.
+                        // Without this, the exception reaches the event thread's default
+                        // handler and prints a stack trace to a console that does not
+                        // exist when the app is launched from a shortcut — total silence.
+                        log.warn("task dispatch failed", e);
+                        tray[0].notice("Could not start the task: " + e.getMessage());
                     }
                 },
                 supervisor::close,
@@ -159,11 +178,32 @@ public final class Main {
         } catch (Exception e) {
             log.error("Aura could not start", e);
             if (!GraphicsEnvironment.isHeadless()) {
-                JOptionPane.showMessageDialog(null,
-                    "Aura could not start:\n\n" + e.getMessage(),
-                    "Aura", JOptionPane.ERROR_MESSAGE);
+                showStartupFailureDialog(e.getMessage());
             }
             System.exit(1);
+        }
+    }
+
+    /**
+     * Shows the failure dialog without letting it block forever. The dialog itself
+     * disposes after {@value #STARTUP_DIALOG_TIMEOUT_MS} ms if nobody dismisses it,
+     * which unblocks {@code setVisible} below and lets startup fail through to the
+     * exit code either way.
+     */
+    private static void showStartupFailureDialog(String message) {
+        try {
+            JOptionPane pane = new JOptionPane(
+                "Aura could not start:\n\n" + message, JOptionPane.ERROR_MESSAGE);
+            JDialog dialog = pane.createDialog("Aura");
+            Timer timeout = new Timer(STARTUP_DIALOG_TIMEOUT_MS, e -> dialog.dispose());
+            timeout.setRepeats(false);
+            timeout.start();
+            dialog.setVisible(true);
+            timeout.stop();
+        } catch (RuntimeException e) {
+            // Best-effort notice only: startup still fails via the exit code below
+            // regardless of whether the dialog itself could be shown.
+            log.warn("could not show the startup failure dialog", e);
         }
     }
 
