@@ -78,6 +78,16 @@ public final class Main {
                         + configFile);
             }
 
+            // javaExe is the other half of the same generated hook command: if it does
+            // not resolve either, bash reports command-not-found for the hook, the hook
+            // never answers, and the CLI silently falls back to its own permission flow
+            // instead of Aura's. Same hazard as a missing hook jar, same fix.
+            if (!Files.isRegularFile(config.javaExe())) {
+                throw new IllegalStateException(
+                    "java executable not found at " + config.javaExe()
+                        + " — set javaExe in " + configFile);
+            }
+
             HookServer hookServer = new HookServer(
                 config.socketPath(),
                 request -> {
