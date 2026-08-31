@@ -15,18 +15,18 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Веса моделей и кэш скомпилированных блобов — гигабайты, живут вне репозитория.
-# Игнорируются каталоги, а не расширения: запрет на *.bin и *.onnx молча съедал бы
-# любой будущий файл фикстуры с тем же расширением.
+# Model weights and compiled-blob caches — gigabytes; they live outside the repository.
+# Directories are ignored, not extensions: banning *.bin and *.onnx would silently swallow
+# any future fixture file carrying the same extension.
 models/
 .ov_cache/
 
-# Личные артефакты голоса: записи для обучения кодового слова и эталон диктора.
-# Не должны покидать машину.
+# Personal voice artefacts: wake-word training recordings and the speaker reference.
+# They must not leave the machine.
 voice/
 recordings/
 
-# Рабочая область субагентного исполнения планов — черновики, не история
+# Working area for subagent plan execution — drafts, not history
 .superpowers/
 
 # IDE

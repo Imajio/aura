@@ -1,7 +1,7 @@
 * text=auto
 
-# Фикстуры сравниваются побайтово — переводы строк не трогать
+# Fixtures are compared byte for byte — line endings are not to be changed
 *.jsonl text eol=lf
 
-# Скрипты, которые исполняются в POSIX-окружении
+# Scripts that run in a POSIX environment
 *.sh text eol=lf
