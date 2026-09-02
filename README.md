@@ -1,48 +1,61 @@
 # Aura
 
-Голосовой фронтенд к Claude Code и Codex. Спит в трее, просыпается на кодовое слово,
-принимает задачу голосом, ставит её агенту, озвучивает ход работы и итог.
+Aura is a Windows tray application for Claude Code and Codex. It takes a typed
+task, hands it to the coding-agent CLI, normalises the CLI's event stream into
+one canonical form, and refuses a dangerous tool call unless a human confirms
+it.
 
-Всё исполняется локально: распознавание и верификация диктора на NPU, языковая модель
-озвучки и синтез речи на встроенной графике. Аудио не покидает машину.
+**Status:** this branch implements the M1 milestone — tray task entry, a
+long-lived agent session per project, event normalisation for both CLIs, and
+tool-call permission enforcement through a `PreToolUse` hook. Voice (wake
+word, recognition, narration, speaker verification) is not part of M1; it
+arrives in a later milestone. For now, a typed phrase from the tray menu is
+the only way to give Aura a task.
 
-**Статус:** проектирование завершено, реализация не начата.
+## Design documents
 
-## Документы
+The requirements, architecture, decision records and risk register are **not
+in this repository**. They live in a `docs/` directory next to the
+repository, not inside it, and are not published with the code — ask the
+project owner for them if you need them.
 
-| Документ | О чём |
+| Document | About |
 |---|---|
-| [PRD](docs/PRD.md) | зачем это, для кого, границы, нефункциональные требования, критерии приёмки |
-| [Архитектурный дизайн](docs/superpowers/specs/2026-08-26-aura-design.md) | компоненты, протоколы, модели, отказы, тесты, порядок реализации |
-| [RISKS](docs/RISKS.md) | открытые риски и эксперименты, которые их закрывают |
-| [ADR 0001](docs/adr/0001-politika-ustroystv.md) | какая стадия на каком устройстве исполняется |
-| [ADR 0002](docs/adr/0002-triggery-narratora.md) | когда приложение открывает рот |
-| [ADR 0003](docs/adr/0003-golosovoe-podtverzhdenie.md) | разрешения и голосовое подтверждение |
-| [ADR 0004](docs/adr/0004-topologiya-sessii.md) | как держится сессия агента |
-| [План M1](docs/superpowers/plans/2026-08-26-aura-m1-skeleton.md) | первый этап, по шагам |
-| [CONTRIBUTING](CONTRIBUTING.md) | ветки, коммиты, тесты, что не коммитить |
+| `product-requirements.md` | why this exists, for whom, scope, non-functional requirements, acceptance criteria |
+| `architecture.md` | components, protocols, models, failure modes, tests, build order |
+| `risk-register.md` | open risks and the experiments that close them |
+| `adr/0001-execution-device-per-stage.md` | which stage runs on which device |
+| `adr/0002-narration-trigger-policy.md` | when the application opens its mouth |
+| `adr/0003-tool-permissions-and-voice-confirmation.md` | permissions and voice confirmation |
+| `adr/0004-agent-session-topology.md` | how an agent session is held |
+| `plans/m1-skeleton-and-events.md` | this milestone, step by step |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, tests, what not to commit |
 
-## Целевая платформа
+## Target platform
 
-Windows 11, Intel Core Ultra с NPU, встроенная графика Arc. Проверено на
-Core Ultra 9 285H: NPU архитектуры 3720, Arc 140T, OpenVINO 2026.3.
+Windows 11, Intel Core Ultra with an NPU, integrated Arc graphics. Verified on
+a Core Ultra 9 285H: NPU architecture 3720, Arc 140T, OpenVINO 2026.3.
 
-## Раскладка
+## Layout
 
 ```
-pom.xml         родительский POM, Java 21, Maven multi-module
-aura-*\         модули оркестрации
-sidecar\        Python, OpenVINO — звук и все модели
-testdata\       потоки событий, снятые с живых claude и codex
-docs\           требования, дизайн, решения, риски
+pom.xml         parent POM, Java 21, Maven multi-module
+aura-core/      canonical domain model: AgentEvent, ToolClass, EventKind, Project
+aura-agents/    turns each CLI's event stream into AgentEvent; supervises sessions
+aura-policy/    classifies a tool call as allow, confirm, or deny
+aura-ipc/       the channel between the PreToolUse hook and the running app
+aura-hook/      the hook process Claude Code / Codex invoke before a tool call
+aura-app/       entry point: tray icon, task dispatch, permission wiring
+sidecar/        Python, OpenVINO — speech, arriving in a later milestone
+testdata/       event streams and audio fixtures captured from live processes
 ```
 
-## Сборка
+## Build and run
 
 ```bash
-mvn clean package        # всё, включая тесты
+mvn clean package        # everything, including tests
 mvn -q -pl aura-core test
 java -jar aura-app/target/aura-app.jar
 ```
 
-Работа над кодом ведётся по правилам из [CONTRIBUTING.md](CONTRIBUTING.md).
+Work on the code follows the rules in [CONTRIBUTING.md](CONTRIBUTING.md).
