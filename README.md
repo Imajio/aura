@@ -5,12 +5,12 @@ task, hands it to the coding-agent CLI, normalises the CLI's event stream into
 one canonical form, and refuses a dangerous tool call unless a human confirms
 it.
 
-**Status:** this branch implements the M1 milestone — tray task entry, a
+**Status:** M1 is complete and accepted (2026-09-04) — tray task entry, a
 long-lived agent session per project, event normalisation for both CLIs, and
-tool-call permission enforcement through a `PreToolUse` hook. Voice (wake
-word, recognition, narration, speaker verification) is not part of M1; it
-arrives in a later milestone. For now, a typed phrase from the tray menu is
-the only way to give Aura a task.
+tool-call permission enforcement through a `PreToolUse` hook, verified against
+the live Claude Code CLI. Voice (wake word, recognition, narration, speaker
+verification) is not part of M1; it arrives in a later milestone. For now, a
+typed phrase from the tray menu is the only way to give Aura a task.
 
 ## Design documents
 
@@ -29,6 +29,7 @@ project owner for them if you need them.
 | `adr/0003-tool-permissions-and-voice-confirmation.md` | permissions and voice confirmation |
 | `adr/0004-agent-session-topology.md` | how an agent session is held |
 | `plans/m1-skeleton-and-events.md` | this milestone, step by step |
+| `m1-manual-acceptance.md` | the seven steps only a human at the screen can run |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, tests, what not to commit |
 
 ## Target platform
