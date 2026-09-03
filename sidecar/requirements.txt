@@ -1,0 +1,8 @@
+# Sidecar runtime. Pinned exactly: a silent minor bump changes which kernels the
+# NPU plugin emits, and the device measurements in the PRD stop meaning anything.
+#
+# 2026.3.0 is the version the target machine was profiled on (see the PRD, §9).
+# Moving to 2026.3.1 is a deliberate change with its own re-measurement, not a
+# drive-by upgrade.
+openvino==2026.3.0
+openvino-genai==2026.3.0.0
