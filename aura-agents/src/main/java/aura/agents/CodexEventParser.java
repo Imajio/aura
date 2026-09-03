@@ -72,6 +72,18 @@ public final class CodexEventParser {
                 .build());
         }
 
+        if ("error".equals(itemType)) {
+            // Codex reports its own failures as an item, not as a tool call. Classified as
+            // a tool it becomes OTHER, whose event carries no text at all — the message is
+            // the entire content of an error, so dropping it leaves the user with an event
+            // that says something went wrong without saying what.
+            return started ? List.of() : List.of(base(raw)
+                .kind(EventKind.ERROR)
+                .ok(false)
+                .summaryHint(SummaryText.abbreviate(item.path("message").asText("")))
+                .build());
+        }
+
         ToolClass cls = ToolClass.of(itemType);
         String target = targetOf(item);
 

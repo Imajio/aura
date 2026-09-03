@@ -24,6 +24,9 @@ class CodexEventParserTest {
     private static final Clock FIXED =
         Clock.fixed(Instant.parse("2026-08-26T10:00:00Z"), ZoneOffset.UTC);
 
+    private static final Path ERROR_FIXTURE = Path.of("..", "testdata", "fixtures",
+        "codex-exec-json-error-item.jsonl");
+
     @Test
     void mapsRecordedFixtureToSessionTextAndDone() throws Exception {
         CodexEventParser parser = new CodexEventParser(FIXED);
@@ -165,5 +168,27 @@ class CodexEventParserTest {
             assertThat(e.kind()).isEqualTo(EventKind.TEST_RESULT);
             assertThat(e.ok()).isFalse();
         });
+    }
+
+    @Test
+    void errorItemBecomesAnErrorEventCarryingItsMessage() throws Exception {
+        // Captured from codex 0.150.1. An "error" item is a type the adapter had never
+        // seen: it fell through to ToolClass.OTHER, which dropped the message field and
+        // left an event that told the user nothing at all.
+        CodexEventParser parser = new CodexEventParser(FIXED);
+        List<AgentEvent> events = new ArrayList<>();
+        for (String line : Files.readAllLines(ERROR_FIXTURE, StandardCharsets.UTF_8)) {
+            if (!line.isBlank()) {
+                events.addAll(parser.parseLine(line));
+            }
+        }
+
+        List<AgentEvent> errors = events.stream()
+            .filter(e -> e.kind() == EventKind.ERROR)
+            .toList();
+
+        assertThat(errors).hasSize(2);
+        assertThat(errors).allMatch(e -> !e.ok());
+        assertThat(errors.get(0).summaryHint()).contains("dangerously-bypass-hook-trust");
     }
 }
