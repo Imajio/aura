@@ -29,6 +29,10 @@ recordings/
 # Working area for subagent plan execution — drafts, not history
 .superpowers/
 
+# Scratch project the manual acceptance checklist tells the reader to create.
+# Recreated per run, never the same twice, and never worth committing.
+testdata/sandbox/
+
 # IDE
 .idea/
 .vscode/
