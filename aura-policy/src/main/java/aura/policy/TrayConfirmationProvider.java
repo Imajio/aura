@@ -1,7 +1,11 @@
 package aura.policy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.awt.GraphicsEnvironment;
 import java.time.Duration;
+import java.util.Iterator;
+import java.util.Map;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -15,6 +19,8 @@ import javax.swing.Timer;
  */
 public final class TrayConfirmationProvider implements ConfirmationProvider {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Override
     public Decision confirm(ToolRequest request, Duration timeout) {
         if (GraphicsEnvironment.isHeadless()) {
@@ -26,7 +32,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
             SwingUtilities.invokeAndWait(() -> {
                 JOptionPane pane = new JOptionPane(
                     "The agent wants to run:\n\n" + request.toolName() + "\n"
-                        + abbreviate(request.toolInputJson()) + "\n\nin directory "
+                        + describeArguments(request.toolInputJson()) + "\n\nin directory "
                         + request.cwd() + "\n\nAllow?",
                     JOptionPane.WARNING_MESSAGE,
                     JOptionPane.YES_NO_OPTION);
@@ -57,6 +63,40 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
             return Decision.DENY;
         }
         return answer[0];
+    }
+
+    /**
+     * Renders tool arguments for a human: one {@code key: value} line per JSON field, in the
+     * order the CLI sent them. A user staring at a confirmation dialog reads "command: rm -rf
+     * build", not the raw {@code {"command":"rm -rf build"}} it came from.
+     *
+     * <p>Anything that is not a JSON object — malformed text, an array, a bare scalar — falls
+     * back to the flattened raw text: still visible, just not itemised.
+     */
+    static String describeArguments(String toolInputJson) {
+        String raw = toolInputJson == null ? "{}" : toolInputJson;
+        JsonNode node;
+        try {
+            node = MAPPER.readTree(raw);
+        } catch (Exception e) {
+            return abbreviate(raw);
+        }
+        if (!node.isObject() || node.isEmpty()) {
+            return abbreviate(raw);
+        }
+
+        StringBuilder rendered = new StringBuilder();
+        Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            JsonNode value = field.getValue();
+            String text = value.isTextual() ? value.asText() : value.toString();
+            if (!rendered.isEmpty()) {
+                rendered.append('\n');
+            }
+            rendered.append(field.getKey()).append(": ").append(abbreviate(text));
+        }
+        return rendered.toString();
     }
 
     private static String abbreviate(String s) {
