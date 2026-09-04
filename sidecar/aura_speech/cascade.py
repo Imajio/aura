@@ -96,6 +96,15 @@ class Segmenter:
         self._speaking = False
         self._last_speech_at = 0.0
 
+    def speaking(self) -> bool:
+        """True while an utterance is being collected.
+
+        The listener needs this to keep feeding frames through the tail: once
+        somebody has started talking, a frame quiet enough to shut stage 0 is
+        still part of what they are saying.
+        """
+        return self._speaking
+
     def push(self, frame: np.ndarray, is_speech: bool, at: float):
         """Returns a finished utterance, or None while one is still being said."""
         if is_speech:
