@@ -7,6 +7,7 @@ import aura.agents.SessionSupervisor;
 import aura.core.Agent;
 import aura.core.Project;
 import aura.core.ProjectRegistry;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -65,6 +66,33 @@ class TaskDispatcherTest {
         assertThat(command).containsSubsequence("--session-id", "11111111-2222-3333-4444-555555555555");
         assertThat(command).containsSubsequence("--settings", "C:\\run\\settings.json");
         assertThat(command).containsSubsequence("--add-dir", "C:\\work\\backend");
+    }
+
+    @Test
+    void aSessionIdIsNeverReusedAcrossRestarts() throws Exception {
+        // Claude Code refuses to create a session with an id it has already seen:
+        // "Session ID ... is already in use", and the process dies at once. An id
+        // derived from the project name is therefore good for exactly one run in
+        // the whole life of that project — after which every dispatch fails.
+        Path runDir = Files.createTempDirectory("aura-session-id");
+        Set<String> ids = new java.util.HashSet<>();
+
+        for (int restart = 0; restart < 3; restart++) {
+            List<String> command = new ArrayList<>();
+            TaskDispatcher dispatcher = new TaskDispatcher(
+                new ProjectRegistry(List.of(project("backend", Agent.CLAUDE, "backend"))),
+                new SessionSupervisor((sessionConfig, sink) -> {
+                    command.addAll(sessionConfig.command());
+                    return new RecordingSession();
+                }, Duration.ofMinutes(15), Clock.systemUTC()),
+                configIn(runDir), event -> { });
+
+            dispatcher.dispatch("in project backend do something");
+            int idAt = command.indexOf("--session-id") + 1;
+            ids.add(command.get(idAt));
+        }
+
+        assertThat(ids).hasSize(3);
     }
 
     @Test

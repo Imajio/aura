@@ -23,6 +23,50 @@ class ClaudeSessionTest {
             "s-test");
     }
 
+    /** Launches the agent that writes one line to stderr and exits non-zero. */
+    private static SessionConfig dyingAgentConfig(String message) {
+        String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        String classpath = System.getProperty("java.class.path");
+        return new SessionConfig(
+            List.of(java, "-cp", classpath, "aura.agents.DyingAgentMain", message),
+            Path.of("."),
+            "s-dying");
+    }
+
+    @Test
+    void anAgentThatDiesOnStartupSaysWhy() throws Exception {
+        // The failure this exists for: claude rejects a session id it has already
+        // seen and exits at once. Everything worked as designed and the user saw
+        // nothing happen at all, because the only explanation went to a stream
+        // logged below the level anyone reads.
+        List<String> complaints = new CopyOnWriteArrayList<>();
+        try (ClaudeSession session = ClaudeSession.start(
+                dyingAgentConfig("Session ID s-dying is already in use."),
+                event -> { },
+                complaints::add)) {
+
+            await().atMost(Duration.ofSeconds(10)).until(() -> !complaints.isEmpty());
+
+            assertThat(complaints.get(0)).contains("already in use");
+            assertThat(session.alive()).isFalse();
+        }
+    }
+
+    @Test
+    void aDeliberateCloseIsNotReportedAsAFailure() throws Exception {
+        // Every session ends eventually. Only the ones that end by themselves are
+        // news; announcing the others would teach the reader to ignore both.
+        List<String> complaints = new CopyOnWriteArrayList<>();
+        ClaudeSession session = ClaudeSession.start(fakeAgentConfig(), event -> { },
+            complaints::add);
+        await().atMost(Duration.ofSeconds(10)).until(session::alive);
+
+        session.close();
+        Thread.sleep(500);
+
+        assertThat(complaints).isEmpty();
+    }
+
     @Test
     void emitsSessionStartOnLaunch() throws Exception {
         List<AgentEvent> events = new CopyOnWriteArrayList<>();
