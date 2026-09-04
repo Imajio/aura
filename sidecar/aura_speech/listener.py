@@ -26,7 +26,7 @@ class Listener:
     """
 
     def __init__(self, is_speech, recognise, on_utterance,
-                 is_wake=None, on_wake=None,
+                 is_wake=None, on_wake=None, is_owner=None, on_rejected=None,
                  tail_seconds: float = 0.5, max_seconds: float = 30.0,
                  arm_seconds: float = 8.0, on_error=None):
         self._is_speech = is_speech
@@ -34,6 +34,8 @@ class Listener:
         self._on_utterance = on_utterance
         self._is_wake = is_wake
         self._on_wake = on_wake or (lambda at: None)
+        self._is_owner = is_owner
+        self._on_rejected = on_rejected or (lambda: None)
         self._arm_seconds = arm_seconds
         self._on_error = on_error or (lambda message: None)
         self._gate = EnergyGate(NoiseFloor())
@@ -67,6 +69,16 @@ class Listener:
         if not self._awake(at):
             # Heard, understood to be speech, and deliberately not recognised.
             # Somebody talking in the room did not address this application.
+            return
+
+        # Stage 3. Once per utterance, after the wake word rather than before:
+        # it costs about fifteen milliseconds, and stage 2 is what makes it rare
+        # enough to afford. Verifying every utterance in the room would spend
+        # that on every conversation held near the machine.
+        if self._is_owner is not None and not self._is_owner(utterance):
+            # Refused before recognition, not after: a stranger's words must not
+            # travel through a model and into a log on the way to being ignored.
+            self._on_rejected()
             return
 
         try:

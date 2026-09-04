@@ -217,3 +217,73 @@ class TestWakeWord:
         feed(ear, frames(30, 0.001), start=at)
 
         assert heard == ["да"]
+
+
+class TestSpeakerVerification:
+    """Stage 3. What stops a television from giving Aura orders."""
+
+    def wired(self, owner=True, wake=True):
+        heard, rejected, recognised = [], [], []
+
+        def recognise(audio):
+            recognised.append(audio)
+            return "почини тесты"
+
+        ear = Listener(
+            is_speech=lambda frame: True,
+            recognise=recognise,
+            on_utterance=heard.append,
+            is_wake=(lambda frame: wake),
+            is_owner=lambda audio: owner,
+            on_rejected=lambda: rejected.append(True),
+            tail_seconds=0.5,
+        )
+        return ear, heard, rejected, recognised
+
+    def speak(self, ear):
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(30, 0.3), start=at)
+        feed(ear, frames(30, 0.001), start=at)
+
+    def test_the_owner_is_heard(self):
+        ear, heard, rejected, _ = self.wired(owner=True)
+
+        self.speak(ear)
+
+        assert heard == ["почини тесты"]
+        assert rejected == []
+
+    def test_a_stranger_is_refused(self):
+        ear, heard, rejected, _ = self.wired(owner=False)
+
+        self.speak(ear)
+
+        assert heard == []
+        assert rejected == [True]
+
+    def test_a_stranger_is_never_transcribed(self):
+        # Refusing after recognition would still have sent a stranger's words
+        # through a model and into a log. The check comes first.
+        ear, _, _, recognised = self.wired(owner=False)
+
+        self.speak(ear)
+
+        assert recognised == []
+
+    def test_the_check_runs_after_the_wake_word_not_before(self):
+        # Stage 3 costs about fifteen milliseconds an utterance and stage 2 is
+        # what makes it rare. Verifying every utterance in the room would spend
+        # that on every conversation.
+        asked = []
+        ear = Listener(
+            is_speech=lambda frame: True,
+            recognise=lambda audio: "x",
+            on_utterance=lambda text: None,
+            is_wake=lambda frame: False,
+            is_owner=lambda audio: asked.append(True) or True,
+            tail_seconds=0.5,
+        )
+
+        self.speak(ear)
+
+        assert asked == []
