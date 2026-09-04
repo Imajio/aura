@@ -36,6 +36,8 @@ public final class TrayApp {
     private final TrayIcon icon;
     private final int iconSize;
     private final MenuItem statusItem;
+    private final MenuItem messageItem;
+    private String state = "starting…";
     private final Map<Verbosity, CheckboxMenuItem> verbosityItems = new EnumMap<>(Verbosity.class);
 
     public TrayApp(Consumer<String> onTask, Runnable onStop, Runnable onExit,
@@ -52,6 +54,12 @@ public final class TrayApp {
         statusItem = new MenuItem("starting…");
         statusItem.setEnabled(false);
         menu.add(statusItem);
+
+        // The second line keeps the last thing worth reading. A balloon may never
+        // have been shown at all — Windows decides — so nothing may live only there.
+        messageItem = new MenuItem(" ");
+        messageItem.setEnabled(false);
+        menu.add(messageItem);
         menu.addSeparator();
 
         MenuItem newTask = new MenuItem("New task…");
@@ -130,9 +138,37 @@ public final class TrayApp {
         return item;
     }
 
+    /** The state of the work: replaced constantly, worth no more than a glance. */
     public void status(String text) {
-        icon.setToolTip("Aura — " + text);
-        statusItem.setLabel(text);
+        this.state = text;
+        statusItem.setLabel(abbreviate(text));
+        icon.setToolTip("Aura — " + abbreviate(text));
+    }
+
+    /**
+     * Something worth reading, shown without interrupting.
+     *
+     * <p>Windows coalesces balloons that arrive close together, so a running
+     * commentary delivered that way loses most of itself on the way: of two
+     * narrations a second apart, one simply never appears. Progress therefore
+     * lives in the menu, where it can be read whenever the user looks and is
+     * never dropped.
+     */
+    public void message(String text) {
+        messageItem.setLabel(abbreviate(text));
+    }
+
+    /**
+     * Something that should interrupt.
+     *
+     * <p>Balloons are spent sparingly and on purpose. Windows shows them at its
+     * own discretion, and an application that raises one for every step teaches
+     * the user to dismiss them without reading — which is exactly the habit that
+     * has to be absent when a permission question finally arrives.
+     */
+    public void alert(String text) {
+        message(text);
+        icon.displayMessage("Aura", text, TrayIcon.MessageType.INFO);
     }
 
     /**
@@ -145,8 +181,10 @@ public final class TrayApp {
         icon.setImage(TrayIconArt.render(state, iconSize));
     }
 
-    public void notice(String text) {
-        icon.displayMessage("Aura", text, TrayIcon.MessageType.INFO);
+    /** A tray tooltip is truncated by Windows at 63 characters; cut it ourselves. */
+    private static String abbreviate(String text) {
+        String flat = text == null ? "" : text.replace('\n', ' ').replace('\r', ' ').trim();
+        return flat.length() <= 60 ? flat : flat.substring(0, 59) + "…";
     }
 
     public void remove() {

@@ -63,7 +63,7 @@ public final class Main {
                 // indistinguishable from an agent that is thinking.
                 return ClaudeSession.start(sessionConfig, sink, complaint -> {
                     if (tray[0] != null) {
-                        tray[0].notice("The agent stopped: " + complaint);
+                        tray[0].alert("The agent stopped: " + complaint);
                         tray[0].state(TrayIconArt.State.ERROR);
                     }
                 });
@@ -140,11 +140,16 @@ public final class Main {
                 });
             hookServer.start();
 
+            // The narration that closes a task arrives a moment after the DONE event
+            // itself, so the event sets a flag the narration handler consumes.
+            java.util.concurrent.atomic.AtomicBoolean finished =
+                new java.util.concurrent.atomic.AtomicBoolean();
+
             // The sidecar is optional on purpose. Without it the application still
             // dispatches tasks, gates tool calls and shows progress in the tray —
             // it simply does not speak. Refusing to start because a voice is
             // missing would trade the whole product for one of its features.
-            SpeechClient speech = startSidecar(config, tray);
+            SpeechClient speech = startSidecar(config, tray, finished);
             NarrationPolicy narrationPolicy = new NarrationPolicy(Verbosity.NORMAL, Instant::now);
             NarrationBridge narration = speech == null ? null
                 : new NarrationBridge(narrationPolicy, speech::send,
@@ -152,6 +157,9 @@ public final class Main {
 
             java.util.function.Consumer<AgentEvent> sink = event -> {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
+                if (event.kind() == aura.core.EventKind.DONE) {
+                    finished.set(true);
+                }
                 if (tray[0] != null) {
                     tray[0].status(event.kind() + " " + event.target());
                     TrayIconArt.State state = TrayIconArt.stateFor(event.kind());
@@ -186,9 +194,9 @@ public final class Main {
                     try {
                         var result = dispatcher.dispatch(phrase);
                         if (result instanceof TaskDispatcher.ProjectUnknown) {
-                            tray[0].notice("Could not tell which project. Name the project in the phrase.");
+                            tray[0].alert("Could not tell which project. Name the project in the phrase.");
                         } else if (result instanceof TaskDispatcher.Sent sent) {
-                            tray[0].notice("Sent to project " + sent.projectName());
+                            tray[0].message("Sent to project " + sent.projectName());
                         }
                     } catch (IllegalStateException e) {
                         // The commonest first cause is claude/codex not resolving on the
@@ -197,7 +205,7 @@ public final class Main {
                         // handler and prints a stack trace to a console that does not
                         // exist when the app is launched from a shortcut — total silence.
                         log.warn("task dispatch failed", e);
-                        tray[0].notice("Could not start the task: " + e.getMessage());
+                        tray[0].alert("Could not start the task: " + e.getMessage());
                     }
                 },
                 supervisor::close,
@@ -270,7 +278,8 @@ public final class Main {
      * to deny the user an application that otherwise works. The reason is logged and
      * shown once in the tray, so the silence is explained rather than mysterious.
      */
-    private static SpeechClient startSidecar(AuraConfig config, TrayApp[] tray) {
+    private static SpeechClient startSidecar(AuraConfig config, TrayApp[] tray,
+                                             java.util.concurrent.atomic.AtomicBoolean finished) {
         if (!Files.isDirectory(config.sidecarDir())) {
             log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
             return null;
@@ -288,7 +297,16 @@ public final class Main {
                     String text = event.path("text").asText();
                     log.info("narration: {}", text);
                     if (tray[0] != null) {
-                        tray[0].notice(text);
+                        // Only the line that closes the task interrupts. Windows
+                        // coalesces balloons that arrive close together, so raising
+                        // one per step loses most of them and teaches the user to
+                        // dismiss the rest unread — the habit that must be absent
+                        // when a permission question finally arrives.
+                        if (finished.compareAndSet(true, false)) {
+                            tray[0].alert(text);
+                        } else {
+                            tray[0].message(text);
+                        }
                     }
                 } else if ("error".equals(kind)) {
                     log.warn("sidecar error {}: {}",
