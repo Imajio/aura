@@ -30,6 +30,7 @@ project owner for them if you need them.
 | `adr/0004-agent-session-topology.md` | how an agent session is held |
 | `plans/m1-skeleton-and-events.md` | this milestone, step by step |
 | `m1-manual-acceptance.md` | the seven steps only a human at the screen can run |
+| `owner-experiments.md` | the four measurements that need a person, speakers or a battery |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, tests, what not to commit |
 
 ## Target platform
