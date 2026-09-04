@@ -15,7 +15,7 @@ import pathlib
 import sys
 
 from .cascade import FRAME_SECONDS
-from .hearing import Microphone, silero_vad, whisper
+from .hearing import Microphone, open_wake_word, silero_vad, whisper
 from .listener import Listener
 from .narrator import Narrator
 from .protocol import serve
@@ -70,6 +70,11 @@ def main(argv=None) -> int:
                              "assistant that starts recording the room because it "
                              "was installed is not a feature anyone agreed to.")
     parser.add_argument("--whisper", default=str(DEFAULT_WHISPER))
+    parser.add_argument("--wake-model", default=None,
+                        help="the wake-word model, trained on the owner's voice. "
+                             "Listening does nothing without one: an assistant "
+                             "that acts on every sentence in the room is not the "
+                             "product.")
     parser.add_argument("--voice", default=None,
                         help="Silero voice to speak with. Without it the sidecar "
                              "narrates in text and answers SPEECH_UNAVAILABLE to "
@@ -105,6 +110,12 @@ def main(argv=None) -> int:
 
     emitted = _emit_to(sys.stdout)
     hearing = _start_listening(args, cache, emitted) if args.listen else None
+    if args.listen and hearing is None:
+        emitted({"ev": "error", "code": "NO_WAKE_WORD",
+                 "detail": "listening was asked for without a wake-word model; the "
+                           "microphone stays shut rather than record a room whose "
+                           "speech could never be acted on",
+                 "fatal": False})
 
     serve(sys.stdin, sys.stdout, narrate=narrate,
           speak=voice.speak if voice else None,
@@ -131,15 +142,24 @@ def _emit_to(stdout):
 
 
 def _start_listening(args, cache, emit):
-    """Opens the microphone and reports what is said. Only ever called on --listen."""
+    """Opens the microphone and reports what is said. Only ever called on --listen.
+
+    Returns None when there is no wake-word model. Recording a room whose speech
+    can never be acted on is not a degraded feature, it is surveillance with no
+    upside, so the microphone stays shut and the reason is reported.
+    """
     import threading
-    import time
+
+    if not args.wake_model:
+        return None
 
     listener = Listener(
         is_speech=silero_vad(),
         recognise=whisper(args.whisper, device=args.device,
                           cache_dir=cache / f"{args.device}-stt"),
         on_utterance=lambda text: emit({"ev": "utterance", "text": text}),
+        is_wake=open_wake_word(args.wake_model),
+        on_wake=lambda at: emit({"ev": "wake"}),
         on_error=lambda detail: emit({"ev": "error", "code": "RECOGNITION_FAILED",
                                       "detail": detail, "fatal": False}))
 
