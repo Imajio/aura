@@ -136,10 +136,9 @@ public final class Main {
             // it simply does not speak. Refusing to start because a voice is
             // missing would trade the whole product for one of its features.
             SpeechClient speech = startSidecar(config, tray);
-            NarrationBridge narration = speech == null ? null : new NarrationBridge(
-                new NarrationPolicy(Verbosity.NORMAL, Instant::now),
-                speech::send,
-                "ru");
+            NarrationPolicy narrationPolicy = new NarrationPolicy(Verbosity.NORMAL, Instant::now);
+            NarrationBridge narration = speech == null ? null
+                : new NarrationBridge(narrationPolicy, speech::send, "ru");
 
             java.util.function.Consumer<AgentEvent> sink = event -> {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
@@ -169,6 +168,9 @@ public final class Main {
 
             TaskDispatcher dispatcher = new TaskDispatcher(registry, supervisor, config, sink);
 
+            Path logDir = Path.of(System.getenv().getOrDefault("LOCALAPPDATA",
+                System.getProperty("user.home")), "Aura", "logs");
+
             tray[0] = new TrayApp(
                 phrase -> {
                     try {
@@ -196,7 +198,13 @@ public final class Main {
                     closeQuietly(speech);
                     tray[0].remove();
                     System.exit(0);
-                });
+                },
+                level -> {
+                    narrationPolicy.verbosity(level);
+                    log.info("narration level set to {}", level);
+                },
+                narrationPolicy.verbosity(),
+                logDir);
 
             tray[0].status("ready");
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
