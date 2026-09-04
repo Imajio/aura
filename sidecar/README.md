@@ -112,3 +112,14 @@ text is what works; the chat template's `enable_thinking` hook does not, because
 `LLMPipeline` re-applies its own template to any string handed to it and buries
 the prefill. The 0.6B build ignores the marker altogether and narrates nothing,
 so it is not a smaller narrator — it is not one at all.
+
+## Measuring the cost of unloading
+
+```bash
+.venv-export/Scripts/python.exe benchmark-model-switching.py --device GPU
+```
+
+Compares both models resident and alternating against dropped and rebuilt
+before every use — the two sides of the registry's idle-unload policy. Load and
+first inference are timed apart, because the first call after a load costs more
+than the load.
