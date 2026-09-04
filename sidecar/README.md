@@ -138,3 +138,15 @@ Which voice ships is decided by listening, not by a number. What the numbers
 settle is that synthesis is not the expensive half: about 110 ms a phrase on
 v4, on the CPU, so it neither breaks the 900 ms budget nor competes with the
 iGPU that recognition and the narrator share.
+
+## Comparing recognition models
+
+```bash
+.venv-export/Scripts/python.exe compare-recognition.py \
+    --models ../models/whisper-tiny-int8,../models/whisper-large-v3-turbo-int8
+```
+
+Word error rate on Russian commands carrying English technical terms — the
+case that decides whether routing can find the project at all. Speech is
+synthesised until the corpus in `testdata/audio` has recordings, which flatters
+every model equally.
