@@ -22,7 +22,12 @@ class NarrationBridgeTest {
     private Instant now = Instant.parse("2026-09-04T10:00:00Z");
 
     private NarrationBridge bridge(Verbosity verbosity) {
-        return new NarrationBridge(new NarrationPolicy(verbosity, () -> now), sent::add, "ru");
+        return bridge(verbosity, true);
+    }
+
+    private NarrationBridge bridge(Verbosity verbosity, boolean voice) {
+        return new NarrationBridge(
+            new NarrationPolicy(verbosity, () -> now), sent::add, "ru", voice);
     }
 
     private AgentEvent event(EventKind kind, ToolClass toolClass, String target, String hint) {
@@ -108,6 +113,25 @@ class NarrationBridgeTest {
     }
 
     @Test
+    void withoutAVoiceTheSidecarIsNotAskedToSpeak() {
+        // Asking anyway is not harmless: the sidecar answers SPEECH_UNAVAILABLE to
+        // every single narration, and the log fills with errors describing a
+        // configuration that is deliberate.
+        bridge(Verbosity.NORMAL, false)
+            .accept(event(EventKind.DONE, ToolClass.OTHER, "", "finished"));
+
+        assertThat(sent.get(0)).containsEntry("speak", false);
+    }
+
+    @Test
+    void withAVoiceItIsAskedToSpeak() {
+        bridge(Verbosity.NORMAL, true)
+            .accept(event(EventKind.DONE, ToolClass.OTHER, "", "finished"));
+
+        assertThat(sent.get(0)).containsEntry("speak", true);
+    }
+
+    @Test
     void theHeartbeatSpeaksWhenTheCeilingHasPassed() {
         NarrationBridge bridge = bridge(Verbosity.NORMAL);
         bridge.accept(event(EventKind.TOOL_END, ToolClass.READ, "a.txt", "read a file"));
@@ -126,7 +150,7 @@ class NarrationBridgeTest {
         NarrationBridge bridge = new NarrationBridge(
             new NarrationPolicy(Verbosity.NORMAL, () -> now),
             command -> { throw new IllegalStateException("sidecar is gone"); },
-            "en");
+            "en", true);
 
         bridge.accept(event(EventKind.TEST_RESULT, ToolClass.EXEC, "pytest", "one"));
         now = now.plusSeconds(10);

@@ -24,7 +24,7 @@ class TaskDispatcherTest {
         Path.of("projects.yaml"), Path.of("C:", "aura", "aura-hook.jar"),
         Path.of("C:", "jdk", "bin", "java.exe"), Path.of("C:", "run"),
         Duration.ofMinutes(15), Duration.ofSeconds(20),
-        Path.of("sidecar"), Path.of("python"), "");
+        Path.of("sidecar"), Path.of("python"), "", "en");
 
     /**
      * For dispatch checks: the dispatcher writes the settings file to disk, so
@@ -37,7 +37,7 @@ class TaskDispatcherTest {
             Path.of("projects.yaml"), runDir.resolve("aura-hook.jar"),
             Path.of("C:", "jdk", "bin", "java.exe"), runDir,
             Duration.ofMinutes(15), Duration.ofSeconds(20),
-            Path.of("sidecar"), Path.of("python"), "");
+            Path.of("sidecar"), Path.of("python"), "", "en");
     }
 
     private static Project project(String name, Agent agent, String... aliases) {

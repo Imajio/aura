@@ -33,14 +33,17 @@ public final class NarrationBridge {
     private final NarrationPolicy policy;
     private final java.util.function.Consumer<Map<String, Object>> send;
     private final String profile;
+    private final boolean voice;
     private final AtomicLong sequence = new AtomicLong();
 
     public NarrationBridge(NarrationPolicy policy,
                            java.util.function.Consumer<Map<String, Object>> send,
-                           String profile) {
+                           String profile,
+                           boolean voice) {
         this.policy = Objects.requireNonNull(policy, "policy");
         this.send = Objects.requireNonNull(send, "send");
         this.profile = Objects.requireNonNull(profile, "profile");
+        this.voice = voice;
     }
 
     /** Offers an event; speaks only if the policy says this is the moment. */
@@ -60,7 +63,10 @@ public final class NarrationBridge {
         command.put("style", "progress");
         command.put("profile", profile);
         command.put("priority", request.urgent() ? "urgent" : "normal");
-        command.put("speak", true);
+        // Asking for speech that cannot happen is not free: the sidecar answers
+        // SPEECH_UNAVAILABLE to every narration, and the log fills with errors
+        // describing a configuration nobody got wrong.
+        command.put("speak", voice);
         command.put("events", request.events().stream().map(NarrationBridge::forNarrator).toList());
 
         try {

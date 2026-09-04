@@ -138,7 +138,8 @@ public final class Main {
             SpeechClient speech = startSidecar(config, tray);
             NarrationPolicy narrationPolicy = new NarrationPolicy(Verbosity.NORMAL, Instant::now);
             NarrationBridge narration = speech == null ? null
-                : new NarrationBridge(narrationPolicy, speech::send, "ru");
+                : new NarrationBridge(narrationPolicy, speech::send,
+                    config.profile(), !config.voice().isBlank());
 
             java.util.function.Consumer<AgentEvent> sink = event -> {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
