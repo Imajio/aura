@@ -24,17 +24,20 @@ import json
 from .events import to_narrator_input
 
 DEFAULT_PROFILE = "en"
+DEFAULT_VERBOSITY = "normal"
 
 
 def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
     """Reads commands until the stream ends or `shutdown` arrives.
 
-    `narrate(lines, profile) -> str` and `speak(text)` are injected: the loop's
-    behaviour is worth testing without loading a model or waking an audio
-    device, and which model answers is a decision made outside this file.
+    `narrate(lines, profile, verbosity) -> str` and `speak(text)` are injected:
+    the loop's behaviour is worth testing without loading a model or waking an
+    audio device, and which model answers which verbosity is a decision made
+    outside this file.
     """
     emit = _emitter(stdout)
     profile = DEFAULT_PROFILE
+    verbosity = DEFAULT_VERBOSITY
 
     # Announced before anything is loaded. Compiling a model for the iGPU takes
     # tens of seconds, and a sidecar that stays silent until it finishes looks
@@ -62,9 +65,10 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
             return
         if command == "configure":
             profile = message.get("profile") or profile
+            verbosity = message.get("verbosity") or verbosity
             continue
         if command == "narrate":
-            profile = _narrate(emit, message, message_id, profile, narrate, speak)
+            _narrate(emit, message, message_id, profile, verbosity, narrate, speak)
             continue
         if command == "speak":
             _speak(emit, message.get("text", ""), message_id, speak)
@@ -81,27 +85,26 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
         emit({"ev": "error", "code": "UNKNOWN_COMMAND", "detail": str(command), "fatal": False})
 
 
-def _narrate(emit, message, message_id, profile, narrate, speak) -> str:
+def _narrate(emit, message, message_id, profile, verbosity, narrate, speak) -> None:
     lines = to_narrator_input(message.get("events"))
     if not lines:
         # An empty window is silence. Narrating it would mean asking the model
         # to say something about nothing, and it would oblige.
-        return profile
+        return
 
     try:
-        text = narrate(lines, profile)
+        text = narrate(lines, profile, verbosity)
     except Exception as e:
         emit({"ev": "error", "code": "NARRATION_FAILED",
               "detail": f"{type(e).__name__}: {e}"[:200], "for": message_id, "fatal": False})
-        return profile
+        return
 
     if not text:
-        return profile
+        return
 
     emit({"ev": "narration", "text": text, "for": message_id})
     if message.get("speak", True):
         _speak(emit, text, message_id, speak)
-    return profile
 
 
 def _speak(emit, text, message_id, speak) -> None:

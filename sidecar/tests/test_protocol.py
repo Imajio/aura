@@ -17,7 +17,7 @@ from aura_speech import protocol  # noqa: E402
 from aura_speech.events import to_narrator_input  # noqa: E402
 
 
-def run(commands, narrate=lambda events, profile: "a line", speak=None, cancel=None):
+def run(commands, narrate=lambda events, profile, verbosity: "a line", speak=None, cancel=None):
     """Drives the loop over a canned command list and returns the events it emitted."""
     stdin = io.StringIO("".join(json.dumps(c) + "\n" for c in commands))
     stdout = io.StringIO()
@@ -102,7 +102,7 @@ def test_speech_is_started_and_finished_when_a_voice_is_present():
 
 
 def test_a_failing_model_reports_an_error_rather_than_killing_the_sidecar():
-    def explode(events, profile):
+    def explode(events, profile, verbosity):
         raise RuntimeError("model went away")
 
     events = run([{"id": "c4", "cmd": "narrate", "events": [{"summaryHint": "x"}]},
@@ -141,7 +141,7 @@ def test_unknown_command_is_an_error_not_silence():
 def test_malformed_json_does_not_end_the_conversation():
     stdin = io.StringIO('not json\n{"id":"c1","cmd":"configure","profile":"ru"}\n')
     stdout = io.StringIO()
-    protocol.serve(stdin, stdout, narrate=lambda e, p: "x")
+    protocol.serve(stdin, stdout, narrate=lambda e, p, v: "x")
     events = [json.loads(line) for line in stdout.getvalue().splitlines()]
 
     assert kinds(events) == ["ready", "error"]
@@ -151,7 +151,7 @@ def test_malformed_json_does_not_end_the_conversation():
 def test_configure_selects_the_profile_the_narrator_is_given():
     seen = []
 
-    def narrate(events, profile):
+    def narrate(events, profile, verbosity):
         seen.append(profile)
         return "x"
 
@@ -167,6 +167,34 @@ def test_shutdown_stops_reading():
                   {"id": "c11", "cmd": "fly_to_the_moon"}])
 
     assert kinds(events) == ["ready"]
+
+
+def test_configure_selects_the_verbosity_the_narrator_is_given():
+    # The registry gives the quiet level the smaller model. The sidecar is where
+    # that choice is made, and configure is how it hears about it.
+    seen = []
+
+    def narrate(events, profile, verbosity):
+        seen.append(verbosity)
+        return "x"
+
+    run([{"id": "c1", "cmd": "configure", "verbosity": "quiet"},
+         {"id": "c4", "cmd": "narrate", "events": [{"summaryHint": "x"}]}],
+        narrate=narrate)
+
+    assert seen == ["quiet"]
+
+
+def test_an_unset_verbosity_defaults_to_normal_rather_than_to_nothing():
+    seen = []
+
+    def narrate(events, profile, verbosity):
+        seen.append(verbosity)
+        return "x"
+
+    run([{"id": "c4", "cmd": "narrate", "events": [{"summaryHint": "x"}]}], narrate=narrate)
+
+    assert seen == ["normal"]
 
 
 class TestEventMapping:
