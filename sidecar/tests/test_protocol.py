@@ -17,12 +17,31 @@ from aura_speech import protocol  # noqa: E402
 from aura_speech.events import to_narrator_input  # noqa: E402
 
 
-def run(commands, narrate=lambda events, profile: "a line", speak=None):
+def run(commands, narrate=lambda events, profile: "a line", speak=None, cancel=None):
     """Drives the loop over a canned command list and returns the events it emitted."""
     stdin = io.StringIO("".join(json.dumps(c) + "\n" for c in commands))
     stdout = io.StringIO()
-    protocol.serve(stdin, stdout, narrate=narrate, speak=speak)
+    protocol.serve(stdin, stdout, narrate=narrate, speak=speak, cancel=cancel)
     return [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+
+
+def test_cancel_stops_speech_that_is_already_playing():
+    # The stop word is the one control a user has while the application is
+    # talking over them, and it reaches the sidecar as speak.cancel.
+    stopped = []
+    events = run([{"id": "c3", "cmd": "speak.cancel"}],
+                 speak=lambda text: None, cancel=lambda: stopped.append(True))
+
+    assert stopped == [True]
+    assert kinds(events) == ["ready"]
+
+
+def test_cancel_without_a_voice_is_accepted_quietly():
+    # The command belongs to the protocol. Answering UNKNOWN_COMMAND would
+    # teach the caller to stop sending the one thing that interrupts speech.
+    events = run([{"id": "c3", "cmd": "speak.cancel"}])
+
+    assert kinds(events) == ["ready"]
 
 
 def kinds(events):
@@ -94,6 +113,22 @@ def test_a_failing_model_reports_an_error_rather_than_killing_the_sidecar():
     assert kinds(events) == ["ready", "error", "error"]
     assert all(e["code"] == "NARRATION_FAILED" for e in events[1:])
     assert all(e["fatal"] is False for e in events[1:])
+
+
+def test_a_voice_that_fails_to_speak_reports_it_and_keeps_serving():
+    # The runtime environment deliberately carries no torch, so a Silero voice
+    # asked to speak there raises on import. That must reach the tray as a
+    # reason, not as a dead sidecar.
+    def explode(text):
+        raise ModuleNotFoundError("No module named 'torch'")
+
+    events = run([{"id": "c2", "cmd": "speak", "text": "привет"},
+                  {"id": "cX", "cmd": "fly_to_the_moon"}], speak=explode)
+
+    assert kinds(events) == ["ready", "speak.started", "error", "error"]
+    assert events[2]["code"] == "SPEECH_FAILED"
+    assert "torch" in events[2]["detail"]
+    assert events[2]["fatal"] is False
 
 
 def test_unknown_command_is_an_error_not_silence():

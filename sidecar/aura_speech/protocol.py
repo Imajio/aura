@@ -26,7 +26,7 @@ from .events import to_narrator_input
 DEFAULT_PROFILE = "en"
 
 
-def serve(stdin, stdout, narrate, speak=None, devices=None):
+def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
     """Reads commands until the stream ends or `shutdown` arrives.
 
     `narrate(lines, profile) -> str` and `speak(text)` are injected: the loop's
@@ -70,9 +70,12 @@ def serve(stdin, stdout, narrate, speak=None, devices=None):
             _speak(emit, message.get("text", ""), message_id, speak)
             continue
         if command == "speak.cancel":
-            # Nothing to cancel until playback exists. Silently accepted rather
-            # than reported as unknown: the command is part of the protocol, and
-            # answering an error would teach the caller to stop sending it.
+            # The stop word arrives here. Accepted silently when no voice is
+            # loaded rather than reported as unknown: the command belongs to the
+            # protocol, and an error would teach the caller to stop sending the
+            # one thing that interrupts speech.
+            if cancel is not None:
+                cancel()
             continue
 
         emit({"ev": "error", "code": "UNKNOWN_COMMAND", "detail": str(command), "fatal": False})

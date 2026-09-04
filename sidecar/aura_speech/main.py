@@ -16,6 +16,7 @@ import sys
 
 from .narrator import Narrator
 from .protocol import serve
+from .voice import Voice, silero
 
 DEFAULT_MODEL = pathlib.Path(__file__).resolve().parents[2] / "models" / "qwen3-4b-int4-ov"
 DEFAULT_CACHE = pathlib.Path(__file__).resolve().parents[2] / ".ov_cache"
@@ -56,6 +57,11 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default=str(DEFAULT_MODEL))
     parser.add_argument("--device", default="GPU")
     parser.add_argument("--cache", default=str(DEFAULT_CACHE))
+    parser.add_argument("--voice", default=None,
+                        help="Silero voice to speak with. Without it the sidecar "
+                             "narrates in text and answers SPEECH_UNAVAILABLE to "
+                             "speak, so that starting it never makes noise by "
+                             "accident.")
     args = parser.parse_args(argv)
 
     # Pin both pipes to UTF-8. A piped child on Windows inherits the console code
@@ -77,7 +83,11 @@ def main(argv=None) -> int:
     else:
         narrate = build_narrator(model, args.device, pathlib.Path(args.cache))
 
+    voice = Voice(silero(), name=args.voice) if args.voice else None
+
     serve(sys.stdin, sys.stdout, narrate=narrate,
+          speak=voice.speak if voice else None,
+          cancel=voice.cancel if voice else None,
           devices={"npu": False, "gpu": args.device == "GPU"})
     return 0
 
