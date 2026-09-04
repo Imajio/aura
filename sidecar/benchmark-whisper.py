@@ -40,6 +40,9 @@ import numpy as np
 
 def read_wav(path: pathlib.Path) -> tuple[np.ndarray, float]:
     """Reads a 16 kHz mono PCM file as float32 in [-1, 1]."""
+    if not path.is_file():
+        raise SystemExit(
+            f"no audio at {path} — run make-bench-sample.ps1 to generate it")
     with wave.open(str(path), "rb") as f:
         if f.getnchannels() != 1 or f.getframerate() != 16000 or f.getsampwidth() != 2:
             raise SystemExit(
