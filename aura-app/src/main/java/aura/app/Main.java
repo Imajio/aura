@@ -4,6 +4,9 @@ import aura.agents.ClaudeSession;
 import aura.agents.CodexSession;
 import aura.agents.SessionSupervisor;
 import aura.core.AgentEvent;
+import aura.core.NarrationPolicy;
+import aura.core.Verbosity;
+import aura.ipc.SpeechClient;
 import aura.core.Project;
 import aura.core.ProjectRegistry;
 import aura.ipc.HookResponse;
@@ -17,6 +20,7 @@ import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -126,12 +130,38 @@ public final class Main {
             hookServer.start();
 
             TrayApp[] tray = new TrayApp[1];
+
+            // The sidecar is optional on purpose. Without it the application still
+            // dispatches tasks, gates tool calls and shows progress in the tray —
+            // it simply does not speak. Refusing to start because a voice is
+            // missing would trade the whole product for one of its features.
+            SpeechClient speech = startSidecar(config, tray);
+            NarrationBridge narration = speech == null ? null : new NarrationBridge(
+                new NarrationPolicy(Verbosity.NORMAL, Instant::now),
+                speech::send,
+                "ru");
+
             java.util.function.Consumer<AgentEvent> sink = event -> {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
                 if (tray[0] != null) {
                     tray[0].status(event.kind() + " " + event.target());
                 }
+                if (narration != null) {
+                    narration.accept(event);
+                }
             };
+
+            if (narration != null) {
+                // The ceiling is measured in seconds, so the check has to be finer
+                // than the ceiling itself or a silence outlives its own limit.
+                idleSweeper.scheduleWithFixedDelay(() -> {
+                    try {
+                        narration.heartbeat();
+                    } catch (Exception e) {
+                        log.warn("narration heartbeat failed", e);
+                    }
+                }, 5, 5, TimeUnit.SECONDS);
+            }
 
             TaskDispatcher dispatcher = new TaskDispatcher(registry, supervisor, config, sink);
 
@@ -159,6 +189,7 @@ public final class Main {
                     idleSweeper.shutdownNow();
                     supervisor.close();
                     hookServer.close();
+                    closeQuietly(speech);
                     tray[0].remove();
                     System.exit(0);
                 });
@@ -168,6 +199,7 @@ public final class Main {
                 idleSweeper.shutdownNow();
                 supervisor.close();
                 hookServer.close();
+                closeQuietly(speech);
                 if (tray[0] != null) {
                     tray[0].remove();
                 }
@@ -189,6 +221,55 @@ public final class Main {
      * which unblocks {@code setVisible} below and lets startup fail through to the
      * exit code either way.
      */
+    /**
+     * Starts the speech sidecar, or returns null when it cannot be started.
+     *
+     * <p>Null rather than an exception: a missing interpreter, a missing sidecar or a
+     * Python that dies on import are all reasons to run without a voice, not reasons
+     * to deny the user an application that otherwise works. The reason is logged and
+     * shown once in the tray, so the silence is explained rather than mysterious.
+     */
+    private static SpeechClient startSidecar(AuraConfig config, TrayApp[] tray) {
+        if (!Files.isDirectory(config.sidecarDir())) {
+            log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
+            return null;
+        }
+        try {
+            return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(), event -> {
+                String kind = event.path("ev").asText();
+                if ("narration".equals(kind)) {
+                    // What the user would have heard. Shown even when no voice is
+                    // configured, so the narrator can be judged before it is audible.
+                    String text = event.path("text").asText();
+                    log.info("narration: {}", text);
+                    if (tray[0] != null) {
+                        tray[0].notice(text);
+                    }
+                } else if ("error".equals(kind)) {
+                    log.warn("sidecar error {}: {}",
+                        event.path("code").asText(), event.path("detail").asText());
+                } else {
+                    log.info("sidecar: {}", event);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("speech sidecar did not start — running without a voice", e);
+            return null;
+        }
+    }
+
+    private static void closeQuietly(SpeechClient speech) {
+        if (speech == null) {
+            return;
+        }
+        try {
+            speech.send(java.util.Map.of("id", "shutdown", "cmd", "shutdown"));
+            speech.close();
+        } catch (Exception e) {
+            log.debug("sidecar did not close cleanly", e);
+        }
+    }
+
     private static void showStartupFailureDialog(String message) {
         try {
             JOptionPane pane = new JOptionPane(

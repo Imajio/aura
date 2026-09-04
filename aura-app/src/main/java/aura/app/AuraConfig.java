@@ -19,7 +19,10 @@ public record AuraConfig(
     Path javaExe,
     Path runDir,
     Duration idleTimeout,
-    Duration confirmTimeout
+    Duration confirmTimeout,
+    Path sidecarDir,
+    Path pythonExe,
+    String voice
 ) {
 
     /**
@@ -44,7 +47,14 @@ public record AuraConfig(
             Path.of(System.getProperty("java.home"), "bin", "java.exe"),
             localAppData.resolve("run"),
             Duration.ofMinutes(15),
-            Duration.ofSeconds(20));
+            Duration.ofSeconds(20),
+            Path.of("sidecar").toAbsolutePath(),
+            Path.of("sidecar", ".venv", "Scripts", "python.exe").toAbsolutePath(),
+            // No voice until one has been chosen by ear (RISK-4). Empty means the
+            // narrator writes its line to the log and the tray and says nothing
+            // aloud — an application that starts talking before anyone picked how
+            // it sounds is a worse first impression than one that stays quiet.
+            "");
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -65,10 +75,29 @@ public record AuraConfig(
                 path(root, "javaExe", defaults.javaExe()),
                 path(root, "runDir", defaults.runDir()),
                 seconds(root, "idleTimeoutSec", defaults.idleTimeout()),
-                seconds(root, "confirmTimeoutSec", defaults.confirmTimeout()));
+                seconds(root, "confirmTimeoutSec", defaults.confirmTimeout()),
+                path(root, "sidecarDir", defaults.sidecarDir()),
+                path(root, "pythonExe", defaults.pythonExe()),
+                text(root, "voice", defaults.voice()));
         } catch (Exception e) {
             throw new IllegalStateException("failed to read configuration: " + yamlFile, e);
         }
+    }
+
+    private static String text(Map<String, Object> root, String key, String fallback) {
+        Object value = root.get(key);
+        return value == null || value.toString().isBlank() ? fallback : value.toString().trim();
+    }
+
+    /** The sidecar as a command line: the module is run, never a file path. */
+    public java.util.List<String> sidecarCommand() {
+        java.util.List<String> command = new java.util.ArrayList<>(
+            java.util.List.of(pythonExe.toString(), "-m", "aura_speech.main"));
+        if (!voice.isBlank()) {
+            command.add("--voice");
+            command.add(voice);
+        }
+        return java.util.List.copyOf(command);
     }
 
     private static Path path(Map<String, Object> root, String key, Path fallback) {
