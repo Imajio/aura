@@ -123,3 +123,18 @@ Compares both models resident and alternating against dropped and rebuilt
 before every use — the two sides of the registry's idle-unload policy. Load and
 first inference are timed apart, because the first call after a load costs more
 than the load.
+
+## Auditioning Russian voices
+
+```bash
+.venv-export/Scripts/python.exe audition-russian-tts.py
+```
+
+Renders ten of the narrator's real lines in every Silero v4 and v5 Russian
+voice, and reports synthesis latency. The samples land outside the repository —
+they are an evaluation artefact and regenerable from the script.
+
+Which voice ships is decided by listening, not by a number. What the numbers
+settle is that synthesis is not the expensive half: about 110 ms a phrase on
+v4, on the CPU, so it neither breaks the 900 ms budget nor competes with the
+iGPU that recognition and the narrator share.
