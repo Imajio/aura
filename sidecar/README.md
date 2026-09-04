@@ -51,9 +51,41 @@ CPU   Intel(R) Core(TM) Ultra 9 285H
 
 Not part of the runtime. Exporting a model to OpenVINO IR needs a heavier
 toolchain — `optimum-intel`, `nncf`, `transformers`, and torch behind them —
-which the running sidecar must never carry into memory. It is installed
-separately, and its versions are recorded once an export has actually
-succeeded against the pinned runtime, rather than guessed in advance.
+which the running sidecar must never carry into memory. It lives in its own
+environment:
+
+```bash
+python -m venv .venv-export
+.venv-export/Scripts/python.exe -m pip install -r requirements-export.txt
+.venv-export/Scripts/python.exe export-whisper.py
+```
+
+INT8, not INT4: the NPU here reports FP16 and INT8 only. Asking for INT4 buys a
+silent fallback or a compile error — a worse way to learn the same fact.
 
 Exported models live in `models/`, compiled blobs in `.ov_cache/`. Both are
 ignored: gigabytes, and reproducible from the export step.
+
+## Measuring recognition
+
+```bash
+powershell -ExecutionPolicy Bypass -File make-bench-sample.ps1
+.venv-export/Scripts/python.exe benchmark-whisper.py --device NPU
+```
+
+`benchmark-whisper.py` reports two numbers that answer different questions:
+**compile**, paid once per model per driver version and then served from the
+blob cache — the step that fails outright when a model cannot be made static
+for the NPU — and **recognition**, measured warm and repeated, which is what
+the user actually waits for.
+
+The threshold is **550 ms**, not the PRD's 1.2 s: that budget also covers the
+VAD tail, speaker verification and routing. Judging recognition against the
+whole 1.2 s would report success at twice the real overrun.
+
+The sample comes from Windows' own speech synthesiser, so it needs no network,
+no dataset licence and no download, and it is identical on every machine.
+Windows ships no Russian voice by default, so it is English — and Russian
+decodes to more tokens per second of speech, which makes any figure measured
+this way a **lower bound** for the Russian profile rather than a stand-in
+for it.
