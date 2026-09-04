@@ -110,22 +110,36 @@ def main() -> int:
         text = ""
 
         for _ in range(args.runs):
-            marks = {"first": None, "sentence": None}
+            marks = {"first": None, "sentence": None, "past_think": False, "head": ""}
             collected = []
 
             def streamer(chunk: str) -> bool:
                 now = time.perf_counter()
                 collected.append(chunk)
-                sofar = "".join(collected)
-                # Everything up to </think> is not speech, even when the block is
-                # empty. Timing the first token of it would report a latency the
-                # user never experiences.
-                spoken = sofar.split("</think>", 1)[-1] if "</think>" in sofar else (
-                    "" if "<think>" in sofar else sofar)
-                if marks["first"] is None and spoken.strip():
+
+                # Constant work per chunk. Rejoining the whole text and splitting
+                # it on every callback costs more as the answer grows, and that
+                # cost lands inside the very measurement — it inflated the first
+                # sentence past the time a full 40-token generation takes without
+                # a streamer attached, which is how the bug announced itself.
+                if not marks["past_think"]:
+                    # Everything up to </think> is not speech, even when the
+                    # block is empty: timing it would report a latency the user
+                    # never experiences. The buffer stays tiny — the block is a
+                    # handful of characters once reasoning is suppressed.
+                    marks["head"] += chunk
+                    if "</think>" in marks["head"]:
+                        marks["past_think"] = True
+                        chunk = marks["head"].split("</think>", 1)[1]
+                    elif "<think>" in marks["head"]:
+                        return False
+                    else:
+                        marks["past_think"] = True
+
+                if marks["first"] is None and chunk.strip():
                     marks["first"] = now
                 # First sentence: the point a synthesiser could already start.
-                if marks["sentence"] is None and any(c in spoken for c in ".!?…"):
+                if marks["sentence"] is None and any(c in chunk for c in ".!?…"):
                     marks["sentence"] = now
                 return False  # keep generating
 
