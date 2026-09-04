@@ -9,6 +9,29 @@ In M1 this is a protocol stub — `aura_speech/stub.py` speaks the JSON-lines
 contract and loads no models. Recognition, narration and the wake word arrive
 in M2.
 
+## The models, and why these ones
+
+| Stage | Model | Device |
+|---|---|---|
+| recognition | `whisper-large-v3-turbo` INT8 | iGPU |
+| narration | `Qwen3-4B` INT4 (`Qwen3-1.7B` on battery) | iGPU |
+| Russian speech | Silero v4, voice chosen by ear | CPU |
+
+All three were measured rather than chosen, and two obvious-looking
+substitutions were measured and rejected:
+
+* **Whisper tiny** is twice as fast and unusable: 43% word error rate on
+  Russian against turbo's 17%, and what it loses first is the project name
+  routing matches on — "бэкенд" comes back as "бакант".
+* **Whisper small** is slower *and* less accurate than turbo. "Turbo" is not
+  the large model; it is the one with a cut-down decoder.
+* **Qwen3.5-4B**, the newest 4B, is a vision-language model: four times slower
+  at the same narration, carrying vision towers that never run.
+
+Neither model is unloaded when idle. Bringing one back costs about six seconds
+before it answers, against latency budgets of 1.2 s and 900 ms — see the risk
+register, RISK-9.
+
 ## Environment
 
 Python 3.13 on the target machine. The runtime is pinned exactly in
