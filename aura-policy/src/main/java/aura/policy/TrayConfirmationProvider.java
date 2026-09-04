@@ -30,13 +30,8 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
         final Decision[] answer = {Decision.DENY};
         try {
             SwingUtilities.invokeAndWait(() -> {
-                JOptionPane pane = new JOptionPane(
-                    "The agent wants to run:\n\n" + request.toolName() + "\n"
-                        + describeArguments(request.toolInputJson()) + "\n\nin directory "
-                        + request.cwd() + "\n\nAllow?",
-                    JOptionPane.WARNING_MESSAGE,
-                    JOptionPane.YES_NO_OPTION);
-                JDialog dialog = pane.createDialog(null, "Aura — confirmation");
+                JOptionPane pane = pane(request);
+                JDialog dialog = pane.createDialog(null, "Aura — permission");
                 dialog.setAlwaysOnTop(true);
 
                 // The window closes itself. Without this, the timeout would leave a
@@ -50,9 +45,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
                 timer.stop();
                 dialog.dispose();
 
-                Object value = pane.getValue();
-                answer[0] = (value instanceof Integer i && i == JOptionPane.YES_OPTION)
-                    ? Decision.ALLOW : Decision.DENY;
+                answer[0] = decisionFrom(pane.getValue());
             });
         } catch (InterruptedException e) {
             // Restore the flag before returning. Swallowing it would leave a caller
@@ -63,6 +56,46 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
             return Decision.DENY;
         }
         return answer[0];
+    }
+
+    /** The two answers, spelled as the buttons spell them. */
+    static final String YES = "Yes";
+    static final String NO = "No";
+
+    /**
+     * Builds the question.
+     *
+     * <p><b>No is the initial value, deliberately.</b> Enter pressed reflexively must
+     * not run a command: the permission design says silence is a refusal, and the
+     * keyboard has to agree with it.
+     */
+    static JOptionPane pane(ToolRequest request) {
+        Object[] options = {YES, NO};
+        return new JOptionPane(message(request), JOptionPane.WARNING_MESSAGE,
+            JOptionPane.YES_NO_OPTION, null, options, NO);
+    }
+
+    /**
+     * What the user reads: which tool, which arguments, in which directory — and
+     * nothing else. They are deciding in about two seconds, and a fourth line is a
+     * line they will not read.
+     */
+    static String message(ToolRequest request) {
+        return "The agent wants to run:\n\n"
+            + request.toolName() + "\n"
+            + describeArguments(request.toolInputJson()) + "\n\n"
+            + "in " + request.cwd() + "\n\n"
+            + "Allow?";
+    }
+
+    /**
+     * Only an explicit yes is an allowance.
+     *
+     * <p>A closed window, an escape key and a timeout all arrive here as something
+     * that is not {@link #YES}, and every one of them is a refusal.
+     */
+    static Decision decisionFrom(Object value) {
+        return YES.equals(value) ? Decision.ALLOW : Decision.DENY;
     }
 
     /**

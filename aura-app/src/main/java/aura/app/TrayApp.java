@@ -1,12 +1,10 @@
 package aura.app;
 
 import java.awt.AWTException;
-import java.awt.Image;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
-import java.awt.image.BufferedImage;
 import java.util.function.Consumer;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -20,6 +18,7 @@ import javax.swing.SwingUtilities;
 public final class TrayApp {
 
     private final TrayIcon icon;
+    private final int iconSize;
 
     public TrayApp(Consumer<String> onTask, Runnable onStop, Runnable onExit) throws AWTException {
         if (!SystemTray.isSupported()) {
@@ -49,9 +48,24 @@ public final class TrayApp {
         menu.addSeparator();
         menu.add(exit);
 
-        icon = new TrayIcon(placeholderIcon(), "Aura", menu);
-        icon.setImageAutoSize(true);
+        // Ask the tray how big it wants the icon instead of handing it 16 pixels
+        // and letting it stretch: 20 at 125% and 24 at 150% are what a normal
+        // Windows desktop asks for, and a stretched 16 is what makes a tray icon
+        // look like a smudge.
+        iconSize = Math.max(16, SystemTray.getSystemTray().getTrayIconSize().width);
+        icon = new TrayIcon(TrayIconArt.render(TrayIconArt.State.READY, iconSize), "Aura", menu);
+        icon.setImageAutoSize(false);
         SystemTray.getSystemTray().add(icon);
+    }
+
+    /**
+     * Shows what Aura is doing.
+     *
+     * <p>A tray icon that never changes is decoration. This one carries the single
+     * status worth reading at a glance — whether anything is expected of the user.
+     */
+    public void state(TrayIconArt.State state) {
+        icon.setImage(TrayIconArt.render(state, iconSize));
     }
 
     public void status(String text) {
@@ -64,15 +78,5 @@ public final class TrayApp {
 
     public void remove() {
         SystemTray.getSystemTray().remove(icon);
-    }
-
-    /** The real icon will arrive with the UI; a plain shape is enough for now. */
-    private static Image placeholderIcon() {
-        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-        var g = image.createGraphics();
-        g.setColor(new java.awt.Color(0x4C, 0x8B, 0xF5));
-        g.fillOval(1, 1, 14, 14);
-        g.dispose();
-        return image;
     }
 }
