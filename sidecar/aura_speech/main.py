@@ -19,12 +19,14 @@ from .protocol import serve
 from .voice import Voice, silero
 
 DEFAULT_MODEL = pathlib.Path(__file__).resolve().parents[2] / "models" / "qwen3-4b-int4-ov"
+DEFAULT_SMALL_MODEL = (pathlib.Path(__file__).resolve().parents[2]
+                       / "models" / "qwen3-1.7b-int4-ov")
 DEFAULT_CACHE = pathlib.Path(__file__).resolve().parents[2] / ".ov_cache"
 MAX_NARRATION_TOKENS = 40
 
 
 def build_narrator(model: pathlib.Path, device: str, cache: pathlib.Path):
-    """Returns `narrate(lines, profile)`, loading the model on the first call.
+    """Returns `generate(prompt) -> str`, loading the model on the first call.
 
     Lazy on purpose. Compiling for the iGPU takes tens of seconds, and the
     protocol's `ready` event has to reach Java before that — otherwise the tray
@@ -46,15 +48,16 @@ def build_narrator(model: pathlib.Path, device: str, cache: pathlib.Path):
             state["config"] = config
         return str(state["pipeline"].generate(prompt, state["config"]))
 
-    def narrate(lines: list[str], profile: str) -> str:
-        return Narrator(generate, profile=profile).line(lines)
-
-    return narrate
+    return generate
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=str(DEFAULT_MODEL))
+    parser.add_argument("--small-model", default=str(DEFAULT_SMALL_MODEL),
+                        help="the model the quiet level uses. A quiet narrator says "
+                             "less about simpler things and does not need the larger "
+                             "one; it is also what makes running on battery workable.")
     parser.add_argument("--device", default="GPU")
     parser.add_argument("--cache", default=str(DEFAULT_CACHE))
     parser.add_argument("--voice", default=None,
@@ -73,15 +76,20 @@ def main(argv=None) -> int:
     sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     sys.stdin.reconfigure(encoding="utf-8")
 
-    model = pathlib.Path(args.model)
-    if not model.is_dir():
-        # Still serve: a sidecar that refuses to start is indistinguishable from
-        # a broken one, and every narrate will now report why in a way that
-        # reaches the tray.
-        def narrate(lines, profile):
-            raise FileNotFoundError(f"no narrator model at {model}")
-    else:
-        narrate = build_narrator(model, args.device, pathlib.Path(args.cache))
+    cache = pathlib.Path(args.cache)
+    generators = {}
+
+    def generator_for(verbosity: str):
+        """The quiet level narrates with the smaller model, as the registry says."""
+        wanted = pathlib.Path(args.small_model if verbosity == "quiet" else args.model)
+        if not wanted.is_dir():
+            raise FileNotFoundError(f"no narrator model at {wanted}")
+        if wanted not in generators:
+            generators[wanted] = build_narrator(wanted, args.device, cache)
+        return generators[wanted]
+
+    def narrate(lines: list[str], profile: str, verbosity: str) -> str:
+        return Narrator(generator_for(verbosity), profile=profile).line(lines)
 
     voice = Voice(silero(), name=args.voice) if args.voice else None
 

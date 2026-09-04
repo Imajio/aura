@@ -202,11 +202,15 @@ public final class Main {
                 },
                 level -> {
                     narrationPolicy.verbosity(level);
+                    // The sidecar chooses its model from this: the quiet level
+                    // narrates with the smaller one, as the model registry says.
+                    configure(speech, config.profile(), level);
                     log.info("narration level set to {}", level);
                 },
                 narrationPolicy.verbosity(),
                 logDir);
 
+            configure(speech, config.profile(), narrationPolicy.verbosity());
             tray[0].status("ready");
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 idleSweeper.shutdownNow();
@@ -234,6 +238,21 @@ public final class Main {
      * which unblocks {@code setVisible} below and lets startup fail through to the
      * exit code either way.
      */
+    /** Tells the sidecar which language to narrate in and which model to use. */
+    private static void configure(SpeechClient speech, String profile, Verbosity level) {
+        if (speech == null) {
+            return;
+        }
+        try {
+            speech.send(java.util.Map.of(
+                "id", "configure", "cmd", "configure",
+                "profile", profile,
+                "verbosity", level.name().toLowerCase(java.util.Locale.ROOT)));
+        } catch (Exception e) {
+            log.warn("could not configure the sidecar", e);
+        }
+    }
+
     /**
      * Starts the speech sidecar, or returns null when it cannot be started.
      *
