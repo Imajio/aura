@@ -22,7 +22,8 @@ public record AuraConfig(
     Duration confirmTimeout,
     Path sidecarDir,
     Path pythonExe,
-    String voice
+    String voice,
+    String profile
 ) {
 
     /**
@@ -54,7 +55,11 @@ public record AuraConfig(
             // narrator writes its line to the log and the tray and says nothing
             // aloud — an application that starts talking before anyone picked how
             // it sounds is a worse first impression than one that stays quiet.
-            "");
+            "",
+            // English is the base language; Russian is a profile the owner turns
+            // on, which is the project's rule everywhere else and has no reason
+            // to be different here.
+            "en");
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -78,7 +83,8 @@ public record AuraConfig(
                 seconds(root, "confirmTimeoutSec", defaults.confirmTimeout()),
                 path(root, "sidecarDir", defaults.sidecarDir()),
                 path(root, "pythonExe", defaults.pythonExe()),
-                text(root, "voice", defaults.voice()));
+                text(root, "voice", defaults.voice()),
+                text(root, "profile", defaults.profile()));
         } catch (Exception e) {
             throw new IllegalStateException("failed to read configuration: " + yamlFile, e);
         }
