@@ -89,3 +89,26 @@ Windows ships no Russian voice by default, so it is English — and Russian
 decodes to more tokens per second of speech, which makes any figure measured
 this way a **lower bound** for the Russian profile rather than a stand-in
 for it.
+
+## Measuring the narrator
+
+```bash
+.venv-export/Scripts/python.exe benchmark-narrator.py --device GPU
+```
+
+Reports time to first token and time to first complete sentence, per language
+profile, against the design's 900 ms from event to first spoken word — a budget
+synthesis has to fit inside as well.
+
+Models are the pre-quantised OpenVINO builds, which saves exporting an 8 GB
+checkpoint to get a 2 GB one:
+
+```bash
+huggingface-cli download OpenVINO/Qwen3-1.7B-int4-ov --local-dir ../models/qwen3-1.7b-int4-ov
+```
+
+Qwen3 reasons before answering unless told not to. `/no_think` in the message
+text is what works; the chat template's `enable_thinking` hook does not, because
+`LLMPipeline` re-applies its own template to any string handed to it and buries
+the prefill. The 0.6B build ignores the marker altogether and narrates nothing,
+so it is not a smaller narrator — it is not one at all.
