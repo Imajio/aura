@@ -1,0 +1,20 @@
+<configuration>
+
+  <!-- Console only, on purpose.
+
+       The production configuration writes to %LOCALAPPDATA%\Aura\logs, which is
+       the log a user reads when their agent misbehaves. Without this file every
+       `mvn test` would interleave hundreds of lines of test noise into it, and
+       the first thing anyone did with the log would be to stop trusting it. -->
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

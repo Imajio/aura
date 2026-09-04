@@ -1,11 +1,40 @@
 <configuration>
+
+  <!-- Where the log goes when there is no console to write to.
+
+       Aura is a tray application: started from a shortcut or by javaw it has no
+       console at all, so a console-only configuration means a user whose agent
+       misbehaves has nothing to look at and nothing to send. The file is the
+       only diagnostic that survives the way the application is actually run. -->
+  <property name="LOG_DIR"
+            value="${LOCALAPPDATA:-${user.home}}/Aura/logs"/>
+
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
       <charset>UTF-8</charset>
     </encoder>
   </appender>
+
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/aura.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/aura.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>10MB</maxFileSize>
+      <!-- A week is long enough to explain yesterday's oddity and short enough
+           that an application left running for a year does not quietly fill the
+           disk it is supposed to be helping with. -->
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>100MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
   <root level="INFO">
     <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="FILE"/>
   </root>
 </configuration>
