@@ -27,7 +27,15 @@ class Enrolment:
     """What the owner sounds like: the average of several takes, normalised."""
 
     def __init__(self, embedding: np.ndarray):
-        self.embedding = embedding
+        # Normalised here rather than at each call site: `similarity` is a dot
+        # product that is only a cosine similarity while this holds, and the
+        # threshold is calibrated for a cosine. A reference read back from a
+        # file with any other norm silently stops comparing what it claims to.
+        vector = np.asarray(embedding, dtype=np.float32)
+        norm = float(np.linalg.norm(vector))
+        if norm <= 0.0:
+            raise ValueError("a speaker reference cannot be the zero vector")
+        self.embedding = (vector / norm).astype(np.float32)
 
     @classmethod
     def from_embeddings(cls, embeddings) -> "Enrolment":
@@ -38,7 +46,7 @@ class Enrolment:
             # is". Refusing is the only honest answer.
             raise ValueError("cannot enrol on no recordings")
         mean = np.mean(np.stack(embeddings), axis=0)
-        return cls((mean / np.linalg.norm(mean)).astype(np.float32))
+        return cls(mean.astype(np.float32))
 
     def similarity(self, embedding: np.ndarray) -> float:
         return float(np.dot(self.embedding, embedding))
@@ -65,14 +73,12 @@ def verifier(reference_path, embed, threshold: float = DEFAULT_THRESHOLD):
     state = {}
 
     def is_owner(audio: np.ndarray) -> bool:
-        if "enrolment" not in state:
-            path = pathlib.Path(reference_path)
-            state["enrolment"] = Enrolment.load(path) if path.is_file() else None
-        enrolment = state["enrolment"]
-        if enrolment is None:
-            return False
         try:
-            return enrolment.matches(embed(audio), threshold)
+            if "enrolment" not in state:
+                path = pathlib.Path(reference_path)
+                state["enrolment"] = Enrolment.load(path) if path.is_file() else None
+            enrolment = state["enrolment"]
+            return enrolment is not None and enrolment.matches(embed(audio), threshold)
         except Exception:
             return False
 
