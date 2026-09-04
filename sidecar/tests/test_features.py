@@ -29,10 +29,24 @@ def test_the_shape_is_frames_by_mel_bins():
 
 
 def test_a_low_tone_lights_low_bins_and_a_high_tone_high_ones():
-    low = fbank(tone(200)).mean(axis=0)
-    high = fbank(tone(4000)).mean(axis=0)
+    # A tone that is absent for the first half and present for the second half
+    # has an envelope that varies over time, so mean-normalisation cannot erase it.
+    seconds = 1.0
+    silence_samples = int(seconds * RATE / 2)
+    silence = np.zeros(silence_samples, dtype=np.float32)
+    low_tone = tone(200, seconds=seconds / 2)
+    high_tone = tone(4000, seconds=seconds / 2)
 
-    assert int(np.argmax(low)) < int(np.argmax(high))
+    low = fbank(np.concatenate([silence, low_tone]))
+    high = fbank(np.concatenate([silence, high_tone]))
+
+    # Take only the second-half frames where the tone is actually present.
+    low_tone_frames = low[len(low) // 2:]
+    high_tone_frames = high[len(high) // 2:]
+
+    assert int(np.argmax(low_tone_frames.mean(axis=0))) < int(
+        np.argmax(high_tone_frames.mean(axis=0))
+    )
 
 
 def test_it_is_mean_normalised_over_time():
