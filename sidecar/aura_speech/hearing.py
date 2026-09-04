@@ -145,3 +145,34 @@ def _wasapi_input(audio, pyaudio):
         pass
     info = audio.get_default_input_device_info()
     return info["index"], int(info["defaultSampleRate"])
+
+
+# openWakeWord works on 80 ms windows; the cascade runs on 32 ms frames. The
+# buffer between them is the whole adaptation.
+WAKE_WINDOW = 1280
+
+
+def open_wake_word(model_path, threshold: float = 0.5):
+    """Returns `is_wake(frame) -> bool`, loading the model on the first call.
+
+    The model is the owner's, trained on their own voice saying the wake word —
+    that is RISK-8 and it is theirs to record. No pretrained stand-in is wired in
+    here on purpose: shipping "hey jarvis" under the name of the wake word would
+    make the cascade look finished while listening for the wrong thing.
+    """
+    state = {"buffer": np.zeros(0, dtype=np.float32)}
+
+    def is_wake(frame: np.ndarray) -> bool:
+        if "model" not in state:
+            from openwakeword.model import Model
+            state["model"] = Model(wakeword_models=[str(model_path)],
+                                   inference_framework="onnx")
+        state["buffer"] = np.concatenate([state["buffer"], frame])
+        if len(state["buffer"]) < WAKE_WINDOW:
+            return False
+        window = state["buffer"][-WAKE_WINDOW:]
+        state["buffer"] = np.zeros(0, dtype=np.float32)
+        scores = state["model"].predict((window * 32767).astype(np.int16))
+        return any(score > threshold for score in scores.values())
+
+    return is_wake

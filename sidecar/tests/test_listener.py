@@ -131,3 +131,89 @@ def test_the_vad_is_only_asked_about_frames_the_gate_opened():
 
     assert quiet_calls == 0
     assert calls["vad"] <= 20
+
+
+class TestWakeWord:
+    """Stage 2. Without it, everything said in the room becomes a command."""
+
+    def wired(self, wake_frames=(), arm_seconds=8.0, **kwargs):
+        """A listener whose wake word fires on the given frame indices."""
+        seen = {"index": 0, "wake_calls": 0}
+        heard, woke = [], []
+
+        def is_wake(frame):
+            fires = seen["index"] in wake_frames
+            seen["index"] += 1
+            seen["wake_calls"] += 1
+            return fires
+
+        return Listener(
+            is_speech=lambda frame: True,
+            recognise=lambda audio: "почини тесты",
+            on_utterance=heard.append,
+            is_wake=is_wake,
+            on_wake=lambda at: woke.append(at),
+            arm_seconds=arm_seconds,
+            tail_seconds=0.5,
+            **kwargs,
+        ), seen, heard, woke
+
+    def test_speech_without_the_wake_word_is_not_a_command(self):
+        # The whole point. A conversation in the room must not reach an agent.
+        ear, _, heard, woke = self.wired(wake_frames=())
+
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(30, 0.3), start=at)
+        feed(ear, frames(30, 0.001), start=at)
+
+        assert heard == []
+        assert woke == []
+
+    def test_the_wake_word_opens_the_next_utterance(self):
+        ear, _, heard, woke = self.wired(wake_frames=(0,))
+
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(30, 0.3), start=at)
+        feed(ear, frames(30, 0.001), start=at)
+
+        assert woke, "the wake word never fired"
+        assert heard == ["почини тесты"]
+
+    def test_being_awake_expires(self):
+        # An assistant that stays armed after one greeting is an assistant that
+        # dispatches the conversation that happens to follow it.
+        ear, _, heard, _ = self.wired(wake_frames=(0,), arm_seconds=0.2)
+
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(3, 0.3), start=at)      # wake fires here
+        at = feed(ear, frames(30, 0.001), start=at)   # a long pause
+        at = feed(ear, frames(30, 0.3), start=at)     # someone talks again
+        feed(ear, frames(30, 0.001), start=at)
+
+        assert heard == []
+
+    def test_the_wake_word_is_not_asked_about_silence(self):
+        # Stage 2 costs about two milliseconds a window. Running it on a quiet
+        # room is exactly the expense the cascade exists to avoid.
+        ear, seen, _, _ = self.wired(wake_frames=())
+
+        feed(ear, frames(300, 0.001))
+
+        assert seen["wake_calls"] == 0
+
+    def test_without_a_detector_every_utterance_counts(self):
+        # This is the confirmation path: after Aura asks a question, "yes" is an
+        # answer and requiring the wake word again would be absurd.
+        heard = []
+        ear = Listener(
+            is_speech=lambda frame: True,
+            recognise=lambda audio: "да",
+            on_utterance=heard.append,
+            tail_seconds=0.5,
+        )
+
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(30, 0.3), start=at)
+        feed(ear, frames(30, 0.001), start=at)
+
+        assert heard == ["да"]

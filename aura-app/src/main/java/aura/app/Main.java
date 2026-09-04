@@ -149,7 +149,13 @@ public final class Main {
             // dispatches tasks, gates tool calls and shows progress in the tray —
             // it simply does not speak. Refusing to start because a voice is
             // missing would trade the whole product for one of its features.
-            SpeechClient speech = startSidecar(config, tray, finished);
+            java.util.function.Consumer<String>[] spoken = new java.util.function.Consumer[1];
+            SpeechClient speech = startSidecar(config, tray, finished,
+                phrase -> {
+                    if (spoken[0] != null) {
+                        spoken[0].accept(phrase);
+                    }
+                });
             NarrationPolicy narrationPolicy = new NarrationPolicy(Verbosity.NORMAL, Instant::now);
             NarrationBridge narration = speech == null ? null
                 : new NarrationBridge(narrationPolicy, speech::send,
@@ -189,25 +195,31 @@ public final class Main {
             Path logDir = Path.of(System.getenv().getOrDefault("LOCALAPPDATA",
                 System.getProperty("user.home")), "Aura", "logs");
 
-            tray[0] = new TrayApp(
-                phrase -> {
-                    try {
-                        var result = dispatcher.dispatch(phrase);
-                        if (result instanceof TaskDispatcher.ProjectUnknown) {
-                            tray[0].alert("Could not tell which project. Name the project in the phrase.");
-                        } else if (result instanceof TaskDispatcher.Sent sent) {
-                            tray[0].message("Sent to project " + sent.projectName());
-                        }
-                    } catch (IllegalStateException e) {
-                        // The commonest first cause is claude/codex not resolving on the
-                        // GUI process's PATH, since the default is the bare binary name.
-                        // Without this, the exception reaches the event thread's default
-                        // handler and prints a stack trace to a console that does not
-                        // exist when the app is launched from a shortcut — total silence.
-                        log.warn("task dispatch failed", e);
-                        tray[0].alert("Could not start the task: " + e.getMessage());
+            // One path for a task, whether it was typed or spoken. A phrase that
+            // arrived through the microphone is not a different kind of request,
+            // and giving it its own handler is how the two drift apart.
+            java.util.function.Consumer<String> dispatch = phrase -> {
+                try {
+                    var result = dispatcher.dispatch(phrase);
+                    if (result instanceof TaskDispatcher.ProjectUnknown) {
+                        tray[0].alert("Could not tell which project. Name the project in the phrase.");
+                    } else if (result instanceof TaskDispatcher.Sent sent) {
+                        tray[0].message("Sent to project " + sent.projectName());
                     }
-                },
+                } catch (IllegalStateException e) {
+                    // The commonest first cause is claude/codex not resolving on the
+                    // GUI process's PATH, since the default is the bare binary name.
+                    // Without this, the exception reaches the event thread's default
+                    // handler and prints a stack trace to a console that does not
+                    // exist when the app is launched from a shortcut — total silence.
+                    log.warn("task dispatch failed", e);
+                    tray[0].alert("Could not start the task: " + e.getMessage());
+                }
+            };
+            spoken[0] = dispatch;
+
+            tray[0] = new TrayApp(
+                dispatch,
                 supervisor::close,
                 () -> {
                     idleSweeper.shutdownNow();
@@ -279,7 +291,8 @@ public final class Main {
      * shown once in the tray, so the silence is explained rather than mysterious.
      */
     private static SpeechClient startSidecar(AuraConfig config, TrayApp[] tray,
-                                             java.util.concurrent.atomic.AtomicBoolean finished) {
+                                             java.util.concurrent.atomic.AtomicBoolean finished,
+                                             java.util.function.Consumer<String> onSpoken) {
         if (!Files.isDirectory(config.sidecarDir())) {
             log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
             return null;
@@ -287,7 +300,19 @@ public final class Main {
         try {
             return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(), event -> {
                 String kind = event.path("ev").asText();
-                if ("speak.started".equals(kind)) {
+                if ("wake".equals(kind)) {
+                    log.info("wake word");
+                    if (tray[0] != null) {
+                        tray[0].status("listening");
+                    }
+                } else if ("utterance".equals(kind)) {
+                    // A task said out loud. From here it is indistinguishable from
+                    // one typed into the tray, which is the point of the whole
+                    // milestone: the voice is another way in, not another product.
+                    String text = event.path("text").asText();
+                    log.info("heard: {}", text);
+                    onSpoken.accept(text);
+                } else if ("speak.started".equals(kind)) {
                     if (tray[0] != null) {
                         tray[0].state(TrayIconArt.State.SPEAKING);
                     }
