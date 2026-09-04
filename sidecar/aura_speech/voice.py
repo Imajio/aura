@@ -41,13 +41,13 @@ def silero(release: str = "v4_ru", threads: int = 4):
     v4 rather than v5: about 110 ms a phrase against 310 ms, both on the CPU,
     and which of the ten voices ships is decided by ear, not here.
 
-    **This loader needs torch, and the runtime environment deliberately has
-    none.** Silero publishes its Russian voices only as torch archives — there
-    is no ONNX build of them — so speaking through this path today means either
-    putting torch in the always-on process or converting the model to OpenVINO
-    IR at export time, the way Whisper already is. That choice is open; until it
-    is made, `speak` in the runtime environment answers SPEECH_FAILED naming the
-    missing module, which is the truth and reaches the tray.
+    **This loader needs torch, and the runtime carries it for exactly this.**
+    Converting Silero to OpenVINO IR was tried and does not exist as an option:
+    the model is one TorchScript system whose forward takes strings, with accent
+    placement inside the graph, and OpenVINO refuses it on SequenceInsert. There
+    is no tensors-in-tensors-out boundary to export instead. The cost was
+    measured before it was accepted — 183 MB for torch, 99 for the model — and
+    weighed against the ~3.4 GB the sidecar already holds resident.
     """
     state = {}
 
@@ -61,7 +61,9 @@ def silero(release: str = "v4_ru", threads: int = 4):
             state["model"] = model
         # 24 kHz: Silero offers 8, 24 and 48, and nothing here needs more.
         audio = state["model"].apply_tts(text=text, speaker=voice, sample_rate=24000)
-        return audio.tolist(), 24000
+        # numpy, not a Python list: the list conversion alone costs more than
+        # the synthesis, and every sample is touched again downstream.
+        return audio.numpy(), 24000
 
     return synthesize
 
@@ -103,8 +105,12 @@ def _wav(samples, rate: int) -> bytes:
 
 
 def _pcm(samples) -> bytes:
-    import struct
+    import numpy as np
+    # numpy, not a comprehension. A two-second line is fifty thousand samples,
+    # and converting them one at a time in Python costs 3.6 s — thirty times the
+    # synthesis it is packaging, which is how this was found.
+    #
     # Clipped, not wrapped. A sample above 1.0 wrapped into int16 arrives in the
     # user's ear as a crack at full volume; clipping is merely wrong.
-    clipped = [max(-1.0, min(1.0, float(s))) for s in samples]
-    return struct.pack(f"<{len(clipped)}h", *(int(s * 32767) for s in clipped))
+    audio = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+    return (audio * 32767).astype("<i2").tobytes()
