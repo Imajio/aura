@@ -165,3 +165,29 @@ class TestSegmenter:
 
         assert len(first) == 1
         assert len(second) == 1
+
+
+class TestRateConversion:
+    """The microphone rarely offers 16 kHz, and guessing which rate it offers is
+    how audio becomes noise that a VAD still answers about, confidently."""
+
+    def test_an_integer_ratio_is_averaged(self):
+        from aura_speech.hearing import to_16k
+        block = np.ones(FRAME * 3, dtype=np.float32)
+        assert len(to_16k(block, 48000)) == FRAME
+        assert np.allclose(to_16k(block, 48000), 1.0)
+
+    def test_an_awkward_rate_is_interpolated_not_assumed(self):
+        # 44.1 kHz is 2.75 times 16 kHz. The default input device on the machine
+        # this was written on reports exactly that.
+        from aura_speech.hearing import to_16k
+        block = np.linspace(0, 1, round(FRAME * 44100 / RATE)).astype(np.float32)
+        out = to_16k(block, 44100)
+        assert len(out) == FRAME
+        assert out[0] == pytest.approx(0.0, abs=1e-6)
+        assert out[-1] == pytest.approx(1.0, abs=1e-6)
+
+    def test_the_native_rate_passes_through(self):
+        from aura_speech.hearing import to_16k
+        block = np.arange(FRAME, dtype=np.float32)
+        assert np.array_equal(to_16k(block, RATE), block)

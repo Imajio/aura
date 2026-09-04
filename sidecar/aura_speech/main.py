@@ -14,6 +14,9 @@ import argparse
 import pathlib
 import sys
 
+from .cascade import FRAME_SECONDS
+from .hearing import Microphone, silero_vad, whisper
+from .listener import Listener
 from .narrator import Narrator
 from .protocol import serve
 from .voice import Voice, silero
@@ -21,6 +24,8 @@ from .voice import Voice, silero
 DEFAULT_MODEL = pathlib.Path(__file__).resolve().parents[2] / "models" / "qwen3-4b-int4-ov"
 DEFAULT_SMALL_MODEL = (pathlib.Path(__file__).resolve().parents[2]
                        / "models" / "qwen3-1.7b-int4-ov")
+DEFAULT_WHISPER = (pathlib.Path(__file__).resolve().parents[2]
+                   / "models" / "whisper-large-v3-turbo-int8")
 DEFAULT_CACHE = pathlib.Path(__file__).resolve().parents[2] / ".ov_cache"
 MAX_NARRATION_TOKENS = 40
 
@@ -60,6 +65,11 @@ def main(argv=None) -> int:
                              "one; it is also what makes running on battery workable.")
     parser.add_argument("--device", default="GPU")
     parser.add_argument("--cache", default=str(DEFAULT_CACHE))
+    parser.add_argument("--listen", action="store_true",
+                        help="open the microphone. Off unless asked for: a voice "
+                             "assistant that starts recording the room because it "
+                             "was installed is not a feature anyone agreed to.")
+    parser.add_argument("--whisper", default=str(DEFAULT_WHISPER))
     parser.add_argument("--voice", default=None,
                         help="Silero voice to speak with. Without it the sidecar "
                              "narrates in text and answers SPEECH_UNAVAILABLE to "
@@ -93,11 +103,61 @@ def main(argv=None) -> int:
 
     voice = Voice(silero(), name=args.voice) if args.voice else None
 
+    emitted = _emit_to(sys.stdout)
+    hearing = _start_listening(args, cache, emitted) if args.listen else None
+
     serve(sys.stdin, sys.stdout, narrate=narrate,
           speak=voice.speak if voice else None,
           cancel=voice.cancel if voice else None,
-          devices={"npu": False, "gpu": args.device == "GPU"})
+          devices={"npu": False, "gpu": args.device == "GPU"},
+          hearing=hearing is not None)
     return 0
+
+
+def _emit_to(stdout):
+    import json
+    import threading
+    lock = threading.Lock()
+
+    def emit(payload):
+        # The listener runs on its own thread while the protocol loop reads
+        # stdin. Two writers on one pipe interleave into unparseable lines
+        # without this.
+        with lock:
+            stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            stdout.flush()
+
+    return emit
+
+
+def _start_listening(args, cache, emit):
+    """Opens the microphone and reports what is said. Only ever called on --listen."""
+    import threading
+    import time
+
+    listener = Listener(
+        is_speech=silero_vad(),
+        recognise=whisper(args.whisper, device=args.device,
+                          cache_dir=cache / f"{args.device}-stt"),
+        on_utterance=lambda text: emit({"ev": "utterance", "text": text}),
+        on_error=lambda detail: emit({"ev": "error", "code": "RECOGNITION_FAILED",
+                                      "detail": detail, "fatal": False}))
+
+    def run():
+        try:
+            with Microphone() as microphone:
+                at = 0.0
+                for frame in microphone.frames():
+                    listener.feed(frame, at)
+                    at += FRAME_SECONDS
+        except Exception as e:
+            # Deaf, not dead: the sidecar still narrates and still speaks.
+            emit({"ev": "error", "code": "MICROPHONE_FAILED",
+                  "detail": f"{type(e).__name__}: {e}"[:200], "fatal": False})
+
+    thread = threading.Thread(target=run, name="aura-listening", daemon=True)
+    thread.start()
+    return thread
 
 
 if __name__ == "__main__":
