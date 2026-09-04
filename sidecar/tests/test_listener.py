@@ -287,3 +287,42 @@ class TestSpeakerVerification:
         self.speak(ear)
 
         assert asked == []
+
+    def test_an_exception_in_verification_refuses_and_recovers(self):
+        # A verifier that fails once must not leave the application deaf. The
+        # failure is treated as a refusal — a stranger's words do not travel
+        # through a model — and the next utterance is handled normally.
+        state = {"first": True}
+
+        def flaky_verify(audio):
+            if state["first"]:
+                state["first"] = False
+                raise RuntimeError("model went away")
+            return True
+
+        heard, rejected, recognised = [], [], []
+
+        def recognise(audio):
+            recognised.append(audio)
+            return "восстановлен"
+
+        ear = Listener(
+            is_speech=lambda frame: True,
+            recognise=recognise,
+            on_utterance=heard.append,
+            is_wake=lambda frame: True,
+            is_owner=flaky_verify,
+            on_rejected=lambda: rejected.append(True),
+            tail_seconds=0.5,
+        )
+
+        at = feed(ear, frames(200, 0.001))
+        at = feed(ear, frames(30, 0.3), start=at)
+        at = feed(ear, frames(30, 0.001), start=at)
+
+        at = feed(ear, frames(30, 0.3), start=at)
+        feed(ear, frames(30, 0.001), start=at)
+
+        assert rejected == [True]
+        assert len(recognised) == 1
+        assert heard == ["восстановлен"]

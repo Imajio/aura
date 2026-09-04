@@ -2,7 +2,8 @@
 
 Each stage runs only because the one before it opened. That ordering is the
 whole design — stage 0 costs a fraction of a core and is wrong often, stage 1
-costs a millisecond a frame and corrects it, stage 2 costs about two, and
+costs a millisecond a frame and corrects it, stage 2 costs about two, stage 3
+costs about fifteen (once per utterance, only after the wake word), and
 recognition costs hundreds and runs once per utterance. Reversing any two of
 them would work and would cost the battery the product is built around.
 
@@ -23,6 +24,12 @@ class Listener:
     dispatches everything it hears, which is correct for exactly one situation —
     answering a question Aura has just asked, where demanding the wake word again
     would be absurd — and catastrophic for every other.
+
+    **Without speaker verification every voice is accepted.** That is why `is_owner`
+    is not optional by design: when it is absent the listener accepts all voices
+    that pass the wake word. When present, verification happens once per utterance
+    after the wake word and before recognition, refusing a stranger before they
+    reach a model or a log.
     """
 
     def __init__(self, is_speech, recognise, on_utterance,
@@ -75,11 +82,19 @@ class Listener:
         # it costs about fifteen milliseconds, and stage 2 is what makes it rare
         # enough to afford. Verifying every utterance in the room would spend
         # that on every conversation held near the machine.
-        if self._is_owner is not None and not self._is_owner(utterance):
-            # Refused before recognition, not after: a stranger's words must not
-            # travel through a model and into a log on the way to being ignored.
-            self._on_rejected()
-            return
+        if self._is_owner is not None:
+            try:
+                owner = self._is_owner(utterance)
+            except Exception as e:
+                # A refusal, not a warning. This stage is what keeps a stranger
+                # from reaching an agent, so it may not resolve any other way.
+                self._on_error(f"{type(e).__name__}: {e}")
+                owner = False
+            if not owner:
+                # Refused before recognition, not after: a stranger's words must not
+                # travel through a model and into a log on the way to being ignored.
+                self._on_rejected()
+                return
 
         try:
             text = self._recognise(utterance)
