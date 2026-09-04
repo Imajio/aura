@@ -145,6 +145,10 @@ public final class Main {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
                 if (tray[0] != null) {
                     tray[0].status(event.kind() + " " + event.target());
+                    TrayIconArt.State state = TrayIconArt.stateFor(event.kind());
+                    if (state != null) {
+                        tray[0].state(state);
+                    }
                 }
                 if (narration != null) {
                     narration.accept(event);
@@ -237,7 +241,11 @@ public final class Main {
         try {
             return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(), event -> {
                 String kind = event.path("ev").asText();
-                if ("narration".equals(kind)) {
+                if ("speak.started".equals(kind)) {
+                    if (tray[0] != null) {
+                        tray[0].state(TrayIconArt.State.SPEAKING);
+                    }
+                } else if ("narration".equals(kind)) {
                     // What the user would have heard. Shown even when no voice is
                     // configured, so the narrator can be judged before it is audible.
                     String text = event.path("text").asText();
