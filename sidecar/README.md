@@ -173,3 +173,29 @@ Word error rate on Russian commands carrying English technical terms — the
 case that decides whether routing can find the project at all. Speech is
 synthesised until the corpus in `testdata/audio` has recordings, which flatters
 every model equally.
+
+## Running it
+
+```bash
+.venv/Scripts/python.exe -m aura_speech.main            # the real sidecar
+.venv/Scripts/python.exe -m pytest tests/ -q            # its tests
+```
+
+Started by the Java side, not by hand. It announces `ready` immediately and
+loads the narrator on the first narration: compiling for the iGPU takes tens of
+seconds, and a sidecar that stays silent until it finishes is indistinguishable
+from one that failed to start.
+
+M2 in progress. Narration works in both language profiles; speech and
+recognition do not yet, and say so — `speak` answers `SPEECH_UNAVAILABLE` and
+`ready` reports `tts: absent`, rather than acknowledging speech nobody hears.
+
+`aura_speech/stub.py` stays as it is: it loads no models, it starts anywhere,
+and it is the fixture the Java contract test drives.
+
+Test tooling is separate from the runtime, in `requirements-dev.txt` — the
+always-on process should carry nothing it does not use:
+
+```bash
+.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+```

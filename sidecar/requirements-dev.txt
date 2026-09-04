@@ -1,0 +1,6 @@
+# Test tooling for the sidecar. Separate from requirements.txt: the running
+# process needs none of it, and the always-on sidecar should carry nothing it
+# does not use.
+-r requirements.txt
+
+pytest==8.4.2
