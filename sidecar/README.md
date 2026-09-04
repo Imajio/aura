@@ -17,6 +17,13 @@ in M2.
 | narration | `Qwen3-4B` INT4 (`Qwen3-1.7B` on battery) | iGPU |
 | Russian speech | Silero v4, voice chosen by ear | CPU |
 
+Speech is the one stage that runs under torch rather than OpenVINO. Converting
+Silero to IR was tried and is not possible: it is a single TorchScript system
+taking strings, with accent placement inside the graph, and OpenVINO refuses it
+on `SequenceInsert`. Torch costs 183 MB and the voice 99 more, against the
+~3.4 GB the sidecar already holds resident — the rule it breaks was written to
+keep a lean process, and residency ended that.
+
 All three were measured rather than chosen, and two obvious-looking
 substitutions were measured and rejected:
 
@@ -72,10 +79,9 @@ CPU   Intel(R) Core(TM) Ultra 9 285H
 
 ## Exporting models
 
-Not part of the runtime. Exporting a model to OpenVINO IR needs a heavier
-toolchain — `optimum-intel`, `nncf`, `transformers`, and torch behind them —
-which the running sidecar must never carry into memory. It lives in its own
-environment:
+Exporting a model to OpenVINO IR needs a heavier toolchain — `optimum-intel`,
+`nncf`, `transformers` — that the running sidecar has no use for. It lives in
+its own environment:
 
 ```bash
 python -m venv .venv-export

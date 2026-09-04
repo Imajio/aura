@@ -6,3 +6,22 @@
 # drive-by upgrade.
 openvino==2026.3.0
 openvino-genai==2026.3.0.0
+
+# Torch, for Russian speech, and the rule it breaks.
+#
+# The sidecar was meant to keep torch out of the always-on process. That rule
+# was written to keep the process lean, and the process is not lean any more:
+# RISK-9 measured the idle-unload policy at twelve seconds to the first spoken
+# reply, so both models are now resident and the sidecar holds ~3.4 GB by
+# design. Torch adds 183 MB and Silero 99 more, peaking near 520 MB after a
+# synthesis — 15% on top of what is already there.
+#
+# The alternative was converting Silero to OpenVINO IR, and it does not exist:
+# the model is one TorchScript system whose forward takes strings, with accent
+# placement baked into the graph. OpenVINO refuses it on SequenceInsert, and
+# there is no tensors-in-tensors-out boundary to export instead.
+#
+# CPU build on purpose: synthesis runs on the CPU so it never contends with the
+# iGPU that recognition and the narrator share.
+torch==2.14.0
+omegaconf==2.3.0
