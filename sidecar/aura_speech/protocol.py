@@ -27,7 +27,8 @@ DEFAULT_PROFILE = "en"
 DEFAULT_VERBOSITY = "normal"
 
 
-def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
+def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None,
+          hearing=False):
     """Reads commands until the stream ends or `shutdown` arrives.
 
     `narrate(lines, profile, verbosity) -> str` and `speak(text)` are injected:
@@ -44,7 +45,8 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None):
     # to the tray exactly like one that failed to start.
     emit({"ev": "ready",
           "devices": devices or {"npu": False, "gpu": True},
-          "models": {"stt": "absent", "slm": "lazy",
+          "models": {"stt": "lazy" if hearing else "absent",
+                     "slm": "lazy",
                      "tts": "lazy" if speak else "absent"}})
 
     for line in stdin:

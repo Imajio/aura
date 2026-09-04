@@ -25,3 +25,20 @@ openvino-genai==2026.3.0.0
 # iGPU that recognition and the narrator share.
 torch==2.14.0
 omegaconf==2.3.0
+
+# Hearing.
+#
+# PyAudioWPatch rather than sounddevice, and the reason is RISK-3 rather than
+# taste: measuring the application's own speech in the microphone signal needs
+# WASAPI *loopback* capture, and sounddevice 0.5.6 exposes exclusive,
+# auto_convert and explicit_sample_format — no loopback at all. Verified on this
+# machine: PyAudioWPatch enumerates both the microphone and the speakers as
+# capture devices; sounddevice sees only the microphone. Discovering that after
+# building the capture layer would have meant rewriting it.
+PyAudioWPatch==0.2.12.8
+
+# Voice activity detection, ONNX build: no torchaudio, shares the onnxruntime the
+# wake word needs anyway, and measured at 0.27 ms a frame against the 1 ms the
+# design budgeted.
+silero-vad==6.2.1
+onnxruntime==1.29.0
