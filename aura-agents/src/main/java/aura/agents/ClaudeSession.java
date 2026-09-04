@@ -9,6 +9,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +32,14 @@ public final class ClaudeSession implements AgentSession {
     private final String sessionId;
     private final Thread stdoutReader;
     private final Thread stderrReader;
+    private final Deque<String> recentStderr = new ArrayDeque<>();
+    private volatile boolean closing;
 
-    private ClaudeSession(Process process, String sessionId, Consumer<AgentEvent> sink) {
+    /** Enough to carry the error and its context, not enough to hold a transcript. */
+    private static final int STDERR_KEPT = 20;
+
+    private ClaudeSession(Process process, String sessionId, Consumer<AgentEvent> sink,
+                          Consumer<String> onUnexpectedExit) {
         this.process = process;
         this.sessionId = sessionId;
         this.stdin = new BufferedWriter(
@@ -48,17 +56,53 @@ public final class ClaudeSession implements AgentSession {
             }
         }, "aura-agent-stdout");
 
-        this.stderrReader = pump(process.getErrorStream(),
-            line -> log.debug("claude stderr: {}", line), "aura-agent-stderr");
+        // Kept, not just logged. The agent's own explanation of why it is about to
+        // die goes to stderr, and at debug level it reaches nobody: the user sees a
+        // task that does nothing and a log that says everything is fine.
+        this.stderrReader = pump(process.getErrorStream(), line -> {
+            log.debug("claude stderr: {}", line);
+            synchronized (recentStderr) {
+                recentStderr.addLast(line);
+                if (recentStderr.size() > STDERR_KEPT) {
+                    recentStderr.removeFirst();
+                }
+            }
+        }, "aura-agent-stderr");
+
+        process.onExit().thenAccept(exited -> {
+            if (closing) {
+                // Every session ends. Only the ones that end by themselves are news.
+                return;
+            }
+            String said;
+            synchronized (recentStderr) {
+                said = String.join(" | ", recentStderr);
+            }
+            String complaint = "agent exited with code " + exited.exitValue()
+                + (said.isBlank() ? " and said nothing" : ": " + said);
+            log.warn("{}", complaint);
+            onUnexpectedExit.accept(complaint);
+        });
     }
 
     public static ClaudeSession start(SessionConfig config, Consumer<AgentEvent> sink)
             throws Exception {
+        return start(config, sink, complaint -> { });
+    }
+
+    /**
+     * @param onUnexpectedExit told why, when the agent ends without being asked to.
+     *                         The caller is the only one who can put it in front of
+     *                         the user, and a task that silently does nothing is the
+     *                         worst way to find out.
+     */
+    public static ClaudeSession start(SessionConfig config, Consumer<AgentEvent> sink,
+                                      Consumer<String> onUnexpectedExit) throws Exception {
         ProcessBuilder builder = new ProcessBuilder(config.command())
             .directory(config.workingDir().toFile());
         Process process = builder.start();
         log.info("agent started, pid={}, session={}", process.pid(), config.sessionId());
-        return new ClaudeSession(process, config.sessionId(), sink);
+        return new ClaudeSession(process, config.sessionId(), sink, onUnexpectedExit);
     }
 
     @Override
@@ -96,6 +140,9 @@ public final class ClaudeSession implements AgentSession {
 
     @Override
     public void close() {
+        // Set before anything is torn down: whoever is watching the process exit
+        // must be able to tell "we ended it" from "it ended".
+        closing = true;
         try {
             stdin.close();
         } catch (Exception ignored) {

@@ -70,8 +70,27 @@ public final class CodexSession implements AgentSession {
             Thread reader = new Thread(() -> readStream(process, parser), "aura-codex-stdout");
             reader.setDaemon(true);
             reader.start();
+
+            // Drained, not ignored. A pipe nobody reads fills up, and a child
+            // process blocked writing to it stops producing events without ever
+            // saying why — which looks exactly like an agent that is thinking.
+            Thread errors = new Thread(() -> drainStderr(process), "aura-codex-stderr");
+            errors.setDaemon(true);
+            errors.start();
         } catch (Exception e) {
             throw new IllegalStateException("failed to start codex", e);
+        }
+    }
+
+    private void drainStderr(Process process) {
+        try (var reader = new BufferedReader(
+                new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.debug("codex stderr: {}", line);
+            }
+        } catch (Exception e) {
+            log.debug("codex stderr closed: {}", e.toString());
         }
     }
 

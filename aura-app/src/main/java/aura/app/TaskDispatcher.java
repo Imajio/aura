@@ -60,8 +60,16 @@ public final class TaskDispatcher {
         }
 
         Project project = target.get();
-        String sessionId = UUID.nameUUIDFromBytes(
-            project.name().getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        // Fresh every time, and it has to be. Claude Code refuses to create a
+        // session with an id it has already seen — "Session ID ... is already in
+        // use" — and the process dies immediately. An id derived from the project
+        // name was therefore good for exactly one run in the whole life of that
+        // project, and every dispatch after it failed.
+        //
+        // Nothing is lost by this. The long-lived session of ADR 0004 is the
+        // long-lived *process*, which the supervisor keeps and reuses; the id only
+        // has to be unique for the process that is about to start.
+        String sessionId = UUID.randomUUID().toString();
         Path settings = config.runDir().resolve(project.name() + "-settings.json");
 
         // The settings file is written before every launch, not once at install

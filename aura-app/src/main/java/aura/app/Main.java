@@ -51,11 +51,22 @@ public final class Main {
             ProjectRegistry registry = ProjectRegistryLoader.load(config.projectsFile());
             log.info("projects in registry: {}", registry.all().size());
 
+            TrayApp[] tray = new TrayApp[1];
+
             SessionSupervisor supervisor = new SessionSupervisor((sessionConfig, sink) -> {
                 boolean codex = sessionConfig.command().stream().anyMatch("exec"::equals);
-                return codex
-                    ? CodexSession.start(sessionConfig, sink)
-                    : ClaudeSession.start(sessionConfig, sink);
+                if (codex) {
+                    return CodexSession.start(sessionConfig, sink);
+                }
+                // An agent that dies on startup must say so where the user is
+                // looking. Without this the task simply does nothing, which is
+                // indistinguishable from an agent that is thinking.
+                return ClaudeSession.start(sessionConfig, sink, complaint -> {
+                    if (tray[0] != null) {
+                        tray[0].notice("The agent stopped: " + complaint);
+                        tray[0].state(TrayIconArt.State.ERROR);
+                    }
+                });
             }, config.idleTimeout(), Clock.systemUTC());
 
             ScheduledExecutorService idleSweeper = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -128,8 +139,6 @@ public final class Main {
                         : HookResponse.deny("user did not confirm");
                 });
             hookServer.start();
-
-            TrayApp[] tray = new TrayApp[1];
 
             // The sidecar is optional on purpose. Without it the application still
             // dispatches tasks, gates tool calls and shows progress in the tray —
