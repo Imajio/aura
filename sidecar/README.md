@@ -205,3 +205,18 @@ always-on process should carry nothing it does not use:
 ```bash
 .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
 ```
+
+## Recording the owner's voice
+
+```bash
+.venv/Scripts/python.exe record-voice-samples.py wake      --takes 20
+.venv/Scripts/python.exe record-voice-samples.py reference --takes 3
+```
+
+The wake word and the speaker reference are the two things that cannot exist
+until somebody says them out loud. The script asks before it records, counts
+down, and warns about takes too quiet to train on. Everything lands under
+`voice/`, which git ignores and which never leaves the machine.
+
+Without a wake-word model, `--listen` refuses to open the microphone: recording
+a room whose speech could never be acted on is not a degraded feature.
