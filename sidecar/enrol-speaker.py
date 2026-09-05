@@ -29,8 +29,11 @@ DEFAULT_MODEL = (pathlib.Path(__file__).resolve().parents[1]
 
 def read_wav(path: pathlib.Path) -> np.ndarray:
     with wave.open(str(path), "rb") as f:
-        if f.getframerate() != 16000 or f.getnchannels() != 1:
-            raise SystemExit(f"{path}: expected 16 kHz mono")
+        rate = f.getframerate()
+        channels = f.getnchannels()
+        if rate != 16000 or channels != 1:
+            raise SystemExit(
+                f"{path}: expected 16 kHz mono, got {rate} Hz / {channels} ch")
         frames = f.readframes(f.getnframes())
     return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
 
@@ -50,8 +53,16 @@ def main(argv=None) -> int:
     if not model.is_file():
         raise SystemExit(f"no speaker model at {model}")
 
-    session = speaker_session(model)
-    embeddings = [embed(read_wav(path), session) for path in takes]
+    try:
+        session = speaker_session(model)
+    except Exception as e:
+        raise SystemExit(f"bad speaker model at {model}: {e}")
+
+    try:
+        embeddings = [embed(read_wav(path), session) for path in takes]
+    except (wave.Error, EOFError, ValueError) as e:
+        raise SystemExit(f"bad recording: {e}")
+
     enrolment = Enrolment.from_embeddings(embeddings)
     enrolment.save(args.out)
 
@@ -59,6 +70,9 @@ def main(argv=None) -> int:
     # Printed because it is the number that says whether the takes were
     # consistent. Two takes of the same person should agree well above the
     # threshold; if they do not, the recordings are the problem, not the model.
+    if len(takes) == 1:
+        print("  warning: one recording cannot be checked for consistency")
+        print("           record two or three takes for better enrolment")
     for path, embedding in zip(takes, embeddings):
         print(f"  {path.name}: {enrolment.similarity(embedding):.3f}")
     return 0
