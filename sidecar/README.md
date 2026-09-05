@@ -192,9 +192,11 @@ loads the narrator on the first narration: compiling for the iGPU takes tens of
 seconds, and a sidecar that stays silent until it finishes is indistinguishable
 from one that failed to start.
 
-M2 in progress. Narration works in both language profiles; speech and
-recognition do not yet, and say so — `speak` answers `SPEECH_UNAVAILABLE` and
+Narration works in both language profiles. Speech needs a voice: without
+`--voice` the sidecar narrates in text, `speak` answers `SPEECH_UNAVAILABLE` and
 `ready` reports `tts: absent`, rather than acknowledging speech nobody hears.
+Recognition needs `--listen` and a wake-word model; without the model the
+microphone is never opened and the refusal says so.
 
 `aura_speech/stub.py` stays as it is: it loads no models, it starts anywhere,
 and it is the fixture the Java contract test drives.
@@ -218,5 +220,24 @@ until somebody says them out loud. The script asks before it records, counts
 down, and warns about takes too quiet to train on. Everything lands under
 `voice/`, which git ignores and which never leaves the machine.
 
+Recording is only half of it. Each pile of takes is turned into one artefact:
+
+```bash
+.venv/Scripts/python.exe train-wake-word.py     # -> voice/wake-word.npz
+.venv/Scripts/python.exe enrol-speaker.py       # -> voice/reference.npy
+```
+
+`train-wake-word.py` fits a logistic regression on the takes against an equal
+pile of audio that is not the wake word, and prints both numbers that matter:
+how many of the owner's own takes it recognised, and how often it fired on
+something else. It needs openWakeWord's `melspectrogram.onnx` and
+`embedding_model.onnx` under `models/openwakeword/`, placed by hand.
+
+`enrol-speaker.py` averages the reference takes into one embedding and prints
+how closely each take matches it. Takes that disagree mean the average is
+describing a moment rather than a person.
+
 Without a wake-word model, `--listen` refuses to open the microphone: recording
-a room whose speech could never be acted on is not a degraded feature.
+a room whose speech could never be acted on is not a degraded feature. Without
+`voice/reference.npy` listening still starts, and says once at startup that
+every voice is being accepted as the owner.

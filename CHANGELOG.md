@@ -37,6 +37,23 @@ versions — [Semantic Versioning](https://semver.org/).
 - Benchmarks that answer the open risks with numbers rather than opinion:
   recognition and narration latency per device, the cost of unloading a model,
   and a word-error-rate comparison of recognition models on Russian commands.
+- `sidecar`: the rest of the listening cascade. A wake word trained on the
+  owner's own takes arms the listener; speaker verification then refuses a voice
+  that is not theirs before it reaches recognition, so a stranger's words never
+  travel through a model or into a log. A spoken task reaches the agent by the
+  same path a typed one does.
+- `sidecar`: the two scripts the owner runs once. `train-wake-word.py` fits a
+  classifier on their recordings and reports both how many of their takes it
+  recognised and how often it fired on audio that was not the wake word;
+  `enrol-speaker.py` averages reference takes into the one embedding every later
+  utterance is compared against.
+- `aura-app`: `listen` in the configuration, off by default, and the events the
+  cascade produces — the wake word, a recognised utterance, and a refused voice,
+  which is logged and deliberately not announced.
+
+*None of the voice path has been exercised end to end: it needs a wake-word
+model and a voice reference, and both are recordings only the owner can make.
+What ships is code covered by 207 tests on the Java side and 98 on the sidecar.*
 
 ### Changed
 
@@ -75,3 +92,17 @@ versions — [Semantic Versioning](https://semver.org/).
 - The sidecar carries torch for Russian speech. Converting Silero to OpenVINO
   IR is not possible: it is one TorchScript system taking strings, with accent
   placement inside the graph.
+- The wake word is trained here rather than through openWakeWord's own pipeline.
+  That package pulls scipy and scikit-learn, about 150 MB, into a process meant
+  to sit idle all day; only its two ONNX feature files are used. The trainer and
+  the live detector call one shared `wake_features`, so a classifier is always
+  scored on exactly the numbers it was trained on.
+- Speaker verification fails closed. A verifier that throws, a reference that
+  will not load, a model that went away — each is a refusal, not a warning. The
+  stage exists to keep a stranger from reaching an agent, so it may not resolve
+  any other way.
+- Listening is asked for explicitly and never inferred from a file being on
+  disk. Asking to listen without a trained wake word reaches the sidecar and
+  earns its `NO_WAKE_WORD` refusal out loud, instead of being dropped quietly on
+  the Java side; a wake word with no enrolled voice raises a balloon saying every
+  voice is currently accepted.

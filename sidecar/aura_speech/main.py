@@ -4,10 +4,11 @@ Run by the Java side, not by hand:
 
     python -m aura_speech.main [--model DIR] [--device GPU]
 
-M2 in progress. Narration works; speech and recognition do not yet, and say so
-rather than pretending — `speak` answers `SPEECH_UNAVAILABLE`, and `ready`
-reports `tts: absent`. `stub.py` remains the model-free sidecar the Java
-contract test drives.
+Every capability is asked for, and its absence is reported rather than hidden:
+without `--voice` the narrator writes text, `speak` answers `SPEECH_UNAVAILABLE`
+and `ready` reports `tts: absent`; without `--listen` no microphone is opened,
+and with it but no `--wake-model` the refusal is `NO_WAKE_WORD`. `stub.py`
+remains the model-free sidecar the Java contract test drives.
 """
 
 import argparse
