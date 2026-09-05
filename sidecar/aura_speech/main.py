@@ -15,7 +15,7 @@ import pathlib
 import sys
 
 from .cascade import FRAME_SECONDS
-from .hearing import Microphone, open_wake_word, silero_vad, whisper
+from .hearing import Microphone, silero_vad, trained_wake_word, whisper
 from .listener import Listener
 from .narrator import Narrator
 from .protocol import serve
@@ -158,7 +158,7 @@ def _start_listening(args, cache, emit):
         recognise=whisper(args.whisper, device=args.device,
                           cache_dir=cache / f"{args.device}-stt"),
         on_utterance=lambda text: emit({"ev": "utterance", "text": text}),
-        is_wake=open_wake_word(args.wake_model),
+        is_wake=trained_wake_word(args.wake_model),
         on_wake=lambda at: emit({"ev": "wake"}),
         on_error=lambda detail: emit({"ev": "error", "code": "RECOGNITION_FAILED",
                                       "detail": detail, "fatal": False}))
