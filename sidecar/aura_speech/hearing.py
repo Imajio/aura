@@ -5,11 +5,21 @@ worth testing, while what is here is loading somebody else's model and opening a
 device. Both are lazy, so a sidecar that never listens never pays for either.
 """
 
+import pathlib
+
 import numpy as np
 
 from .cascade import FRAME, RATE
 
 DEFAULT_CAPTURE_RATE = 48000
+
+# openWakeWord's own release assets — melspectrogram.onnx and embedding_model.onnx
+# — placed here by hand, not by pip: the openwakeword package pulls in scipy and
+# scikit-learn to train its own classifiers, about 150 MB, into a sidecar meant to
+# sit idle all day. `models/` is git-ignored like every other model in this
+# project, so this is a one-time manual step, not something cloning the repository
+# provides.
+DEFAULT_WAKE_FEATURE_MODELS = pathlib.Path(__file__).resolve().parents[2] / "models" / "openwakeword"
 
 
 def silero_vad(threshold: float = 0.5):
@@ -153,24 +163,36 @@ def trained_wake_word(model_path, threshold: float = 0.5):
     The classifier is the owner's, produced by `train-wake-word.py` from their own
     recordings. No pretrained stand-in is offered: shipping somebody else's wake
     word would make the cascade look finished while listening for the wrong thing.
+
+    The two feature models behind it are loaded straight through onnxruntime
+    rather than through the `openwakeword` package — see
+    `DEFAULT_WAKE_FEATURE_MODELS` for why — and `wake_features` in `wake.py` is
+    the same function `train-wake-word.py` calls, so the classifier is scored on
+    exactly the numbers it was trained on.
     """
-    from .wake import WakeClassifier
+    from .wake import WakeClassifier, wake_features
 
     state = {"buffer": np.zeros(0, dtype=np.float32)}
 
     def is_wake(frame: np.ndarray) -> bool:
         if "classifier" not in state:
-            from openwakeword.utils import AudioFeatures
+            import onnxruntime as ort
             state["classifier"] = WakeClassifier.load(model_path)
-            state["features"] = AudioFeatures(inference_framework="onnx")
+            state["melspec"] = ort.InferenceSession(
+                str(DEFAULT_WAKE_FEATURE_MODELS / "melspectrogram.onnx"),
+                providers=["CPUExecutionProvider"])
+            state["embedding"] = ort.InferenceSession(
+                str(DEFAULT_WAKE_FEATURE_MODELS / "embedding_model.onnx"),
+                providers=["CPUExecutionProvider"])
         state["buffer"] = np.concatenate([state["buffer"], frame])
         if len(state["buffer"]) < RATE:
             return False
         window = state["buffer"][-RATE:]
         state["buffer"] = state["buffer"][-RATE // 2:]
-        embedding = state["features"].embed_clips(
-            np.stack([(window * 32767).astype(np.int16)]), batch_size=1)
-        return state["classifier"].score(np.asarray(embedding).reshape(-1)) > threshold
+        # int16 magnitude: see wake_features' docstring for why this and
+        # train-wake-word.py both scale by it before calling that function.
+        features = wake_features(window * 32767.0, state["melspec"], state["embedding"])
+        return state["classifier"].score(features) > threshold
 
     return is_wake
 

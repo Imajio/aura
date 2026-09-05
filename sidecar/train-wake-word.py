@@ -10,6 +10,18 @@ Negative audio matters as much as positive: a classifier trained only on the
 wake word learns to say yes to everything. Anything spoken that is not the wake
 word will do — the narrator audition samples under `C:/Aura/tts-audition` are a
 good start, and background recordings in `recordings/` are better.
+
+The embedding comes from two of openWakeWord's own ONNX files —
+`melspectrogram.onnx` and `embedding_model.onnx` — expected at
+`models/openwakeword/`. They are openWakeWord's release assets, placed there by
+hand, not installed through the `openwakeword` package: that package pulls in
+scipy and scikit-learn to train its own classifiers, about 150 MB, into a
+sidecar meant to sit idle all day. `models/` is git-ignored like every other
+model in this project, so those two files are a one-time manual step, not
+something cloning the repository provides. `wake_features` in
+`aura_speech/wake.py` is the one function this script and the live detector in
+`hearing.py` both call, so a classifier is always scored on exactly the numbers
+it was trained on.
 """
 
 import argparse
@@ -21,9 +33,10 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from aura_speech.wake import WakeClassifier  # noqa: E402
+from aura_speech.wake import WakeClassifier, wake_features  # noqa: E402
 
 DEFAULT_VOICE = pathlib.Path(__file__).resolve().parents[1] / "voice"
+DEFAULT_FEATURE_MODELS = pathlib.Path(__file__).resolve().parents[1] / "models" / "openwakeword"
 
 
 def read_wav(path: pathlib.Path) -> np.ndarray:
@@ -38,16 +51,15 @@ def read_wav(path: pathlib.Path) -> np.ndarray:
     return samples
 
 
-def embed_all(paths, features):
-    """One embedding vector per clip, using openWakeWord's shipped model."""
+def embed_all(paths, melspec_session, embedding_session):
+    """One embedding vector per clip, through the shared `wake_features`."""
     vectors = []
     for path in paths:
         audio = read_wav(path)
         if len(audio) < 16000:
             audio = np.pad(audio, (0, 16000 - len(audio)))
-        embedding = features.embed_clips(np.stack([(audio * 32767).astype(np.int16)]),
-                                         batch_size=1)
-        vectors.append(np.asarray(embedding).reshape(-1))
+        # int16 magnitude: see wake_features' docstring for why.
+        vectors.append(wake_features(audio * 32767.0, melspec_session, embedding_session))
     return np.stack(vectors) if vectors else np.zeros((0, 0), dtype=np.float32)
 
 
@@ -89,12 +101,17 @@ def main(argv=None) -> int:
             f"no negative audio in {args.negative}; a classifier trained only on "
             f"the wake word learns to say yes to everything")
 
-    from openwakeword.utils import AudioFeatures
-    features = AudioFeatures(inference_framework="onnx")
+    import onnxruntime as ort
+    melspec_session = ort.InferenceSession(
+        str(DEFAULT_FEATURE_MODELS / "melspectrogram.onnx"),
+        providers=["CPUExecutionProvider"])
+    embedding_session = ort.InferenceSession(
+        str(DEFAULT_FEATURE_MODELS / "embedding_model.onnx"),
+        providers=["CPUExecutionProvider"])
 
     print(f"embedding {len(takes)} take(s) and {len(negatives)} negative clip(s)…")
-    positive = embed_all(takes, features)
-    negative = embed_all(negatives, features)
+    positive = embed_all(takes, melspec_session, embedding_session)
+    negative = embed_all(negatives, melspec_session, embedding_session)
 
     classifier = fit(positive, negative)
     classifier.save(args.out)
