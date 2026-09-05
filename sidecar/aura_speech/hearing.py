@@ -19,6 +19,12 @@ DEFAULT_CAPTURE_RATE = 48000
 # sit idle all day. `models/` is git-ignored like every other model in this
 # project, so this is a one-time manual step, not something cloning the repository
 # provides.
+#
+# `train-wake-word.py`'s DEFAULT_FEATURE_MODELS points at this same directory,
+# computed independently through its own `parents[N]`. Moving either file
+# changes what N needs to be; the two are not derived from one another, so a
+# move that updates one and forgets the other would fail silently rather than
+# with an ImportError.
 DEFAULT_WAKE_FEATURE_MODELS = pathlib.Path(__file__).resolve().parents[2] / "models" / "openwakeword"
 
 

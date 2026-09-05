@@ -36,6 +36,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from aura_speech.wake import WakeClassifier, wake_features  # noqa: E402
 
 DEFAULT_VOICE = pathlib.Path(__file__).resolve().parents[1] / "voice"
+# Same directory as hearing.py's DEFAULT_WAKE_FEATURE_MODELS, computed
+# independently through this file's own `parents[N]` — moving either file
+# changes what N needs to be here, so keep the pair in mind if you do.
 DEFAULT_FEATURE_MODELS = pathlib.Path(__file__).resolve().parents[1] / "models" / "openwakeword"
 
 
