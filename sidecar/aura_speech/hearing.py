@@ -176,3 +176,13 @@ def open_wake_word(model_path, threshold: float = 0.5):
         return any(score > threshold for score in scores.values())
 
     return is_wake
+
+
+def speaker_session(model_path):
+    """The WeSpeaker ResNet-34 embedding model, as an ONNX session.
+
+    CPU on purpose: it runs once per utterance, for about fifteen milliseconds,
+    and the iGPU is busy with recognition and the narrator.
+    """
+    import onnxruntime as ort
+    return ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
