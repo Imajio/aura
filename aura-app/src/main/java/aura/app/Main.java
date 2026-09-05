@@ -340,8 +340,16 @@ public final class Main {
                         }
                     }
                 } else if ("error".equals(kind)) {
-                    log.warn("sidecar error {}: {}",
-                        event.path("code").asText(), event.path("detail").asText());
+                    String code = event.path("code").asText();
+                    log.warn("sidecar error {}: {}", code, event.path("detail").asText());
+                    // The state this reports — a trained wake word, no enrolled voice,
+                    // so every voice in the room is accepted as the owner — is one the
+                    // owner has to know they are in. A log file nobody is watching is
+                    // not how this application tells somebody something that matters.
+                    if ("NO_SPEAKER_REFERENCE".equals(code) && tray[0] != null) {
+                        tray[0].alert("No enrolled voice: every voice is accepted as "
+                            + "the owner until enrol-speaker.py is run.");
+                    }
                 } else {
                     log.info("sidecar: {}", event);
                 }

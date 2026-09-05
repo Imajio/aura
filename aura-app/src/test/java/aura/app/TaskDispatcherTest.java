@@ -28,7 +28,7 @@ class TaskDispatcherTest {
         Path.of("sidecar"), Path.of("python"), "", "en",
         Path.of("voice", "wake-word.npz"),
         Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx"),
-        Path.of("voice", "reference.npy"));
+        Path.of("voice", "reference.npy"), false);
 
     /**
      * For dispatch checks: the dispatcher writes the settings file to disk, so
@@ -44,7 +44,7 @@ class TaskDispatcherTest {
             Path.of("sidecar"), Path.of("python"), "", "en",
             Path.of("voice", "wake-word.npz"),
             Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx"),
-            Path.of("voice", "reference.npy"));
+            Path.of("voice", "reference.npy"), false);
     }
 
     private static Project project(String name, Agent agent, String... aliases) {

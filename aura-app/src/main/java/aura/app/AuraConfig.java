@@ -26,7 +26,8 @@ public record AuraConfig(
     String profile,
     Path wakeModel,
     Path speakerModel,
-    Path speakerReference
+    Path speakerReference,
+    boolean listen
 ) {
 
     /**
@@ -65,11 +66,14 @@ public record AuraConfig(
             "en",
             // These three are the machine-specific artefacts the owner produces by
             // running train-wake-word.py and enrol-speaker.py: none of them ship
-            // with the repository, and their absence is exactly what tells
-            // sidecarCommand() not to ask the sidecar to listen.
+            // with the repository. Whether the sidecar is asked to listen is a
+            // separate matter — see the `listen` default just below.
             Path.of("voice", "wake-word.npz").toAbsolutePath(),
             Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx").toAbsolutePath(),
-            Path.of("voice", "reference.npy").toAbsolutePath());
+            Path.of("voice", "reference.npy").toAbsolutePath(),
+            // The microphone stays shut unless somebody asked for it, which is
+            // what main.py's own --listen help text already says.
+            false);
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -95,9 +99,10 @@ public record AuraConfig(
                 path(root, "pythonExe", defaults.pythonExe()),
                 text(root, "voice", defaults.voice()),
                 text(root, "profile", defaults.profile()),
-                path(root, "wakeModel", defaults.wakeModel()),
-                path(root, "speakerModel", defaults.speakerModel()),
-                path(root, "speakerReference", defaults.speakerReference()));
+                path(root, "wakeModel", defaults.wakeModel()).toAbsolutePath(),
+                path(root, "speakerModel", defaults.speakerModel()).toAbsolutePath(),
+                path(root, "speakerReference", defaults.speakerReference()).toAbsolutePath(),
+                flag(root, "listen", defaults.listen()));
         } catch (Exception e) {
             throw new IllegalStateException("failed to read configuration: " + yamlFile, e);
         }
@@ -124,14 +129,16 @@ public record AuraConfig(
             command.add("--speaker-reference");
             command.add(speakerReference.toString());
         }
-        // Listening is authorised by the presence of a wake-word model trained on
-        // the owner's own voice (train-wake-word.py), not by a separate on/off
-        // setting that could drift out of sync with it. No model means --listen
-        // would only earn a NO_WAKE_WORD refusal back from the sidecar, so it is
-        // left off entirely rather than sent to be refused.
+        // Listening is asked for explicitly, through the `listen` flag: it is
+        // never inferred from what happens to exist on disk. The wake-word model
+        // is passed whenever it exists, listen or not, so that asking to listen
+        // without one still reaches the sidecar and earns its NO_WAKE_WORD
+        // refusal, out loud, instead of being silently dropped here.
         if (Files.isRegularFile(wakeModel)) {
             command.add("--wake-model");
             command.add(wakeModel.toString());
+        }
+        if (listen) {
             command.add("--listen");
         }
         return java.util.List.copyOf(command);
@@ -145,5 +152,10 @@ public record AuraConfig(
     private static Duration seconds(Map<String, Object> root, String key, Duration fallback) {
         Object value = root.get(key);
         return value == null ? fallback : Duration.ofSeconds(Long.parseLong(String.valueOf(value)));
+    }
+
+    private static boolean flag(Map<String, Object> root, String key, boolean fallback) {
+        Object value = root.get(key);
+        return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
     }
 }
