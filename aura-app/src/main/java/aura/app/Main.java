@@ -305,6 +305,12 @@ public final class Main {
                     if (tray[0] != null) {
                         tray[0].status("listening");
                     }
+                } else if ("rejected".equals(kind)) {
+                    // Deliberately quiet. Somebody spoke and was not the owner —
+                    // which is the feature working, not a fault, and a balloon
+                    // for every refusal would make the room's conversation the
+                    // application's business.
+                    log.info("voice not recognised as the owner");
                 } else if ("utterance".equals(kind)) {
                     // A task said out loud. From here it is indistinguishable from
                     // one typed into the tray, which is the point of the whole

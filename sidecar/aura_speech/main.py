@@ -15,10 +15,11 @@ import pathlib
 import sys
 
 from .cascade import FRAME_SECONDS
-from .hearing import Microphone, silero_vad, trained_wake_word, whisper
+from .hearing import Microphone, silero_vad, speaker_session, trained_wake_word, whisper
 from .listener import Listener
 from .narrator import Narrator
 from .protocol import serve
+from .speaker import embed, verifier
 from .voice import Voice, silero
 
 DEFAULT_MODEL = pathlib.Path(__file__).resolve().parents[2] / "models" / "qwen3-4b-int4-ov"
@@ -26,6 +27,9 @@ DEFAULT_SMALL_MODEL = (pathlib.Path(__file__).resolve().parents[2]
                        / "models" / "qwen3-1.7b-int4-ov")
 DEFAULT_WHISPER = (pathlib.Path(__file__).resolve().parents[2]
                    / "models" / "whisper-large-v3-turbo-int8")
+DEFAULT_SPEAKER_MODEL = (pathlib.Path(__file__).resolve().parents[2]
+                         / "models" / "wespeaker-resnet34" / "voxceleb_resnet34_LM.onnx")
+DEFAULT_REFERENCE = pathlib.Path(__file__).resolve().parents[2] / "voice" / "reference.npy"
 DEFAULT_CACHE = pathlib.Path(__file__).resolve().parents[2] / ".ov_cache"
 MAX_NARRATION_TOKENS = 40
 
@@ -75,6 +79,9 @@ def main(argv=None) -> int:
                              "Listening does nothing without one: an assistant "
                              "that acts on every sentence in the room is not the "
                              "product.")
+    parser.add_argument("--speaker-model", default=str(DEFAULT_SPEAKER_MODEL))
+    parser.add_argument("--speaker-reference", default=str(DEFAULT_REFERENCE))
+    parser.add_argument("--speaker-threshold", type=float, default=0.5)
     parser.add_argument("--voice", default=None,
                         help="Silero voice to speak with. Without it the sidecar "
                              "narrates in text and answers SPEECH_UNAVAILABLE to "
@@ -153,6 +160,23 @@ def _start_listening(args, cache, emit):
     if not args.wake_model:
         return None
 
+    reference = pathlib.Path(args.speaker_reference)
+    model = pathlib.Path(args.speaker_model)
+    is_owner = None
+    if reference.is_file() and model.is_file():
+        session = speaker_session(model)
+        is_owner = verifier(reference,
+                            embed=lambda audio: embed(audio, session),
+                            threshold=args.speaker_threshold)
+    else:
+        # Said once, at startup, rather than on every utterance: the design makes
+        # verification mandatory, so running without it is a state the user has
+        # to know they are in.
+        emit({"ev": "error", "code": "NO_SPEAKER_REFERENCE",
+              "detail": f"no enrolled voice at {reference}; every voice will be "
+                        f"accepted until enrol-speaker.py has been run",
+              "fatal": False})
+
     listener = Listener(
         is_speech=silero_vad(),
         recognise=whisper(args.whisper, device=args.device,
@@ -160,6 +184,8 @@ def _start_listening(args, cache, emit):
         on_utterance=lambda text: emit({"ev": "utterance", "text": text}),
         is_wake=trained_wake_word(args.wake_model),
         on_wake=lambda at: emit({"ev": "wake"}),
+        is_owner=is_owner,
+        on_rejected=lambda: emit({"ev": "rejected"}),
         on_error=lambda detail: emit({"ev": "error", "code": "RECOGNITION_FAILED",
                                       "detail": detail, "fatal": False}))
 

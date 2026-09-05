@@ -35,6 +35,13 @@ class Listener:
     def __init__(self, is_speech, recognise, on_utterance,
                  is_wake=None, on_wake=None, is_owner=None, on_rejected=None,
                  tail_seconds: float = 0.5, max_seconds: float = 30.0,
+                 # The arm this buys is spent by the next utterance in the room,
+                 # whoever it belongs to — a stranger or a television talking
+                 # inside these seconds consumes it exactly as a command would,
+                 # and the owner then has to say the wake word again. Deliberate:
+                 # shortening the annoyance would mean widening the window during
+                 # which anyone's speech is treated as one, which is the worse
+                 # failure. Do not "fix" this by re-arming on a rejection.
                  arm_seconds: float = 8.0, on_error=None):
         self._is_speech = is_speech
         self._recognise = recognise

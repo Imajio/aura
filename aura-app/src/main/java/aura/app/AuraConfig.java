@@ -23,7 +23,10 @@ public record AuraConfig(
     Path sidecarDir,
     Path pythonExe,
     String voice,
-    String profile
+    String profile,
+    Path wakeModel,
+    Path speakerModel,
+    Path speakerReference
 ) {
 
     /**
@@ -59,7 +62,14 @@ public record AuraConfig(
             // English is the base language; Russian is a profile the owner turns
             // on, which is the project's rule everywhere else and has no reason
             // to be different here.
-            "en");
+            "en",
+            // These three are the machine-specific artefacts the owner produces by
+            // running train-wake-word.py and enrol-speaker.py: none of them ship
+            // with the repository, and their absence is exactly what tells
+            // sidecarCommand() not to ask the sidecar to listen.
+            Path.of("voice", "wake-word.npz").toAbsolutePath(),
+            Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx").toAbsolutePath(),
+            Path.of("voice", "reference.npy").toAbsolutePath());
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -84,7 +94,10 @@ public record AuraConfig(
                 path(root, "sidecarDir", defaults.sidecarDir()),
                 path(root, "pythonExe", defaults.pythonExe()),
                 text(root, "voice", defaults.voice()),
-                text(root, "profile", defaults.profile()));
+                text(root, "profile", defaults.profile()),
+                path(root, "wakeModel", defaults.wakeModel()),
+                path(root, "speakerModel", defaults.speakerModel()),
+                path(root, "speakerReference", defaults.speakerReference()));
         } catch (Exception e) {
             throw new IllegalStateException("failed to read configuration: " + yamlFile, e);
         }
@@ -102,6 +115,24 @@ public record AuraConfig(
         if (!voice.isBlank()) {
             command.add("--voice");
             command.add(voice);
+        }
+        if (Files.isRegularFile(speakerModel)) {
+            command.add("--speaker-model");
+            command.add(speakerModel.toString());
+        }
+        if (Files.isRegularFile(speakerReference)) {
+            command.add("--speaker-reference");
+            command.add(speakerReference.toString());
+        }
+        // Listening is authorised by the presence of a wake-word model trained on
+        // the owner's own voice (train-wake-word.py), not by a separate on/off
+        // setting that could drift out of sync with it. No model means --listen
+        // would only earn a NO_WAKE_WORD refusal back from the sidecar, so it is
+        // left off entirely rather than sent to be refused.
+        if (Files.isRegularFile(wakeModel)) {
+            command.add("--wake-model");
+            command.add(wakeModel.toString());
+            command.add("--listen");
         }
         return java.util.List.copyOf(command);
     }
