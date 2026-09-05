@@ -150,7 +150,16 @@ public final class Main {
             // it simply does not speak. Refusing to start because a voice is
             // missing would trade the whole product for one of its features.
             java.util.function.Consumer<String>[] spoken = new java.util.function.Consumer[1];
-            SpeechClient speech = startSidecar(config, tray, finished,
+            // NO_SPEAKER_REFERENCE is the sidecar's first event: emitted before serve()
+            // and so ahead of `ready`, while this thread is still inside
+            // `new TrayApp(...)` and the AWT/SystemTray initialisation it performs.
+            // Dropping the alert because the tray is not up yet loses the one notice
+            // that says every voice in the room is being accepted as the owner, and
+            // the manual test plan asks the owner to see it. Held here instead, and
+            // drained the moment there is a tray to show it on.
+            java.util.concurrent.atomic.AtomicReference<String> heldAlert =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            SpeechClient speech = startSidecar(config, tray, finished, heldAlert,
                 phrase -> {
                     if (spoken[0] != null) {
                         spoken[0].accept(phrase);
@@ -239,6 +248,13 @@ public final class Main {
                 narrationPolicy.verbosity(),
                 logDir);
 
+            // Drained the instant there is a tray to drain it onto — see heldAlert
+            // where it is declared for why the alert can arrive before this line.
+            String heldNotice = heldAlert.getAndSet(null);
+            if (heldNotice != null) {
+                tray[0].alert(heldNotice);
+            }
+
             configure(speech, config.profile(), narrationPolicy.verbosity());
             tray[0].status("ready");
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -292,6 +308,8 @@ public final class Main {
      */
     private static SpeechClient startSidecar(AuraConfig config, TrayApp[] tray,
                                              java.util.concurrent.atomic.AtomicBoolean finished,
+                                             java.util.concurrent.atomic.AtomicReference<String>
+                                                 heldAlert,
                                              java.util.function.Consumer<String> onSpoken) {
         if (!Files.isDirectory(config.sidecarDir())) {
             log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
@@ -346,9 +364,17 @@ public final class Main {
                     // so every voice in the room is accepted as the owner — is one the
                     // owner has to know they are in. A log file nobody is watching is
                     // not how this application tells somebody something that matters.
-                    if ("NO_SPEAKER_REFERENCE".equals(code) && tray[0] != null) {
-                        tray[0].alert("No enrolled voice: every voice is accepted as "
-                            + "the owner until enrol-speaker.py is run.");
+                    if ("NO_SPEAKER_REFERENCE".equals(code)) {
+                        String notice = "No enrolled voice: every voice is accepted as "
+                            + "the owner until enrol-speaker.py is run.";
+                        if (tray[0] != null) {
+                            tray[0].alert(notice);
+                        } else {
+                            // Held, not dropped. This event wins the race against the
+                            // tray far more often than not; main() drains it as soon
+                            // as there is one.
+                            heldAlert.set(notice);
+                        }
                     }
                 } else {
                     log.info("sidecar: {}", event);

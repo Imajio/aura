@@ -1,6 +1,7 @@
 package aura.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -135,5 +136,42 @@ class AuraConfigTest {
         AuraConfig config = AuraConfig.load(yaml);
 
         assertThat(config.listen()).isFalse();
+    }
+
+    @Test
+    void loadReadsBothBooleanSpellings(@TempDir Path tmp) throws Exception {
+        Path on = Files.writeString(tmp.resolve("on.yaml"), "listen: true\n");
+        Path off = Files.writeString(tmp.resolve("off.yaml"), "listen: false\n");
+
+        assertThat(AuraConfig.load(on).listen()).isTrue();
+        assertThat(AuraConfig.load(off).listen()).isFalse();
+    }
+
+    // The two below are the rejected forms. Boolean.parseBoolean answers false to
+    // everything it does not recognise, so before this both of them left the
+    // microphone shut and said nothing — the silent failure the `listen` key was
+    // introduced to remove, arriving on a different input. The message is asserted
+    // on the thrown IllegalStateException rather than on its cause because that is
+    // the one the startup dialog puts in front of the owner.
+
+    @Test
+    void loadRejectsAMisspeltListenValue(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "listen: ture\n");
+
+        assertThatThrownBy(() -> AuraConfig.load(yaml))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("listen")
+            .hasMessageContaining("got 'ture'");
+    }
+
+    @Test
+    void loadRejectsANumericListenValue(@TempDir Path tmp) throws Exception {
+        // `listen: 1` reads as "on" to a person and as false to parseBoolean.
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "listen: 1\n");
+
+        assertThatThrownBy(() -> AuraConfig.load(yaml))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("listen")
+            .hasMessageContaining("got '1'");
     }
 }

@@ -64,9 +64,11 @@ public record AuraConfig(
             // on, which is the project's rule everywhere else and has no reason
             // to be different here.
             "en",
-            // These three are the machine-specific artefacts the owner produces by
-            // running train-wake-word.py and enrol-speaker.py: none of them ship
-            // with the repository. Whether the sidecar is asked to listen is a
+            // None of the three ship with the repository, and they do not arrive the
+            // same way. The first and third are the owner's own, produced from their
+            // recordings by train-wake-word.py and enrol-speaker.py; the WeSpeaker
+            // embedding model between them is a download, and sidecar/README.md
+            // carries the command. Whether the sidecar is asked to listen is a
             // separate matter — see the `listen` default just below.
             Path.of("voice", "wake-word.npz").toAbsolutePath(),
             Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx").toAbsolutePath(),
@@ -104,7 +106,12 @@ public record AuraConfig(
                 path(root, "speakerReference", defaults.speakerReference()).toAbsolutePath(),
                 flag(root, "listen", defaults.listen()));
         } catch (Exception e) {
-            throw new IllegalStateException("failed to read configuration: " + yamlFile, e);
+            // The cause's own message is folded in rather than left to the log. The
+            // startup dialog shows this message and nothing else, and naming the file
+            // without naming what is wrong in it sends the owner back to a config they
+            // have already read through once.
+            throw new IllegalStateException(
+                "failed to read configuration: " + yamlFile + " — " + e.getMessage(), e);
         }
     }
 
@@ -154,8 +161,33 @@ public record AuraConfig(
         return value == null ? fallback : Duration.ofSeconds(Long.parseLong(String.valueOf(value)));
     }
 
+    /**
+     * A boolean that refuses to guess.
+     *
+     * <p>{@code Boolean.parseBoolean} answers {@code false} to everything it does not
+     * recognise, so {@code listen: 1} and a typo such as {@code listen: ture} would
+     * both leave the microphone shut without a word — the same silent failure the
+     * {@code listen} key was added to remove, moved onto a different input. SnakeYAML
+     * already hands back a real {@link Boolean} for the YAML spellings, so anything
+     * that is neither that nor a quoted {@code "true"}/{@code "false"} is a mistake,
+     * and saying so is the only way the owner finds it.
+     */
     private static boolean flag(Map<String, Object> root, String key, boolean fallback) {
         Object value = root.get(key);
-        return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        String literal = String.valueOf(value).trim();
+        if (literal.equalsIgnoreCase("true")) {
+            return true;
+        }
+        if (literal.equalsIgnoreCase("false")) {
+            return false;
+        }
+        throw new IllegalArgumentException(
+            key + ": expected true or false, got '" + literal + "'");
     }
 }

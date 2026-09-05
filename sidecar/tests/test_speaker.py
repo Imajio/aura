@@ -44,6 +44,30 @@ class TestEnrolment:
         assert enrolment.similarity(unit(0, 1)) == pytest.approx(0.0, abs=1e-6)
         assert not enrolment.matches(unit(0, 1), threshold=0.5)
 
+    def test_an_unnormalised_probe_is_still_scored_as_a_cosine(self):
+        # The reference is normalised on construction; the probe arrives from
+        # `embed`, which `verifier` takes as an injected callable. Trusting its
+        # norm makes the threshold mean something different for every caller: this
+        # probe sits at a true cosine of 0.30 and, unnormalised, scores 0.90 —
+        # comfortably above a threshold calibrated for a cosine, so a stranger is
+        # accepted. sqrt(0.09 + 0.91) is 1, so scaling by 3 gives exactly norm 3.
+        enrolment = Enrolment.from_embeddings([unit(1, 0)])
+        probe = np.array([0.3, np.sqrt(0.91)], dtype=np.float32) * 3.0
+
+        assert np.linalg.norm(probe) == pytest.approx(3.0)
+        assert enrolment.similarity(probe) == pytest.approx(0.30, abs=1e-6)
+        assert not enrolment.matches(probe, threshold=0.5)
+
+    def test_a_probe_with_no_direction_refuses(self):
+        # Silence embeds to nothing to compare against. Zero is the fail-closed
+        # answer and refuses at any positive threshold; dividing by the norm
+        # without guarding it would give a NaN instead.
+        enrolment = Enrolment.from_embeddings([unit(1, 0)])
+        silence = np.zeros(2, dtype=np.float32)
+
+        assert enrolment.similarity(silence) == 0.0
+        assert not enrolment.matches(silence, threshold=0.5)
+
     def test_it_survives_a_round_trip_through_disk(self, tmp_path):
         enrolment = Enrolment.from_embeddings([unit(1, 2, 3)])
         path = tmp_path / "reference.npy"

@@ -220,6 +220,12 @@ until somebody says them out loud. The script asks before it records, counts
 down, and warns about takes too quiet to train on. Everything lands under
 `voice/`, which git ignores and which never leaves the machine.
 
+**Either command overwrites what is already there.** Takes are numbered from
+`001` on every run and each file is opened for writing, so a second run replaces
+the first run's recordings rather than adding to them, and the prompt asks
+whether to start recording, not whether to overwrite. Run these against an empty
+directory; recordings that are gone can only be made again by speaking them.
+
 Recording is only half of it. Each pile of takes is turned into one artefact:
 
 ```bash
@@ -227,15 +233,31 @@ Recording is only half of it. Each pile of takes is turned into one artefact:
 .venv/Scripts/python.exe enrol-speaker.py       # -> voice/reference.npy
 ```
 
-`train-wake-word.py` fits a logistic regression on the takes against an equal
-pile of audio that is not the wake word, and prints both numbers that matter:
-how many of the owner's own takes it recognised, and how often it fired on
-something else. It needs openWakeWord's `melspectrogram.onnx` and
-`embedding_model.onnx` under `models/openwakeword/`, placed by hand.
+`train-wake-word.py` fits a logistic regression on the takes against every clip
+of audio that is not the wake word it can find in the negative directory — all
+of them, with no truncation to match the number of takes, so the two sides are
+normally lopsided: about a hundred audition clips against twenty takes. It
+prints both numbers that matter: how many of the owner's own takes it
+recognised, and how often it fired on something else. It needs openWakeWord's
+`melspectrogram.onnx` and `embedding_model.onnx` under `models/openwakeword/`,
+placed by hand.
 
 `enrol-speaker.py` averages the reference takes into one embedding and prints
 how closely each take matches it. Takes that disagree mean the average is
-describing a moment rather than a person.
+describing a moment rather than a person. It embeds them with WeSpeaker's
+ResNet-34, which the repository does not carry and which the script exits
+without:
+
+```bash
+huggingface-cli download Wespeaker/wespeaker-voxceleb-resnet34-LM voxceleb_resnet34_LM.onnx --local-dir ../models/wespeaker-resnet34
+```
+
+That is the `Wespeaker/wespeaker-voxceleb-resnet34-LM` model card on Hugging
+Face, CC-BY-4.0: 26,530,309 bytes, SHA-256
+`7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068`, which is the
+file this project's numbers were measured on. `models/` is git-ignored like every
+other model here, so this is a one-time step and not something cloning the
+repository provides.
 
 Without a wake-word model, `--listen` refuses to open the microphone: recording
 a room whose speech could never be acted on is not a degraded feature. Without

@@ -53,7 +53,7 @@ versions — [Semantic Versioning](https://semver.org/).
 
 *None of the voice path has been exercised end to end: it needs a wake-word
 model and a voice reference, and both are recordings only the owner can make.
-What ships is code covered by 207 tests on the Java side and 98 on the sidecar.*
+What ships is code covered by 210 tests on the Java side and 102 on the sidecar.*
 
 ### Changed
 

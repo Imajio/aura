@@ -183,13 +183,25 @@ def trained_wake_word(model_path, threshold: float = 0.5):
     def is_wake(frame: np.ndarray) -> bool:
         if "classifier" not in state:
             import onnxruntime as ort
-            state["classifier"] = WakeClassifier.load(model_path)
-            state["melspec"] = ort.InferenceSession(
+            # All three into locals, and into `state` only once all three exist.
+            # Assigning them as they are built leaves the guard above satisfied by
+            # a half-initialised state: every later frame then skips this block
+            # and dies on `KeyError: 'melspec'`, roughly every sixteen speech
+            # frames for the rest of the session, naming neither the wake word nor
+            # the file that was missing. Both sessions are built on the first
+            # speech frame of live listening rather than at startup, so a
+            # transient failure lands exactly here — and leaving `state` empty is
+            # what lets the next frame retry instead.
+            classifier = WakeClassifier.load(model_path)
+            melspec = ort.InferenceSession(
                 str(DEFAULT_WAKE_FEATURE_MODELS / "melspectrogram.onnx"),
                 providers=["CPUExecutionProvider"])
-            state["embedding"] = ort.InferenceSession(
+            embedding = ort.InferenceSession(
                 str(DEFAULT_WAKE_FEATURE_MODELS / "embedding_model.onnx"),
                 providers=["CPUExecutionProvider"])
+            state["classifier"] = classifier
+            state["melspec"] = melspec
+            state["embedding"] = embedding
         state["buffer"] = np.concatenate([state["buffer"], frame])
         if len(state["buffer"]) < RATE:
             return False

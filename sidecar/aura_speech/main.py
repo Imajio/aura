@@ -173,9 +173,22 @@ def _start_listening(args, cache, emit):
         # Said once, at startup, rather than on every utterance: the design makes
         # verification mandatory, so running without it is a state the user has
         # to know they are in.
+        #
+        # Whichever of the two is actually absent, by name. The reference and the
+        # embedding model disable the same stage but for different reasons, and
+        # pointing at enrol-speaker.py when the ONNX model is what is missing sends
+        # the owner to a script that would exit on the very same file. The event
+        # code stays NO_SPEAKER_REFERENCE either way: it is what the tray matches
+        # on to raise its alert, and what the manual test plan checks for.
+        absent = []
+        if not reference.is_file():
+            absent.append(f"no enrolled voice at {reference} (run enrol-speaker.py)")
+        if not model.is_file():
+            absent.append(f"no speaker model at {model} (see sidecar/README.md for "
+                          f"the download)")
         emit({"ev": "error", "code": "NO_SPEAKER_REFERENCE",
-              "detail": f"no enrolled voice at {reference}; every voice will be "
-                        f"accepted until enrol-speaker.py has been run",
+              "detail": "; ".join(absent) + ". Every voice will be accepted as the "
+                        "owner until that is fixed",
               "fatal": False})
 
     listener = Listener(

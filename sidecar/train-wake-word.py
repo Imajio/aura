@@ -1,15 +1,20 @@
 """Turns the owner's recordings of the wake word into a model that recognises it.
 
 Run after `record-voice-samples.py wake`. Embeds every take with the speech
-embedding model openWakeWord ships, embeds an equal-sized pile of negative audio,
-fits a logistic regression, and writes `voice/wake-word.npz`.
+embedding model openWakeWord ships, embeds every negative clip it can find — all
+of them, not a number matched to the takes — fits a logistic regression, and
+writes `voice/wake-word.npz`.
 
     .venv/Scripts/python.exe train-wake-word.py
 
 Negative audio matters as much as positive: a classifier trained only on the
 wake word learns to say yes to everything. Anything spoken that is not the wake
 word will do — the narrator audition samples under `C:/Aura/tts-audition` are a
-good start, and background recordings in `recordings/` are better.
+good start, and background recordings in `recordings/` are better. Every WAV
+under that directory is used, with no truncation to match the number of takes,
+so the two sides are normally lopsided — about a hundred audition clips against
+twenty takes — which pushes the fit towards silence rather than towards false
+wakes.
 
 The embedding comes from two of openWakeWord's own ONNX files —
 `melspectrogram.onnx` and `embedding_model.onnx` — expected at

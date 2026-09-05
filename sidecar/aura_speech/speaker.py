@@ -49,7 +49,26 @@ class Enrolment:
         return cls(mean.astype(np.float32))
 
     def similarity(self, embedding: np.ndarray) -> float:
-        return float(np.dot(self.embedding, embedding))
+        """The cosine between the reference and one probe.
+
+        The probe is normalised here rather than trusted to arrive that way. The
+        reference already is, so the dot product alone would be a cosine only
+        while every caller happened to hand over a unit vector — and the
+        threshold is calibrated for a cosine. `embed()` does return unit vectors,
+        but `verifier` takes `embed` as an injected callable, which makes that
+        caller discipline on a public seam: a probe of norm 3 at a true cosine of
+        0.30 scores 0.90 and a stranger is admitted.
+        """
+        probe = np.asarray(embedding, dtype=np.float32)
+        norm = float(np.linalg.norm(probe))
+        if norm <= 0.0:
+            # No direction to compare against. Zero refuses at any positive
+            # threshold, which is the fail-closed answer, and dividing anyway
+            # would give a NaN. Not an exception: `enrol-speaker.py` calls this
+            # for its per-take report, where a silent take should read as a bad
+            # number rather than end the run.
+            return 0.0
+        return float(np.dot(self.embedding, probe) / norm)
 
     def matches(self, embedding: np.ndarray, threshold: float = DEFAULT_THRESHOLD) -> bool:
         return self.similarity(embedding) >= threshold
