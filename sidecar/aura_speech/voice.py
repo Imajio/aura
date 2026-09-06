@@ -24,10 +24,26 @@ DEFAULT_VOICE = "xenia"
 
 
 def _play(data: bytes) -> None:
+    import threading
     import winsound
-    # Asynchronous: a narrator that blocks its own protocol loop until it stops
-    # talking cannot be interrupted, and being interruptible is the point.
-    winsound.PlaySound(data, winsound.SND_MEMORY | winsound.SND_ASYNC)
+
+    # SND_MEMORY and SND_ASYNC cannot be combined: CPython's winsound refuses the
+    # pair outright with "Cannot play asynchronously from memory", because it will
+    # not hold a reference to the buffer for the lifetime of a sound it no longer
+    # controls. So the blocking call goes on a thread of its own instead. The
+    # protocol loop stays free either way, which is what asynchrony was for, and
+    # PlaySound(None, SND_PURGE) still cuts the sound off mid-word from any thread
+    # — being interruptible is the point and it survives intact.
+    def run():
+        try:
+            winsound.PlaySound(data, winsound.SND_MEMORY)
+        except Exception:
+            # A sound card that went away mid-sentence must not take a daemon
+            # thread's stack trace to stderr and nothing else. The caller has
+            # already returned; there is nobody here left to tell.
+            pass
+
+    threading.Thread(target=run, name="aura-speaking", daemon=True).start()
 
 
 def _stop() -> None:

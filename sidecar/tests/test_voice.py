@@ -7,6 +7,7 @@ makes noise is a test suite people stop running.
 import pathlib
 import struct
 import sys
+import time
 import wave
 import io
 
@@ -115,3 +116,66 @@ def test_the_configured_voice_reaches_the_synthesiser():
     v.render("x")
 
     assert seen == ["baya"]
+
+
+class TestTheRealPlayer:
+    """`_play` itself — the one part every other test in this file injects away.
+
+    It was wrong from the day it was written and no test could see it: every
+    check above hands `Voice` a fake player, so the default was exercised for
+    the first time by a person listening for narration and hearing silence.
+    """
+
+    def winsound(self, monkeypatch):
+        """A stand-in for winsound that records the call and refuses what CPython refuses."""
+        import types
+        calls = []
+        module = types.SimpleNamespace(
+            SND_MEMORY=4, SND_ASYNC=1, SND_PURGE=0x40, SND_FILENAME=0x20020000)
+
+        def play_sound(sound, flags):
+            # The real module raises exactly here, which is what shipped:
+            # "RuntimeError: Cannot play asynchronously from memory".
+            if (flags & module.SND_ASYNC) and (flags & module.SND_MEMORY):
+                raise RuntimeError("Cannot play asynchronously from memory")
+            calls.append((sound, flags))
+
+        module.PlaySound = play_sound
+        monkeypatch.setitem(sys.modules, "winsound", module)
+        return module, calls
+
+    def test_playing_from_memory_is_never_asked_to_be_asynchronous(self, monkeypatch):
+        import threading
+        from aura_speech.voice import _play
+
+        module, calls = self.winsound(monkeypatch)
+        before = threading.active_count()
+
+        _play(b"RIFFfake")
+
+        # The thread is what keeps the protocol loop free now that the flag cannot.
+        deadline = time.monotonic() + 2.0
+        while not calls and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+        assert calls, "nothing was ever played"
+        sound, flags = calls[0]
+        assert sound == b"RIFFfake"
+        assert flags & module.SND_MEMORY
+        assert not flags & module.SND_ASYNC
+        assert before <= threading.active_count() + 1
+
+    def test_a_sound_card_that_fails_does_not_kill_the_process(self, monkeypatch):
+        import types
+        from aura_speech.voice import _play
+
+        module = types.SimpleNamespace(SND_MEMORY=4, SND_ASYNC=1)
+
+        def explode(sound, flags):
+            raise RuntimeError("device disappeared")
+
+        module.PlaySound = explode
+        monkeypatch.setitem(sys.modules, "winsound", module)
+
+        _play(b"RIFFfake")   # the failure happens on the player's own thread
+        time.sleep(0.2)      # long enough for it to have happened
