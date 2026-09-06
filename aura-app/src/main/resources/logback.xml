@@ -9,10 +9,21 @@
   <property name="LOG_DIR"
             value="${LOCALAPPDATA:-${user.home}}/Aura/logs"/>
 
+  <!-- The console gets the console's own encoding, not UTF-8. A terminal decodes
+       bytes with its code page, so UTF-8 Cyrillic written to a cp866 console
+       arrives as "ðÜð¥ð┤" — the narration is intact and unreadable, which is the
+       worst of both. Java sets stdout.encoding to whatever the attached console
+       actually uses; with no console the fallback applies and nobody is reading.
+
+       The cost, stated plainly: when stdout is redirected rather than shown, Java
+       reports the platform default instead of a console, and a character it cannot
+       encode becomes "?" — lost, where before it was merely displayed wrongly. The
+       file below is why that is affordable. It stays UTF-8, it is the record, and
+       it is what the manual test plan sends people to read. -->
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
-      <charset>UTF-8</charset>
+      <charset>${stdout.encoding:-UTF-8}</charset>
     </encoder>
   </appender>
 
