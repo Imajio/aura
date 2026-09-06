@@ -23,11 +23,7 @@ import argparse
 import pathlib
 import sys
 import time
-import wave
 
-import numpy as np
-
-RATE = 16000
 DEFAULT_OUT = pathlib.Path(__file__).resolve().parents[1] / "voice"
 
 WHAT = {
@@ -53,50 +49,8 @@ WHAT = {
 }
 
 
-def record(seconds: float, device_index=None) -> np.ndarray:
-    """One take, from the microphone, at 16 kHz mono."""
-    import pyaudiowpatch as pyaudio
-
-    from aura_speech.hearing import _wasapi_input, to_16k
-
-    audio = pyaudio.PyAudio()
-    try:
-        index, rate = ((device_index, int(audio.get_device_info_by_index(device_index)
-                                          ["defaultSampleRate"]))
-                       if device_index is not None else _wasapi_input(audio, pyaudio))
-        block = 1024
-        stream = audio.open(format=pyaudio.paFloat32, channels=1, rate=rate,
-                            input=True, input_device_index=index,
-                            frames_per_buffer=block)
-        try:
-            wanted = int(seconds * rate)
-            captured = []
-            while sum(len(c) for c in captured) < wanted:
-                raw = stream.read(block, exception_on_overflow=False)
-                captured.append(np.frombuffer(raw, dtype=np.float32))
-            native = np.concatenate(captured)[:wanted]
-        finally:
-            stream.stop_stream()
-            stream.close()
-    finally:
-        audio.terminate()
-
-    frames = max(1, round(len(native) * RATE / rate))
-    return to_16k(native, rate, frames)
-
-
-def write(path: pathlib.Path, samples: np.ndarray) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
-    with wave.open(str(path), "wb") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(RATE)
-        f.writeframes(pcm.tobytes())
-
-
-def loudness(samples: np.ndarray) -> float:
-    return float(np.sqrt(np.mean(np.square(samples, dtype=np.float64))))
+from aura_speech.recording import (  # noqa: E402
+    loudness, next_take_number, record_take, take_path, write_take)
 
 
 def main(argv=None) -> int:
@@ -123,17 +77,24 @@ def main(argv=None) -> int:
         print("Cancelled. Nothing was recorded.")
         return 1
 
+    first = next_take_number(out, args.kind)
+    if first > 1:
+        print(f"{first - 1} take(s) already in {out}; these will be added, "
+              f"numbered from {first}.")
+        print()
+
     written, quiet_takes = 0, 0
-    for take in range(1, args.takes + 1):
+    for offset in range(args.takes):
+        number = first + offset
         for count in (3, 2, 1):
-            print(f"\r  take {take}/{args.takes} in {count}… ", end="", flush=True)
+            print(f"\r  take {offset + 1}/{args.takes} in {count}… ", end="", flush=True)
             time.sleep(1)
         print("\r  " + " " * 40 + "\r  recording… ", end="", flush=True)
 
-        samples = record(spec["seconds"], args.device)
+        samples = record_take(spec["seconds"], args.device)
         level = loudness(samples)
-        path = out / f"{args.kind}-{take:03d}.wav"
-        write(path, samples)
+        path = take_path(out, args.kind, number)
+        write_take(path, samples)
         written += 1
 
         # Said plainly and immediately: a take too quiet to hear is worse than a
