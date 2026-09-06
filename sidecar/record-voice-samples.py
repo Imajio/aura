@@ -21,7 +21,6 @@ quiet room; the training runs afterwards on what this leaves behind.
 
 import argparse
 import pathlib
-import sys
 import time
 
 DEFAULT_OUT = pathlib.Path(__file__).resolve().parents[1] / "voice"
@@ -114,5 +113,4 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     raise SystemExit(main())
