@@ -89,6 +89,29 @@ class ClaudeEventParserTest {
     }
 
     @Test
+    void aFailedRunIsDoneButNotOk() {
+        // What a refused run actually looks like: one turn, no tool calls, and a
+        // result line carrying the reason. Reported by the owner after every task
+        // finished in under a second — ANTHROPIC_API_KEY was set in the environment
+        // Aura passes to the agent, so the CLI billed an account with no credit.
+        // Without `ok`, this is indistinguishable from a task that worked.
+        ClaudeEventParser parser = new ClaudeEventParser(FIXED);
+        parser.parseLine("""
+            {"type":"system","subtype":"init","session_id":"s1","cwd":"C:/x"}""");
+
+        List<AgentEvent> events = parser.parseLine("""
+            {"type":"result","subtype":"success","session_id":"s1",
+             "result":"Credit balance is too low","is_error":true,"num_turns":1}""");
+
+        assertThat(events).singleElement()
+            .satisfies(e -> {
+                assertThat(e.kind()).isEqualTo(EventKind.DONE);
+                assertThat(e.ok()).isFalse();
+                assertThat(e.summaryHint()).isEqualTo("Credit balance is too low");
+            });
+    }
+
+    @Test
     void toolResultWithErrorBecomesErrorEvent() {
         ClaudeEventParser parser = new ClaudeEventParser(FIXED);
         parser.parseLine("""

@@ -174,6 +174,19 @@ public final class Main {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
                 if (event.kind() == aura.core.EventKind.DONE) {
                     finished.set(true);
+                    // A task that failed must not look like one that succeeded. The
+                    // agent reports the reason in the final result and the parser
+                    // already carries it here; without this the log line above says
+                    // "DONE OTHER" either way, and the only trace of the failure is
+                    // a narrated sentence that paraphrases it into something else.
+                    if (Boolean.FALSE.equals(event.ok())) {
+                        String why = event.summaryHint().isBlank()
+                            ? "the agent gave no reason" : event.summaryHint();
+                        log.warn("agent task failed: {}", why);
+                        if (tray[0] != null) {
+                            tray[0].alert("Task failed: " + why);
+                        }
+                    }
                 }
                 if (tray[0] != null) {
                     tray[0].status(event.kind() + " " + event.target());
