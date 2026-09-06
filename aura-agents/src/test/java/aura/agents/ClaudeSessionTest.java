@@ -34,6 +34,24 @@ class ClaudeSessionTest {
     }
 
     @Test
+    void theAgentDoesNotInheritAnApiKeyFromTheEnvironment() {
+        // Reported by the owner: every task finished in under a second answering
+        // "Credit balance is too low". ANTHROPIC_API_KEY was set on the machine for
+        // an unrelated script, the CLI prefers it over the claude.ai login Aura is
+        // meant to run under, and the whole environment is inherited.
+        java.util.Map<String, String> environment = new java.util.HashMap<>();
+        environment.put("ANTHROPIC_API_KEY", "sk-ant-something");
+        environment.put("PATH", "C:\\Windows");
+
+        ClaudeSession.asTheOwner(environment);
+
+        assertThat(environment).doesNotContainKey("ANTHROPIC_API_KEY");
+        // Everything else is the machine the owner works on and has to survive:
+        // without PATH the agent binary does not resolve at all.
+        assertThat(environment).containsEntry("PATH", "C:\\Windows");
+    }
+
+    @Test
     void anAgentThatDiesOnStartupSaysWhy() throws Exception {
         // The failure this exists for: claude rejects a session id it has already
         // seen and exits at once. Everything worked as designed and the user saw

@@ -100,9 +100,26 @@ public final class ClaudeSession implements AgentSession {
                                       Consumer<String> onUnexpectedExit) throws Exception {
         ProcessBuilder builder = new ProcessBuilder(config.command())
             .directory(config.workingDir().toFile());
+        asTheOwner(builder.environment());
         Process process = builder.start();
         log.info("agent started, pid={}, session={}", process.pid(), config.sessionId());
         return new ClaudeSession(process, config.sessionId(), sink, onUnexpectedExit);
+    }
+
+    /**
+     * Strips the one variable that would make the agent somebody else.
+     *
+     * <p>Aura runs the agent as its owner, on the subscription they are already
+     * signed in with. The CLI prefers {@code ANTHROPIC_API_KEY} over that login, so
+     * a key left in the environment for something else entirely — a script, a hook,
+     * a shell that was open before it was unset — quietly re-bills every task to
+     * another account, and when that account has no credit the agent answers
+     * "Credit balance is too low" in under a second. Whoever set the variable did
+     * not set it for this, and the whole environment is inherited, so it is removed
+     * here rather than left to whatever the machine happens to be carrying.
+     */
+    static void asTheOwner(java.util.Map<String, String> environment) {
+        environment.remove("ANTHROPIC_API_KEY");
     }
 
     @Override
