@@ -328,71 +328,83 @@ public final class Main {
             log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
             return null;
         }
-        try {
-            return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(), event -> {
-                String kind = event.path("ev").asText();
-                if ("wake".equals(kind)) {
-                    log.info("wake word");
-                    if (tray[0] != null) {
-                        tray[0].status("listening");
-                    }
-                } else if ("rejected".equals(kind)) {
-                    // Deliberately quiet. Somebody spoke and was not the owner —
-                    // which is the feature working, not a fault, and a balloon
-                    // for every refusal would make the room's conversation the
-                    // application's business.
-                    log.info("voice not recognised as the owner");
-                } else if ("utterance".equals(kind)) {
-                    // A task said out loud. From here it is indistinguishable from
-                    // one typed into the tray, which is the point of the whole
-                    // milestone: the voice is another way in, not another product.
-                    String text = event.path("text").asText();
-                    log.info("heard: {}", text);
-                    onSpoken.accept(text);
-                } else if ("speak.started".equals(kind)) {
-                    if (tray[0] != null) {
-                        tray[0].state(TrayIconArt.State.SPEAKING);
-                    }
-                } else if ("narration".equals(kind)) {
-                    // What the user would have heard. Shown even when no voice is
-                    // configured, so the narrator can be judged before it is audible.
-                    String text = event.path("text").asText();
-                    log.info("narration: {}", text);
-                    if (tray[0] != null) {
-                        // Only the line that closes the task interrupts. Windows
-                        // coalesces balloons that arrive close together, so raising
-                        // one per step loses most of them and teaches the user to
-                        // dismiss the rest unread — the habit that must be absent
-                        // when a permission question finally arrives.
-                        if (finished.compareAndSet(true, false)) {
-                            tray[0].alert(text);
-                        } else {
-                            tray[0].message(text);
-                        }
-                    }
-                } else if ("error".equals(kind)) {
-                    String code = event.path("code").asText();
-                    log.warn("sidecar error {}: {}", code, event.path("detail").asText());
-                    // The state this reports — a trained wake word, no enrolled voice,
-                    // so every voice in the room is accepted as the owner — is one the
-                    // owner has to know they are in. A log file nobody is watching is
-                    // not how this application tells somebody something that matters.
-                    if ("NO_SPEAKER_REFERENCE".equals(code)) {
-                        String notice = "No enrolled voice: every voice is accepted as "
-                            + "the owner until enrol-speaker.py is run.";
-                        if (tray[0] != null) {
-                            tray[0].alert(notice);
-                        } else {
-                            // Held, not dropped. This event wins the race against the
-                            // tray far more often than not; main() drains it as soon
-                            // as there is one.
-                            heldAlert.set(notice);
-                        }
-                    }
-                } else {
-                    log.info("sidecar: {}", event);
+        SidecarEvents events = new SidecarEvents();
+        // Main is the first subscriber, with exactly the behaviour this used to be
+        // an inline if-chain for. A later reader (the desktop window) subscribes
+        // separately instead of copying this chain or reaching into Main.
+        events.subscribe(event -> {
+            String kind = event.kind();
+            if ("wake".equals(kind)) {
+                log.info("wake word");
+                if (tray[0] != null) {
+                    tray[0].status("listening");
                 }
-            });
+            } else if ("rejected".equals(kind)) {
+                // Deliberately quiet. Somebody spoke and was not the owner —
+                // which is the feature working, not a fault, and a balloon
+                // for every refusal would make the room's conversation the
+                // application's business.
+                log.info("voice not recognised as the owner");
+            } else if ("utterance".equals(kind)) {
+                // A task said out loud. From here it is indistinguishable from
+                // one typed into the tray, which is the point of the whole
+                // milestone: the voice is another way in, not another product.
+                String text = event.text("text");
+                log.info("heard: {}", text);
+                onSpoken.accept(text);
+            } else if ("speak.started".equals(kind)) {
+                if (tray[0] != null) {
+                    tray[0].state(TrayIconArt.State.SPEAKING);
+                }
+            } else if ("narration".equals(kind)) {
+                // What the user would have heard. Shown even when no voice is
+                // configured, so the narrator can be judged before it is audible.
+                String text = event.text("text");
+                log.info("narration: {}", text);
+                if (tray[0] != null) {
+                    // Only the line that closes the task interrupts. Windows
+                    // coalesces balloons that arrive close together, so raising
+                    // one per step loses most of them and teaches the user to
+                    // dismiss the rest unread — the habit that must be absent
+                    // when a permission question finally arrives.
+                    if (finished.compareAndSet(true, false)) {
+                        tray[0].alert(text);
+                    } else {
+                        tray[0].message(text);
+                    }
+                }
+            } else if ("error".equals(kind)) {
+                String code = event.text("code");
+                log.warn("sidecar error {}: {}", code, event.text("detail"));
+                // The state this reports — a trained wake word, no enrolled voice,
+                // so every voice in the room is accepted as the owner — is one the
+                // owner has to know they are in. A log file nobody is watching is
+                // not how this application tells somebody something that matters.
+                if ("NO_SPEAKER_REFERENCE".equals(code)) {
+                    String notice = "No enrolled voice: every voice is accepted as "
+                        + "the owner until enrol-speaker.py is run.";
+                    if (tray[0] != null) {
+                        tray[0].alert(notice);
+                    } else {
+                        // Held, not dropped. This event wins the race against the
+                        // tray far more often than not; main() drains it as soon
+                        // as there is one.
+                        heldAlert.set(notice);
+                    }
+                }
+            } else {
+                log.info("sidecar: {}", event.body());
+            }
+        });
+        try {
+            // SpeechClient already parses each line into a JsonNode before this
+            // callback runs. SidecarEvents' contract takes the raw line instead, so
+            // every subscriber — Main today, the window later — shares one parse
+            // and one place where the protocol is understood; the node is
+            // serialised back to text here rather than teaching SpeechClient a
+            // second, competing notion of "line".
+            return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(),
+                parsed -> events.onLine(parsed.toString()));
         } catch (Exception e) {
             log.warn("speech sidecar did not start — running without a voice", e);
             return null;
