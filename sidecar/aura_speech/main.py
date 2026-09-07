@@ -16,11 +16,12 @@ import pathlib
 import sys
 
 from .cascade import FRAME_SECONDS
-from .hearing import Microphone, silero_vad, speaker_session, trained_wake_word, whisper
+from .hearing import (DEFAULT_WAKE_FEATURE_MODELS, Microphone, silero_vad, speaker_session,
+                      trained_wake_word, whisper)
 from .listener import Listener
 from .listening import Listening
 from .narrator import Narrator
-from .protocol import serve
+from .protocol import VoiceResources, serve
 from .speaker import embed, verifier
 from .voice import Voice, silero
 
@@ -31,7 +32,12 @@ DEFAULT_WHISPER = (pathlib.Path(__file__).resolve().parents[2]
                    / "models" / "whisper-large-v3-turbo-int8")
 DEFAULT_SPEAKER_MODEL = (pathlib.Path(__file__).resolve().parents[2]
                          / "models" / "wespeaker-resnet34" / "voxceleb_resnet34_LM.onnx")
-DEFAULT_REFERENCE = pathlib.Path(__file__).resolve().parents[2] / "voice" / "reference.npy"
+DEFAULT_VOICE = pathlib.Path(__file__).resolve().parents[2] / "voice"
+DEFAULT_REFERENCE = DEFAULT_VOICE / "reference.npy"
+# The artefact record/enrol/train.wake manage. Independent of --wake-model,
+# which is the (possibly different) file --listen loads for live detection.
+DEFAULT_WAKE_MODEL = DEFAULT_VOICE / "wake-word.npz"
+DEFAULT_NEGATIVE_AUDIO = r"C:\Aura\tts-audition"
 DEFAULT_CACHE = pathlib.Path(__file__).resolve().parents[2] / ".ov_cache"
 MAX_NARRATION_TOKENS = 40
 
@@ -126,11 +132,27 @@ def main(argv=None) -> int:
                            "speech could never be acted on",
                  "fatal": False})
 
+    # Paths only — nothing here loads a model. record/enrol/train.wake each
+    # start a worker thread on request, and every model load stays on that
+    # thread, so `ready` below still reaches Java before anything is compiled.
+    voice_resources = VoiceResources(
+        reference_dir=DEFAULT_VOICE / "reference",
+        wake_dir=DEFAULT_VOICE / "wake",
+        reference_path=pathlib.Path(args.speaker_reference),
+        wake_model_path=(pathlib.Path(args.wake_model) if args.wake_model
+                         else DEFAULT_WAKE_MODEL),
+        speaker_model_path=pathlib.Path(args.speaker_model),
+        feature_models_dir=DEFAULT_WAKE_FEATURE_MODELS,
+        negative_dir=DEFAULT_NEGATIVE_AUDIO,
+        listening=hearing,
+    )
+
     serve(sys.stdin, sys.stdout, narrate=narrate,
           speak=voice.speak if voice else None,
           cancel=voice.cancel if voice else None,
           devices={"npu": False, "gpu": args.device == "GPU"},
-          hearing=hearing is not None)
+          hearing=hearing is not None,
+          voice=voice_resources)
     return 0
 
 

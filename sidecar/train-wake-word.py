@@ -32,63 +32,16 @@ it was trained on.
 import argparse
 import pathlib
 import sys
-import wave
-
-import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from aura_speech.wake import WakeClassifier, wake_features  # noqa: E402
+from aura_speech.training import train_wake_word            # noqa: E402
 
 DEFAULT_VOICE = pathlib.Path(__file__).resolve().parents[1] / "voice"
 # Same directory as hearing.py's DEFAULT_WAKE_FEATURE_MODELS, computed
 # independently through this file's own `parents[N]` — moving either file
 # changes what N needs to be here, so keep the pair in mind if you do.
 DEFAULT_FEATURE_MODELS = pathlib.Path(__file__).resolve().parents[1] / "models" / "openwakeword"
-
-
-def read_wav(path: pathlib.Path) -> np.ndarray:
-    with wave.open(str(path), "rb") as f:
-        rate = f.getframerate()
-        frames = f.readframes(f.getnframes())
-    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-    if rate != 16000:
-        wanted = int(len(samples) * 16000 / rate)
-        samples = np.interp(np.linspace(0, len(samples) - 1, wanted),
-                            np.arange(len(samples)), samples).astype(np.float32)
-    return samples
-
-
-def embed_all(paths, melspec_session, embedding_session):
-    """One embedding vector per clip, through the shared `wake_features`."""
-    vectors = []
-    for path in paths:
-        audio = read_wav(path)
-        if len(audio) < 16000:
-            audio = np.pad(audio, (0, 16000 - len(audio)))
-        # int16 magnitude: see wake_features' docstring for why.
-        vectors.append(wake_features(audio * 32767.0, melspec_session, embedding_session))
-    return np.stack(vectors) if vectors else np.zeros((0, 0), dtype=np.float32)
-
-
-def fit(positive: np.ndarray, negative: np.ndarray, steps: int = 2000,
-        learning_rate: float = 0.1):
-    """Logistic regression by gradient descent. No sklearn: this is twelve lines."""
-    features = np.vstack([positive, negative]).astype(np.float32)
-    labels = np.concatenate([np.ones(len(positive)), np.zeros(len(negative))])
-    mean = features.mean(axis=0)
-    scale = features.std(axis=0)
-    scale = np.where(scale > 1e-6, scale, 1.0)
-    standardised = (features - mean) / scale
-
-    weights = np.zeros(features.shape[1], dtype=np.float32)
-    bias = 0.0
-    for _ in range(steps):
-        predictions = 1.0 / (1.0 + np.exp(-(standardised @ weights + bias)))
-        error = predictions - labels
-        weights -= learning_rate * (standardised.T @ error) / len(labels)
-        bias -= learning_rate * float(error.mean())
-    return WakeClassifier(weights, bias, mean, scale)
 
 
 def main(argv=None) -> int:
@@ -98,40 +51,20 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default=str(DEFAULT_VOICE / "wake-word.npz"))
     args = parser.parse_args(argv)
 
-    takes = sorted(pathlib.Path(args.takes).glob("*.wav"))
-    negatives = sorted(pathlib.Path(args.negative).rglob("*.wav"))
-    if len(takes) < 5:
-        raise SystemExit(
-            f"only {len(takes)} recording(s) in {args.takes}; record about twenty "
-            f"with record-voice-samples.py wake")
-    if not negatives:
-        raise SystemExit(
-            f"no negative audio in {args.negative}; a classifier trained only on "
-            f"the wake word learns to say yes to everything")
-
-    import onnxruntime as ort
-    melspec_session = ort.InferenceSession(
-        str(DEFAULT_FEATURE_MODELS / "melspectrogram.onnx"),
-        providers=["CPUExecutionProvider"])
-    embedding_session = ort.InferenceSession(
-        str(DEFAULT_FEATURE_MODELS / "embedding_model.onnx"),
-        providers=["CPUExecutionProvider"])
-
-    print(f"embedding {len(takes)} take(s) and {len(negatives)} negative clip(s)…")
-    positive = embed_all(takes, melspec_session, embedding_session)
-    negative = embed_all(negatives, melspec_session, embedding_session)
-
-    classifier = fit(positive, negative)
-    classifier.save(args.out)
+    try:
+        result = train_wake_word(args.takes, args.negative, DEFAULT_FEATURE_MODELS, args.out,
+                                 progress=lambda stage, done, total, detail:
+                                     print(f"  {done}/{total} {detail}"))
+    except ValueError as e:
+        raise SystemExit(str(e))
 
     # Reported because a training run that fits its own data perfectly and
     # nothing else is the commonest way this goes wrong quietly.
-    hits = sum(classifier.score(v) > 0.5 for v in positive)
-    false = sum(classifier.score(v) > 0.5 for v in negative)
-    print(f"wrote {args.out}")
-    print(f"  wake word recognised in {hits}/{len(positive)} of your takes")
-    print(f"  fired on {false}/{len(negative)} clips that were not the wake word")
-    if false:
+    print(f"wrote {result['out']}")
+    print(f"  wake word recognised in {result['recognised']}/{result['takes']} of your takes")
+    print(f"  fired on {result['falsePositives']}/{result['negatives']} clips that were not "
+          f"the wake word")
+    if result["falsePositives"] / result["negatives"] > 0.1:
         print("  record more negative audio before trusting this")
     return 0
 

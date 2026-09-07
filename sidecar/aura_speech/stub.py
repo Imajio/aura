@@ -59,6 +59,14 @@ def main():
             continue
         if command == "speak.cancel":
             continue
+        if command in ("voice.status", "record", "enrol", "train.wake"):
+            # This build carries no voice support at all, so these are refused
+            # by name rather than falling through to UNKNOWN_COMMAND — the
+            # window needs to tell "this build cannot" from "I sent nonsense".
+            emit({"ev": "error", "code": "VOICE_UNAVAILABLE",
+                 "detail": "no voice support in this build", "for": message_id,
+                 "fatal": False})
+            continue
 
         emit({"ev": "error", "code": "UNKNOWN_COMMAND", "detail": str(command), "fatal": False})
 
