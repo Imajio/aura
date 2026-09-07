@@ -35,6 +35,13 @@ class Listening:
         self._thread.start()
 
     def start(self) -> None:
+        # Cleared here too, synchronously in the caller's thread, not only in
+        # _run: a pause() landing in the gap between this call and the capture
+        # thread waking from wait() must not see idle still set from the
+        # previous cycle and return True while the device is about to reopen.
+        # _run's own clear (below) cannot cover this gap because it runs later,
+        # on the capture thread, after the wake-up has already happened.
+        self._idle.clear()
         self._wanted.set()
 
     def resume(self) -> None:
@@ -49,7 +56,10 @@ class Listening:
         Returns False if it was still not closed after `timeout` seconds, and the
         caller must then not open the device: a recording started on top of a
         stream that refused to die produces silence, or an error from the driver,
-        and either way the owner is told to speak into nothing.
+        and either way the owner is told to speak into nothing. The same False,
+        and the same required response, also covers a start() that lands during
+        the pause: the device is about to be open rather than refusing to close,
+        but the caller cannot tell which from here, and does not need to.
         """
         self._wanted.clear()
         return self._idle.wait(timeout)
@@ -67,6 +77,11 @@ class Listening:
             self._wanted.wait()
             if self._closed.is_set():
                 return
+            # Also cleared here, not only in start(): a retry after a device
+            # error loops back to here with _wanted already set, so wait()
+            # above returns without start() ever being called again, and
+            # idle would otherwise still read True from the failed attempt's
+            # finally below, all through the retry's own capture session.
             self._idle.clear()
             try:
                 with self._microphone() as microphone:

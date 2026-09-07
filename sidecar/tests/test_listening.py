@@ -14,7 +14,9 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
+from aura_speech.cascade import FRAME_SECONDS  # noqa: E402
 from aura_speech.listening import Listening  # noqa: E402
+from aura_speech.main import _feeder  # noqa: E402
 
 
 class FakeMicrophone:
@@ -102,7 +104,7 @@ def test_resuming_opens_it_again():
     try:
         listening.start()
         assert wait_until(lambda: len(fed) > 3)
-        listening.pause()
+        assert listening.pause() is True
 
         listening.resume()
 
@@ -142,6 +144,44 @@ def test_a_microphone_that_throws_is_reported_and_does_not_end_the_thread():
         listening.close()
 
 
+def test_pausing_after_a_retry_still_waits_for_the_device_to_close():
+    # A retry after a device error loops back to the top of _run with _wanted
+    # already set, so it never goes through start() again. If idle were only
+    # re-armed in start(), it would still read True here from the failed first
+    # attempt's own finally, for the whole life of the retry's live session —
+    # not a narrow window, but true for as long as that session runs.
+    open_now = {"n": 0}
+    attempts = []
+
+    class FlakyOnce:
+        def __enter__(self):
+            attempts.append(True)
+            if len(attempts) == 1:
+                raise RuntimeError("device busy")
+            open_now["n"] += 1
+            return self
+
+        def frames(self):
+            while True:
+                yield np.zeros(512, dtype=np.float32)
+                time.sleep(0.001)
+
+        def __exit__(self, *exc):
+            open_now["n"] -= 1
+            return False
+
+    fed = []
+    listening = Listening(FlakyOnce, fed.append)
+    try:
+        listening.start()
+        assert wait_until(lambda: len(attempts) > 1 and len(fed) > 3)
+
+        assert listening.pause() is True
+        assert open_now["n"] == 0
+    finally:
+        listening.close()
+
+
 def test_closing_stops_everything():
     listening, fed = fresh()
     listening.start()
@@ -153,3 +193,19 @@ def test_closing_stops_everything():
     settled = len(fed)
     time.sleep(0.1)
     assert len(fed) == settled
+
+
+def test_the_feeder_advances_the_clock_one_frame_at_a_time():
+    # A clock that stops advancing breaks the segmenter's tail and the wake
+    # word's arm window, and every existing test would still pass.
+    heard = []
+
+    class Recorder:
+        def feed(self, frame, when):
+            heard.append(when)
+
+    feed = _feeder(Recorder())
+    for _ in range(3):
+        feed(object())
+
+    assert heard == [0.0, FRAME_SECONDS, 2 * FRAME_SECONDS]
