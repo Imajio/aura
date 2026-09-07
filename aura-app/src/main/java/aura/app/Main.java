@@ -3,6 +3,7 @@ package aura.app;
 import aura.agents.ClaudeSession;
 import aura.agents.CodexSession;
 import aura.agents.SessionSupervisor;
+import aura.app.ui.AuraWindow;
 import aura.core.AgentEvent;
 import aura.core.NarrationPolicy;
 import aura.core.Verbosity;
@@ -31,7 +32,10 @@ import javax.swing.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Entry point: brings up the hook server, the supervisor, and the tray, and wires them together. */
+/**
+ * Entry point: brings up the hook server, the supervisor, the tray and the window,
+ * and wires them together.
+ */
 public final class Main {
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -228,6 +232,28 @@ public final class Main {
             Path logDir = Path.of(System.getenv().getOrDefault("LOCALAPPDATA",
                 System.getProperty("user.home")), "Aura", "logs");
 
+            // Built before the tray, because the tray needs a way to open it and
+            // an out-parameter array for a window that already exists by then
+            // would be a third one in this method. Built, not shown: Aura still
+            // starts in the tray, which is what the owner asked to keep.
+            AuraWindow window = new AuraWindow(
+                // Every panel may call this unconditionally. Without a sidecar
+                // there is nothing to send to, and a panel that has to ask first
+                // is a panel that will one day forget.
+                command -> {
+                    if (speech != null) {
+                        speech.send(command);
+                    }
+                },
+                supervisor::close,
+                logDir);
+            // Null when there is no sidecar directory at all — see where
+            // sidecarEvents is assigned. Nothing to listen to, and the window
+            // says so on its Sidecar card rather than waiting forever.
+            if (sidecarEvents != null) {
+                sidecarEvents.subscribe(window);
+            }
+
             // One path for a task, whether it was typed or spoken. A phrase that
             // arrived through the microphone is not a different kind of request,
             // and giving it its own handler is how the two drift apart.
@@ -252,6 +278,7 @@ public final class Main {
             spoken[0] = dispatch;
 
             tray[0] = new TrayApp(
+                window::show,
                 dispatch,
                 supervisor::close,
                 () -> {

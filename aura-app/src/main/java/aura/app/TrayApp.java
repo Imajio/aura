@@ -21,13 +21,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The tray icon: task entry, what Aura is doing, how much it should say, and the log.
+ * The tray icon: the way into the window, task entry, what Aura is doing, how much
+ * it should say, and the log.
  *
  * <p>Everything here exists because the alternative was worse, not because a tray
  * menu wants filling. The status line is a menu item rather than only a tooltip
  * because a tooltip has to be hunted for with the mouse. The log entry is there
  * because Aura is normally started from a shortcut, where there is no console and
  * a user whose agent misbehaved otherwise has nothing to look at.
+ *
+ * <p>The menu is deliberately not where the application lives. Anything that has
+ * to be read rather than glanced at belongs in the window, which {@code Open
+ * Aura} — and a double-click on the icon — opens.
  */
 public final class TrayApp {
 
@@ -40,7 +45,7 @@ public final class TrayApp {
     private String state = "starting…";
     private final Map<Verbosity, CheckboxMenuItem> verbosityItems = new EnumMap<>(Verbosity.class);
 
-    public TrayApp(Consumer<String> onTask, Runnable onStop, Runnable onExit,
+    public TrayApp(Runnable onOpen, Consumer<String> onTask, Runnable onStop, Runnable onExit,
                    Consumer<Verbosity> onVerbosity, Verbosity verbosity, Path logDir)
             throws AWTException {
         if (!SystemTray.isSupported()) {
@@ -49,7 +54,16 @@ public final class TrayApp {
 
         PopupMenu menu = new PopupMenu();
 
-        // First line, greyed out: not a command, just the answer to "what is it
+        // The way into the application proper, and so the first thing in the
+        // menu. The tray is a glance and a shortcut; everything that needs
+        // reading — which models loaded, what voice setup is missing, why
+        // nothing is listening — lives in the window this opens.
+        MenuItem open = new MenuItem("Open Aura");
+        open.addActionListener(e -> onOpen.run());
+        menu.add(open);
+        menu.addSeparator();
+
+        // Then the greyed-out line: not a command, just the answer to "what is it
         // doing?" without having to hover over the icon and wait for a tooltip.
         statusItem = new MenuItem("starting…");
         statusItem.setEnabled(false);
@@ -92,6 +106,10 @@ public final class TrayApp {
         iconSize = Math.max(16, SystemTray.getSystemTray().getTrayIconSize().width);
         icon = new TrayIcon(TrayIconArt.render(TrayIconArt.State.READY, iconSize), "Aura", menu);
         icon.setImageAutoSize(false);
+        // A double-click on a tray icon means "show me the application" in every
+        // Windows program that has one, and a user who tries it and gets nothing
+        // concludes there is nothing to show.
+        icon.addActionListener(e -> onOpen.run());
         SystemTray.getSystemTray().add(icon);
     }
 
