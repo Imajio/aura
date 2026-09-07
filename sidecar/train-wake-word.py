@@ -64,7 +64,7 @@ def main(argv=None) -> int:
     print(f"  wake word recognised in {result['recognised']}/{result['takes']} of your takes")
     print(f"  fired on {result['falsePositives']}/{result['negatives']} clips that were not "
           f"the wake word")
-    if result["falsePositives"] / result["negatives"] > 0.1:
+    if result["falsePositives"]:
         print("  record more negative audio before trusting this")
     return 0
 

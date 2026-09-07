@@ -142,6 +142,9 @@ def test_voice_status_reports_each_artefact_and_the_listening_state(tmp_path):
     reference_path = tmp_path / "voice" / "reference.npy"
     reference_path.parent.mkdir(parents=True, exist_ok=True)
     reference_path.write_bytes(b"x")
+    wake_model_path = tmp_path / "voice" / "wake-word.npz"
+    wake_model_path.parent.mkdir(parents=True, exist_ok=True)
+    wake_model_path.write_bytes(b"x")
     speaker_model = tmp_path / "models" / "speaker.onnx"
     speaker_model.parent.mkdir(parents=True, exist_ok=True)
     speaker_model.write_bytes(b"x")
@@ -155,7 +158,7 @@ def test_voice_status_reports_each_artefact_and_the_listening_state(tmp_path):
     assert status["referenceTakes"] == 2
     assert status["wakeTakes"] == 3
     assert status["reference"] is True
-    assert status["wakeModel"] is False    # never written in this test
+    assert status["wakeModel"] is True
     assert status["speakerModel"] is True
     assert status["listening"] is True
 
