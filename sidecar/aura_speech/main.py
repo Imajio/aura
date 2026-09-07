@@ -18,6 +18,7 @@ import sys
 from .cascade import FRAME_SECONDS
 from .hearing import Microphone, silero_vad, speaker_session, trained_wake_word, whisper
 from .listener import Listener
+from .listening import Listening
 from .narrator import Narrator
 from .protocol import serve
 from .speaker import embed, verifier
@@ -156,8 +157,6 @@ def _start_listening(args, cache, emit):
     can never be acted on is not a degraded feature, it is surveillance with no
     upside, so the microphone stays shut and the reason is reported.
     """
-    import threading
-
     if not args.wake_model:
         return None
 
@@ -203,21 +202,24 @@ def _start_listening(args, cache, emit):
         on_error=lambda detail: emit({"ev": "error", "code": "RECOGNITION_FAILED",
                                       "detail": detail, "fatal": False}))
 
-    def run():
-        try:
-            with Microphone() as microphone:
-                at = 0.0
-                for frame in microphone.frames():
-                    listener.feed(frame, at)
-                    at += FRAME_SECONDS
-        except Exception as e:
-            # Deaf, not dead: the sidecar still narrates and still speaks.
-            emit({"ev": "error", "code": "MICROPHONE_FAILED",
-                  "detail": f"{type(e).__name__}: {e}"[:200], "fatal": False})
+    listening = Listening(
+        Microphone,
+        _feeder(listener),
+        on_error=lambda detail: emit({"ev": "error", "code": "MICROPHONE_FAILED",
+                                      "detail": detail, "fatal": False}))
+    listening.start()
+    return listening
 
-    thread = threading.Thread(target=run, name="aura-listening", daemon=True)
-    thread.start()
-    return thread
+
+def _feeder(listener):
+    """Turns the frame stream into the cascade's (frame, time) calls."""
+    clock = {"at": 0.0}
+
+    def feed(frame):
+        listener.feed(frame, clock["at"])
+        clock["at"] += FRAME_SECONDS
+
+    return feed
 
 
 if __name__ == "__main__":
