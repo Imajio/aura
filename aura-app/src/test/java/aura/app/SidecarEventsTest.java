@@ -3,6 +3,8 @@ package aura.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import aura.app.SidecarEvents.SidecarEvent;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,30 @@ class SidecarEventsTest {
         assertThat(first.get(0).kind()).isEqualTo("wake");
         assertThat(second).hasSize(1);
         assertThat(second.get(0).kind()).isEqualTo("wake");
+    }
+
+    @Test
+    void aRussianUtteranceSurvivesTheJsonRoundTrip() throws Exception {
+        // Russian test data standing in for the owner's recognised speech — the
+        // one carve-out this project's language rule names for non-English
+        // content: not prose for a human, but the input and expected result of
+        // a check.
+        //
+        // This also exercises the round trip Main.startSidecar actually does:
+        // SpeechClient parses the sidecar's line into a JsonNode first, then
+        // Main serialises that node back to text before handing it to onLine,
+        // which parses it again. Calling onLine with a literal string would
+        // skip that middle step; building the JsonNode first and reading its
+        // toString() reproduces it, for the kind of content this field
+        // actually carries.
+        List<SidecarEvent> heard = new ArrayList<>();
+        events.subscribe(heard::add);
+
+        JsonNode parsedBySpeechClient = new ObjectMapper()
+            .readTree("{\"ev\":\"utterance\",\"text\":\"почини тесты\"}");
+        events.onLine(parsedBySpeechClient.toString());
+
+        assertThat(heard.get(0).text("text")).isEqualTo("почини тесты");
     }
 
     @Test
@@ -70,6 +96,22 @@ class SidecarEventsTest {
         events.subscribe(heard::add);
 
         events.onLine("{\"text\":\"hello\"}");
+
+        assertThat(heard).isEmpty();
+    }
+
+    @Test
+    void aLineWithEvExplicitlyNullIsDropped() {
+        // Distinct from aLineWithNoEvFieldIsDropped: here the "ev" key is
+        // present, its value is JSON null. hasNonNull("ev") drops this the
+        // same way as a missing key; a later edit that swaps it for the
+        // weaker has("ev") — true here, since the key exists even though its
+        // value is null — would let this line through, and this test would
+        // catch it.
+        List<SidecarEvent> heard = new ArrayList<>();
+        events.subscribe(heard::add);
+
+        events.onLine("{\"ev\":null,\"text\":\"hello\"}");
 
         assertThat(heard).isEmpty();
     }

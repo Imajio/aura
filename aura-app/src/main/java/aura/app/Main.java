@@ -159,12 +159,23 @@ public final class Main {
             // drained the moment there is a tray to show it on.
             java.util.concurrent.atomic.AtomicReference<String> heldAlert =
                 new java.util.concurrent.atomic.AtomicReference<>();
+            // Same out-parameter idiom as tray[0] just above: startSidecar builds
+            // the reader before it can return anything, so the only way out of a
+            // private method without changing its return type is a single-element
+            // array the caller already owns.
+            SidecarEvents[] eventsOut = new SidecarEvents[1];
             SpeechClient speech = startSidecar(config, tray, finished, heldAlert,
                 phrase -> {
                     if (spoken[0] != null) {
                         spoken[0].accept(phrase);
                     }
-                });
+                }, eventsOut);
+            // Reachable now for whoever subscribes next — the desktop window, in a
+            // later task. Null only when there is no sidecar directory to read
+            // from at all: unlike speech, this stays non-null even if the sidecar
+            // process itself then fails to start, since the reader is built, and
+            // Main already subscribed to it, before that attempt is made.
+            SidecarEvents sidecarEvents = eventsOut[0];
             NarrationPolicy narrationPolicy = new NarrationPolicy(Verbosity.NORMAL, Instant::now);
             NarrationBridge narration = speech == null ? null
                 : new NarrationBridge(narrationPolicy, speech::send,
@@ -323,15 +334,19 @@ public final class Main {
                                              java.util.concurrent.atomic.AtomicBoolean finished,
                                              java.util.concurrent.atomic.AtomicReference<String>
                                                  heldAlert,
-                                             java.util.function.Consumer<String> onSpoken) {
+                                             java.util.function.Consumer<String> onSpoken,
+                                             SidecarEvents[] eventsOut) {
         if (!Files.isDirectory(config.sidecarDir())) {
             log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
             return null;
         }
         SidecarEvents events = new SidecarEvents();
+        eventsOut[0] = events;
         // Main is the first subscriber, with exactly the behaviour this used to be
         // an inline if-chain for. A later reader (the desktop window) subscribes
-        // separately instead of copying this chain or reaching into Main.
+        // separately instead of copying this chain or reaching into Main. This
+        // registration happens before SpeechClient.start below, so Main is already
+        // listening before the sidecar process exists to emit its first event.
         events.subscribe(event -> {
             String kind = event.kind();
             if ("wake".equals(kind)) {
