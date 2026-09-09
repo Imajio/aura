@@ -7,10 +7,10 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
@@ -45,10 +45,15 @@ import org.slf4j.LoggerFactory;
  * <p>Sidecar events arrive on the reader thread of another process. Swing has
  * exactly one thread that may touch a realised component, and touching one from
  * anywhere else fails rarely, unreproducibly and usually somewhere unrelated —
- * the worst way to learn about a bug. Every public method here therefore either
- * runs on the event dispatch thread already or puts itself on it, and every
- * subscriber registered through {@link #subscribe} is called on that thread as a
- * consequence. Sections do not need to hop again.
+ * the worst way to learn about a bug. Every method here that touches a component
+ * therefore either runs on the event dispatch thread already or puts itself on
+ * it, and every subscriber registered through {@link #subscribe} is called on
+ * that thread as a consequence. Sections do not need to hop again.
+ *
+ * <p>The two methods that touch no component — {@link #subscribe} and {@link
+ * #hasSection} — are safe from any thread instead, because they are held in
+ * concurrent collections. Hopping them to the EDT would be the other answer, but
+ * it would make {@code hasSection} unable to return anything.
  *
  * <h2>Lifetime</h2>
  *
@@ -81,8 +86,15 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     private final JList<String> sectionList = new JList<>(sectionNames);
     private final CardLayout cards = new CardLayout();
     private final JPanel body = new JPanel(cards);
-    private final Map<String, JComponent> sections = new LinkedHashMap<>();
-    private final List<Consumer<SidecarEvent>> listeners = new ArrayList<>();
+    // Concurrent, not plain. Both are public API: a later section could subscribe
+    // or ask hasSection from a thread that is not the EDT, and the reader here is
+    // accept(), iterating listeners on the EDT while that happened. Same choice
+    // SidecarEvents made for the same reason — subscriptions are a handful at
+    // startup, reads are on every sidecar line, and iteration must never throw
+    // ConcurrentModificationException. The map is unordered because nothing reads
+    // it in order: the rail's order lives in sectionNames.
+    private final Map<String, JComponent> sections = new ConcurrentHashMap<>();
+    private final List<Consumer<SidecarEvent>> listeners = new CopyOnWriteArrayList<>();
     private final StatusPanel status;
 
     /**

@@ -218,8 +218,11 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         row.add(UiTheme.title("Status"));
         row.add(Box.createHorizontalGlue());
         row.add(stop);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
-        return row;
+        // The header's height is settled the moment it is built, so the theme's
+        // own capper says it. A card cannot use this — its height changes with
+        // what the sidecar last said — which is why Card overrides
+        // getMaximumSize instead of calling here.
+        return UiTheme.capped(row, row.getPreferredSize().height);
     }
 
     private JComponent sidecarCard() {
@@ -303,7 +306,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         Card card = new Card("Log");
         JLabel path = UiTheme.body(logDir.toString());
         path.setFont(UiTheme.mono());
-        card.line("Folder", path, openLogButton());
+        card.line("Folder", elastic(path), openLogButton());
         card.note("Everything Aura did, including what it refused and why.");
         return card.panel;
     }
@@ -323,9 +326,13 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         if (!first) {
             row.add(Box.createHorizontalStrut(UiTheme.WIDE));
         }
-        row.add(UiTheme.hint(name));
+        // The slot's own name is elastic too. Three names and three states on one
+        // line is the widest row on the page, and a row that cannot shrink is a
+        // row that shoves the whole grid off the left edge at a narrow window —
+        // the state alone being shrinkable would not save it.
+        row.add(elastic(UiTheme.hint(name)));
         row.add(Box.createHorizontalStrut(UiTheme.GAP));
-        row.add(modelState(state));
+        row.add(elastic(modelState(state)));
     }
 
     /** Goes to the section that fixes voice setup, or stays disabled until it exists. */
@@ -414,6 +421,27 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             + text.replace("&", "&amp;").replace("<", "&lt;") + "</body></html>");
     }
 
+    /**
+     * A label holding a value nobody chose the length of, made shrinkable.
+     *
+     * <p>A {@code JLabel} reports the width of its whole text as its minimum, and
+     * {@code GridBagLayout} that cannot meet the minimum widths of its columns
+     * stops laying the grid out inside the container and centres it instead —
+     * which pushes column zero to a negative x, so the card's heading and its row
+     * label leave the window altogether. Not clipped: gone. Saying the minimum is
+     * zero lets the column shrink, and Swing then ellipsises the text to whatever
+     * width is left, with the whole of it on hover.
+     *
+     * <p>Everything this is applied to comes from outside the window: a log path
+     * the owner chose, model states the sidecar names. A value the panel writes
+     * itself does not need it — the panel's own strings are known to fit.
+     */
+    private static JLabel elastic(JLabel label) {
+        label.setMinimumSize(new Dimension(0, label.getPreferredSize().height));
+        label.setToolTipText(label.getText());
+        return label;
+    }
+
     private static JComponent leftAligned(JComponent component) {
         component.setAlignmentX(Component.LEFT_ALIGNMENT);
         return component;
@@ -488,25 +516,34 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             panel.setBackground(Color.WHITE);
             panel.setBorder(UiTheme.card());
             panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            add(UiTheme.heading(heading), 0, 3, 0);
+            add(UiTheme.heading(heading), 0, 3, 0, false);
             row++;
         }
 
         void line(String name, JComponent state, JComponent action) {
-            add(nameColumn(name), 0, 1, 0);
-            add(state, 1, action == null ? 2 : 1, 0);
+            add(nameColumn(name), 0, 1, 0, false);
+            // The state column is the one that both grows and gives way, so it
+            // carries the row's weight and is filled to its cell. Both halves of
+            // that matter. GridBagLayout hands a zero-weight column exactly its
+            // minimum whenever the row is short of space, so weight on the button
+            // instead would leave a long value at nothing while the button's
+            // column swallowed the window; and a cell at fill NONE keeps its
+            // preferred width whatever the cell can spare, which is how a long
+            // value comes to overrun the column beside it rather than ellipsise
+            // inside its own.
+            add(state, 1, action == null ? 2 : 1, 0, true);
             if (action != null) {
-                add(action, 2, 1, 0);
+                add(action, 2, 1, 0, false);
             }
             row++;
         }
 
         void note(String text) {
-            add(wrapped(text), 0, 3, 0);
+            add(wrapped(text), 0, 3, 0, false);
             row++;
         }
 
-        private void add(JComponent component, int x, int width, int below) {
+        private void add(JComponent component, int x, int width, int below, boolean elastic) {
             GridBagConstraints c = new GridBagConstraints();
             c.gridx = x;
             c.gridy = row;
@@ -514,10 +551,10 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             c.anchor = GridBagConstraints.WEST;
             c.insets = new Insets(row == 0 ? 0 : UiTheme.GAP, x == 0 ? 0 : UiTheme.WIDE,
                 below, 0);
-            // The last column soaks up the spare width so the name, state and
-            // button columns keep their own widths instead of spreading out.
-            c.weightx = x + width >= 3 ? 1 : 0;
-            c.fill = GridBagConstraints.NONE;
+            // Something in the grid must carry weight, or GridBagLayout centres
+            // the whole thing in the card instead of packing it to the left.
+            c.weightx = elastic ? 1 : 0;
+            c.fill = elastic ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
             panel.add(component, c);
         }
     }
