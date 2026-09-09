@@ -108,9 +108,10 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None,
     audio device, and which model answers which verbosity is a decision made
     outside this file. `voice` is a `VoiceResources`, or `None` in every build
     that carries no voice support — `stub.py` and the Java contract test among
-    them — in which case `voice.status`, `record`, `enrol` and `train.wake` all
-    answer `VOICE_UNAVAILABLE` rather than `UNKNOWN_COMMAND`, so a caller can
-    tell "this build cannot" from "I sent nonsense".
+    them — in which case `voice.status`, `record`, `enrol`, `train.wake` and a
+    `configure` carrying `listen` all answer `VOICE_UNAVAILABLE` rather than
+    `UNKNOWN_COMMAND`, so a caller can tell "this build cannot" from "I sent
+    nonsense".
     """
     emit = _emitter(stdout)
     profile = DEFAULT_PROFILE
@@ -144,6 +145,11 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None,
         if command == "configure":
             profile = message.get("profile") or profile
             verbosity = message.get("verbosity") or verbosity
+            # Only when the field is there. A configure that carries a narration
+            # level and nothing else must stay silent, as it always has, or the
+            # tray's narration menu would start answering with voice.status.
+            if "listen" in message:
+                _listen(voice, bool(message.get("listen")), message_id, emit)
             continue
         if command == "narrate":
             _narrate(emit, message, message_id, profile, verbosity, narrate, speak)
@@ -226,6 +232,48 @@ def _speak(emit, text, message_id, speak) -> None:
     emit({"ev": "speak.done", "for": message_id})
 
 
+def _listen(voice, wanted: bool, message_id, emit) -> None:
+    """Switches listening on or off, and answers with what is true rather than
+    with what was asked for.
+
+    The `voice.status` at the end is the whole point of the branch. The window's
+    toggle shows the microphone's state from that event and never from the click,
+    so a switch that could not take effect is contradicted by the sidecar within
+    the same exchange instead of lying until something else asks.
+
+    Synchronous, on the loop thread, unlike `record`, `enrol` and `train.wake`.
+    `start()` returns at once; only the path where the device refuses to close
+    blocks at all, and that one is bounded by `pause`'s own timeout. Paying five
+    seconds in that rare case buys an answer that cannot interleave with a
+    recording's own pause and resume, and a test that needs no waiting.
+    """
+    if voice is None:
+        emit(_voice_unavailable(message_id))
+        return
+    if voice.listening is None:
+        # A sidecar started without --listen has no capture thread to start:
+        # there is no microphone to switch on, whatever the window shows.
+        emit({"ev": "error", "code": "LISTENING_UNAVAILABLE", "for": message_id,
+              "fatal": False,
+              "detail": "this sidecar was started without listening; set listen: true in "
+                        "config.yaml and start Aura again"})
+        emit({"ev": "voice.status", "for": message_id, **voice.status()})
+        return
+
+    if wanted:
+        voice.listening.start()
+    elif not voice.listening.pause(5.0):
+        # The device did not close, so listening did not stop. Ask for it back
+        # rather than leave a capture thread half-stopped, and say so: reporting
+        # the microphone as off while it is still open is the one answer this
+        # branch must never give.
+        voice.listening.start()
+        emit({"ev": "error", "code": "MICROPHONE_IN_USE", "for": message_id, "fatal": False,
+              "detail": "the microphone was still in use after 5 seconds; listening is "
+                        "still on"})
+    emit({"ev": "voice.status", "for": message_id, **voice.status()})
+
+
 def _voice_unavailable(message_id) -> dict:
     return {"ev": "error", "code": "VOICE_UNAVAILABLE", "for": message_id, "fatal": False,
             "detail": "no voice support in this build"}
@@ -259,9 +307,16 @@ def _record(voice: VoiceResources, message, message_id, emit) -> None:
     emit({"ev": "record.started", "kind": kind, "takes": takes, "for": message_id})
 
     def work():
-        paused = False
+        resume_after = False
         try:
             if voice.listening is not None:
+                # Whether the microphone goes back on afterwards is decided
+                # before it is taken away. Listening the owner switched off is
+                # idle already, so pause() answers True at once, and a resume in
+                # the `finally` would then open the device nobody asked to
+                # open — invisible until the toggle in the window made turning
+                # listening off something a person does.
+                was_active = voice.listening.active()
                 if not voice.listening.pause(5.0):
                     # The caller must not open the device: a recording started on
                     # top of a stream that refused to die produces silence, and
@@ -270,7 +325,7 @@ def _record(voice: VoiceResources, message, message_id, emit) -> None:
                           "fatal": False,
                           "detail": "the microphone was still in use after 5 seconds"})
                     return
-                paused = True
+                resume_after = was_active
 
             written = 0
             for _ in range(takes):
@@ -287,7 +342,7 @@ def _record(voice: VoiceResources, message, message_id, emit) -> None:
             emit({"ev": "error", "code": "RECORDING_FAILED", "for": message_id, "fatal": False,
                   "detail": f"{type(e).__name__}: {e}"[:200]})
         finally:
-            if paused:
+            if resume_after:
                 voice.listening.resume()
             voice.finish()
 

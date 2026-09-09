@@ -88,15 +88,27 @@ def until_terminal(stdout, timeout=5.0):
 
 
 class FakeListening:
-    """Stands in for Task 2's Listening: a shared call log and a fixed pause() answer."""
+    """Stands in for Task 2's Listening: a shared call log and a fixed pause() answer.
+
+    `active()` follows the calls rather than staying at whatever it was built
+    with, because the events under test are answered from it: a status emitted
+    after a start() that the fake did not notice would agree with the assertion
+    for the wrong reason.
+    """
 
     def __init__(self, log=None, pause_returns=True, active=True):
         self.calls = log if log is not None else []
         self.pause_returns = pause_returns
         self._active = active
 
+    def start(self):
+        self.calls.append("start")
+        self._active = True
+
     def pause(self, timeout=5.0):
         self.calls.append("pause")
+        if self.pause_returns:
+            self._active = False
         return self.pause_returns
 
     def resume(self):
@@ -213,6 +225,109 @@ def test_record_when_listening_will_not_release_reports_microphone_in_use(tmp_pa
     assert events[-1]["for"] == "r1"
     assert "record" not in log
     assert log == ["pause"]
+
+
+def test_record_while_listening_is_off_leaves_the_microphone_off(tmp_path):
+    # Breaks if _record resumes unconditionally instead of only when listening
+    # was running before it took the device. pause() on an idle Listening
+    # returns True at once, so the unconditional version would switch the
+    # microphone on at the end of a recording nobody asked to be heard after.
+    log = []
+    listening = FakeListening(log=log, active=False)
+    voice = a_voice(tmp_path, listening=listening, record_take=fake_record_take(log))
+
+    stdout = run([{"id": "r1", "cmd": "record", "kind": "wake", "takes": 1}], voice=voice)
+    until_terminal(stdout)
+
+    assert log == ["pause", "record"]
+    assert listening.active() is False
+
+
+def test_configure_listen_true_starts_listening_and_answers_with_a_status(tmp_path):
+    # Breaks if configure ignores the listen field again, calls something other
+    # than start(), or stays silent — the window's toggle reads its state from
+    # the voice.status this emits, so no status means a toggle that shows the
+    # click rather than the microphone.
+    log = []
+    listening = FakeListening(log=log, active=False)
+    voice = a_voice(tmp_path, listening=listening)
+
+    events = events_of(run([{"id": "l1", "cmd": "configure", "listen": True}], voice=voice))
+
+    assert log == ["start"]
+    assert kinds(events) == ["ready", "voice.status"]
+    assert events[-1]["for"] == "l1"
+    assert events[-1]["listening"] is True
+
+
+def test_configure_listen_false_pauses_listening_and_answers_with_a_status(tmp_path):
+    # Breaks if turning listening off stops at clearing a flag without waiting
+    # for the device, or answers without a status.
+    log = []
+    listening = FakeListening(log=log, active=True)
+    voice = a_voice(tmp_path, listening=listening)
+
+    events = events_of(run([{"id": "l2", "cmd": "configure", "listen": False}], voice=voice))
+
+    assert log == ["pause"]
+    assert kinds(events) == ["ready", "voice.status"]
+    assert events[-1]["listening"] is False
+
+
+def test_configure_listen_false_that_cannot_release_the_device_says_listening_is_still_on(
+        tmp_path):
+    # The reason pause() has a return value at all. Breaks if _listen ignores it
+    # and emits a status claiming the microphone is off while the stream is
+    # still open — the owner would be told the room is private when it is not.
+    log = []
+    listening = FakeListening(log=log, pause_returns=False, active=True)
+    voice = a_voice(tmp_path, listening=listening)
+
+    events = events_of(run([{"id": "l3", "cmd": "configure", "listen": False}], voice=voice))
+
+    assert log == ["pause", "start"]
+    assert kinds(events) == ["ready", "error", "voice.status"]
+    assert events[1]["code"] == "MICROPHONE_IN_USE"
+    assert events[1]["for"] == "l3"
+    assert events[-1]["listening"] is True
+
+
+def test_configure_listen_without_a_listening_handle_says_so_and_still_answers(tmp_path):
+    # Breaks if _listen assumes there is always a Listening to talk to: a
+    # sidecar started without --listen has no capture thread, and an
+    # AttributeError there would take the whole command loop down.
+    voice = a_voice(tmp_path, listening=None)
+
+    events = events_of(run([{"id": "l4", "cmd": "configure", "listen": True}], voice=voice))
+
+    assert kinds(events) == ["ready", "error", "voice.status"]
+    assert events[1]["code"] == "LISTENING_UNAVAILABLE"
+    assert events[-1]["listening"] is False
+
+
+def test_configure_listen_without_voice_support_answers_voice_unavailable():
+    # Breaks if the listen branch is added without the same VOICE_UNAVAILABLE
+    # guard the other voice commands have; `voice` is None in stub.py and in the
+    # Java contract test, where a status could not be answered at all.
+    events = events_of(run([{"id": "l5", "cmd": "configure", "listen": True}]))
+
+    assert kinds(events) == ["ready", "error"]
+    assert events[1]["code"] == "VOICE_UNAVAILABLE"
+    assert events[1]["for"] == "l5"
+
+
+def test_configure_without_a_listen_field_answers_nothing(tmp_path):
+    # Breaks if the listen branch fires on every configure. The tray's narration
+    # menu sends one on every level change, and a voice.status per menu click is
+    # noise the window would have to learn to ignore.
+    log = []
+    voice = a_voice(tmp_path, listening=FakeListening(log=log))
+
+    events = events_of(run([{"id": "c1", "cmd": "configure", "verbosity": "quiet"}],
+                           voice=voice))
+
+    assert kinds(events) == ["ready"]
+    assert log == []
 
 
 def test_a_second_command_while_one_is_running_gets_busy_and_the_first_finishes(tmp_path):
