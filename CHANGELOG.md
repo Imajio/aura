@@ -55,6 +55,32 @@ versions — [Semantic Versioning](https://semver.org/).
 model and a voice reference, and both are recordings only the owner can make.
 What ships is code covered by 210 tests on the Java side and 102 on the sidecar.*
 
+- `aura-app`: a desktop window, opened from the tray alongside it rather than
+  in place of it. Sections live in a rail on the left. `Status` answers,
+  without being asked, whether the sidecar is up, what it can do, what voice
+  setup is missing, and where the log is.
+- `aura-app`: `Voice setup`, turning the sidecar's record, enrol and train
+  commands into buttons - a spinner and a count-in before the microphone ever
+  opens, a live level per take while it records, and the two numbers a
+  trained wake word is judged by. The same section switches listening on and
+  off.
+- `aura-app`: `Choose a voice`, a blind audition of the hundred pre-rendered
+  Russian narrator samples from the M2 benchmarks - by voice, then by line,
+  names hidden until asked for - ending in one button that writes the choice
+  to `config.yaml`.
+- `aura-app`: `Tasks`, the one thing the tray could not do. A text box takes a
+  phrase the same way the tray's dialog does, a card lists the projects the
+  registry knows with their aliases, and a transcript shows what happens next
+  as it happens: which project the phrase routed to, every tool the agent
+  runs with its class and target, the narration lines, and how the task
+  ended - capped at the last 500 rows so a day-long run does not grow it
+  without bound.
+
+*None of the window has been exercised end to end either: every section above
+was verified by its own tests and by rendering its states to an image, never
+by running Aura itself against a live sidecar. What ships is code covered by
+277 tests on the Java side and 144 on the sidecar.*
+
 ### Changed
 
 - The permission dialog names the tool, its arguments and the directory as
@@ -106,3 +132,15 @@ What ships is code covered by 210 tests on the Java side and 102 on the sidecar.
   earns its `NO_WAKE_WORD` refusal out loud, instead of being dropped quietly on
   the Java side; a wake word with no enrolled voice raises a balloon saying every
   voice is currently accepted.
+- The desktop window is Swing and AWT, not JavaFX or a local web view. Both
+  ship with the JDK Aura already requires; JavaFX would add tens of megabytes
+  of platform natives to a single-jar launch, and a web view would add a
+  server and a browser to a process whose whole promise is to idle cheaply.
+- The window never opens a microphone. The sidecar owns capture and is the
+  only thing that may; the window sends a command and renders what comes
+  back. The one device it touches directly is the default output, to play an
+  audition sample the owner asked to hear.
+- Recording adds takes instead of replacing them. The owner's voice is the one
+  artefact on this machine that cannot be regenerated, so a second recording
+  session numbers on from what is already on disk rather than starting over
+  it.

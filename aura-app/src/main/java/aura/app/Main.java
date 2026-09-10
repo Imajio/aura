@@ -185,6 +185,13 @@ public final class Main {
                 : new NarrationBridge(narrationPolicy, speech::send,
                     config.profile(), !config.voice().isBlank());
 
+            // Same out-parameter idiom as tray[0] and eventsOut above, for the same
+            // reason: the window's Tasks section wants every agent event, but the
+            // window itself needs `dispatch` to build, `dispatch` needs `dispatcher`,
+            // and `dispatcher` needs this sink, so the window cannot exist yet at
+            // the point the sink has to be written. Filled in once the window does.
+            AuraWindow[] windowRef = new AuraWindow[1];
+
             java.util.function.Consumer<AgentEvent> sink = event -> {
                 log.info("[{}] {} {} {}", event.agent(), event.kind(), event.toolClass(), event.target());
                 if (event.kind() == aura.core.EventKind.DONE) {
@@ -213,6 +220,9 @@ public final class Main {
                 if (narration != null) {
                     narration.accept(event);
                 }
+                if (windowRef[0] != null) {
+                    windowRef[0].acceptAgentEvent(event);
+                }
             };
 
             if (narration != null) {
@@ -232,6 +242,46 @@ public final class Main {
             Path logDir = Path.of(System.getenv().getOrDefault("LOCALAPPDATA",
                 System.getProperty("user.home")), "Aura", "logs");
 
+            // One path for a task, whether it was typed into the tray, typed into
+            // the window's Tasks section, or spoken. A phrase that arrived through
+            // the microphone is not a different kind of request, and giving it its
+            // own handler, or giving the window its own, is how the paths drift
+            // apart. Built before the window because the window's Tasks section
+            // needs it to construct; windowRef is null until the window exists, so
+            // whichever of the tray, the window or the microphone gets there first
+            // still reports through the same two calls once it does.
+            java.util.function.Consumer<String> dispatch = phrase -> {
+                try {
+                    var result = dispatcher.dispatch(phrase);
+                    if (result instanceof TaskDispatcher.ProjectUnknown) {
+                        String reason =
+                            "Could not tell which project. Name the project in the phrase.";
+                        tray[0].alert(reason);
+                        if (windowRef[0] != null) {
+                            windowRef[0].taskNotStarted(phrase, reason);
+                        }
+                    } else if (result instanceof TaskDispatcher.Sent sent) {
+                        tray[0].message("Sent to project " + sent.projectName());
+                        if (windowRef[0] != null) {
+                            windowRef[0].taskRouted(phrase, sent.projectName());
+                        }
+                    }
+                } catch (IllegalStateException e) {
+                    // The commonest first cause is claude/codex not resolving on the
+                    // GUI process's PATH, since the default is the bare binary name.
+                    // Without this, the exception reaches the event thread's default
+                    // handler and prints a stack trace to a console that does not
+                    // exist when the app is launched from a shortcut - total silence.
+                    log.warn("task dispatch failed", e);
+                    String reason = "Could not start the task: " + e.getMessage();
+                    tray[0].alert(reason);
+                    if (windowRef[0] != null) {
+                        windowRef[0].taskNotStarted(phrase, reason);
+                    }
+                }
+            };
+            spoken[0] = dispatch;
+
             // Built before the tray, because the tray needs a way to open it and
             // an out-parameter array for a window that already exists by then
             // would be a third one in this method. Built, not shown: Aura still
@@ -245,38 +295,18 @@ public final class Main {
                         speech.send(command);
                     }
                 },
+                dispatch,
                 supervisor::close,
+                registry,
                 logDir,
                 configFile);
+            windowRef[0] = window;
             // Null when there is no sidecar directory at all — see where
             // sidecarEvents is assigned. Nothing to listen to, and the window
             // says so on its Sidecar card rather than waiting forever.
             if (sidecarEvents != null) {
                 sidecarEvents.subscribe(window);
             }
-
-            // One path for a task, whether it was typed or spoken. A phrase that
-            // arrived through the microphone is not a different kind of request,
-            // and giving it its own handler is how the two drift apart.
-            java.util.function.Consumer<String> dispatch = phrase -> {
-                try {
-                    var result = dispatcher.dispatch(phrase);
-                    if (result instanceof TaskDispatcher.ProjectUnknown) {
-                        tray[0].alert("Could not tell which project. Name the project in the phrase.");
-                    } else if (result instanceof TaskDispatcher.Sent sent) {
-                        tray[0].message("Sent to project " + sent.projectName());
-                    }
-                } catch (IllegalStateException e) {
-                    // The commonest first cause is claude/codex not resolving on the
-                    // GUI process's PATH, since the default is the bare binary name.
-                    // Without this, the exception reaches the event thread's default
-                    // handler and prints a stack trace to a console that does not
-                    // exist when the app is launched from a shortcut — total silence.
-                    log.warn("task dispatch failed", e);
-                    tray[0].alert("Could not start the task: " + e.getMessage());
-                }
-            };
-            spoken[0] = dispatch;
 
             tray[0] = new TrayApp(
                 window::show,

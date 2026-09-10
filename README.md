@@ -1,16 +1,18 @@
 # Aura
 
-Aura is a Windows tray application for Claude Code and Codex. It takes a typed
-task, hands it to the coding-agent CLI, normalises the CLI's event stream into
-one canonical form, and refuses a dangerous tool call unless a human confirms
-it.
+Aura is a Windows tray application and desktop window for Claude Code and
+Codex. It takes a typed task, hands it to the coding-agent CLI, normalises
+the CLI's event stream into one canonical form, and refuses a dangerous tool
+call unless a human confirms it.
 
 **Status:** M1 is complete and accepted (2026-09-04) — tray task entry, a
 long-lived agent session per project, event normalisation for both CLIs, and
 tool-call permission enforcement through a `PreToolUse` hook, verified against
 the live Claude Code CLI. Voice (wake word, recognition, narration, speaker
-verification) is not part of M1; it arrives in a later milestone. For now, a
-typed phrase from the tray menu is the only way to give Aura a task.
+verification) is not part of M1; it arrived in a later milestone, alongside
+the desktop window the tray now opens. A typed phrase reaches Aura from the
+tray menu or from the window's `Tasks` section, which is also where a
+dispatched task can be watched running.
 
 ## Design documents
 

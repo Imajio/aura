@@ -1,6 +1,8 @@
 package aura.app.ui;
 
 import aura.app.SidecarEvents.SidecarEvent;
+import aura.core.AgentEvent;
+import aura.core.ProjectRegistry;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
@@ -111,20 +113,29 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     private final StatusPanel status;
     private final VoicePanel voice;
     private final VoiceChoicePanel voiceChoice;
+    private final TasksPanel tasks;
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
      *
      * @param toSidecar sends one command to the speech sidecar; a no-op when no
      *                  sidecar could be started, so panels may always call it
-     * @param onStopAgent stops the running agent — the same action the tray has
+     * @param dispatch the one consumer {@code Main} shares between the tray's
+     *                 dialog and a spoken utterance; the Tasks section's text box
+     *                 sends through this same object rather than a second path
+     *                 to {@code TaskDispatcher}
+     * @param onStopAgent stops the running agent; the Tasks section's own button
+     *                    is the one place for it now, moved out of Status
+     * @param registry the projects Aura knows, listed with their aliases in the
+     *                 Tasks section so a person can see what routing will match
      * @param logDir the folder the Log card offers to open
-     * @param configFile {@code config.yaml} — read and rewritten by the voice choice
+     * @param configFile {@code config.yaml} - read and rewritten by the voice choice
      *                   section's {@code Use this voice} button, nowhere else here
      */
-    public AuraWindow(Consumer<Map<String, Object>> toSidecar, Runnable onStopAgent,
-                      Path logDir, Path configFile) {
-        status = new StatusPanel(toSidecar, onStopAgent, logDir, this::hasSection, this::select);
+    public AuraWindow(Consumer<Map<String, Object>> toSidecar, Consumer<String> dispatch,
+                      Runnable onStopAgent, ProjectRegistry registry, Path logDir,
+                      Path configFile) {
+        status = new StatusPanel(toSidecar, logDir, this::hasSection, this::select);
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setFont(UiTheme.body());
@@ -169,12 +180,17 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // Reads and writes config.yaml directly; it never talks to the sidecar, so it
         // is added but not subscribed — there is no sidecar event this section acts on.
         voiceChoice = new VoiceChoicePanel(VoiceChoicePanel.DEFAULT_AUDITION_ROOT, configFile);
+        tasks = new TasksPanel(dispatch, onStopAgent, registry);
 
         addTab("Status", status);
         subscribe(status);
         addTab(VOICE_SECTION, voice);
         subscribe(voice);
         addTab("Choose a voice", voiceChoice);
+        // Last, so Status stays the section a freshly opened window selects:
+        // addTab picks whichever tab arrived first.
+        addTab("Tasks", tasks);
+        subscribe(tasks);
     }
 
     /**
@@ -246,6 +262,32 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
                 }
             }
         });
+    }
+
+    /**
+     * Hands one agent event to the Tasks section, on the event dispatch thread.
+     *
+     * <p>Agent events do not arrive through {@link #subscribe} because only the
+     * Tasks section acts on them today; the sidecar's own multi-listener fan-out
+     * exists because Status and Voice setup both act on that stream, which is not
+     * true here yet.
+     */
+    public void acceptAgentEvent(AgentEvent event) {
+        onEdt(() -> tasks.acceptAgentEvent(event));
+    }
+
+    /**
+     * Tells the Tasks section a phrase sent through {@code Main}'s shared dispatch
+     * consumer reached a project, and which one. {@code Main} is the only caller:
+     * it is the only place {@code TaskDispatcher}'s answer exists.
+     */
+    public void taskRouted(String phrase, String projectName) {
+        onEdt(() -> tasks.taskRouted(phrase, projectName));
+    }
+
+    /** The counterpart to {@link #taskRouted}: the phrase did not start, and why. */
+    public void taskNotStarted(String phrase, String reason) {
+        onEdt(() -> tasks.taskNotStarted(phrase, reason));
     }
 
     /** Whether a section by that name is in the window yet. */

@@ -49,7 +49,6 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private static final Logger log = LoggerFactory.getLogger(StatusPanel.class);
 
     private final Consumer<Map<String, Object>> toSidecar;
-    private final Runnable onStopAgent;
     private final Path logDir;
     private final Predicate<String> hasSection;
     private final Consumer<String> goToSection;
@@ -74,10 +73,9 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private int wakeTakes;
     private boolean listening;
 
-    StatusPanel(Consumer<Map<String, Object>> toSidecar, Runnable onStopAgent, Path logDir,
+    StatusPanel(Consumer<Map<String, Object>> toSidecar, Path logDir,
                 Predicate<String> hasSection, Consumer<String> goToSection) {
         this.toSidecar = toSidecar;
-        this.onStopAgent = onStopAgent;
         this.logDir = logDir;
         this.hasSection = hasSection;
         this.goToSection = goToSection;
@@ -184,13 +182,13 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     }
 
     /**
-     * The section's title and the one thing it lets a person do.
+     * The section's title, on its own line above the cards.
      *
-     * <p>Stopping a runaway agent lives here rather than in a card of its own,
-     * and at the top rather than under four cards of reading. The owner's
-     * complaint about the tray was that acting on what it showed meant hunting
-     * for an icon; putting the action out of sight below the fold of the window
-     * that replaced it would repeat the mistake in a bigger space.
+     * <p>Used to carry {@code Stop agent} as well, at the top rather than under
+     * four cards of reading: the owner's complaint about the tray was that
+     * acting on what it showed meant hunting for an icon. The button now lives in
+     * the Tasks section, beside the task it stops, which is its real home; this
+     * header is what is left once it moved.
      */
     private JComponent header() {
         JPanel row = new JPanel();
@@ -198,13 +196,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JButton stop = button("Stop agent");
-        stop.setToolTipText("Closes the running agent session. The tray has the same button.");
-        stop.addActionListener(e -> onStopAgent.run());
-
         row.add(UiTheme.title("Status"));
         row.add(Box.createHorizontalGlue());
-        row.add(stop);
         // The header's height is settled the moment it is built, so the theme's
         // own capper says it. A card cannot use this — its height changes with
         // what the sidecar last said — which is why Card overrides
