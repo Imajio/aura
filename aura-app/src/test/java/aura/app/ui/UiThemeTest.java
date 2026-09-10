@@ -3,10 +3,15 @@ package aura.app.ui;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.util.List;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -105,6 +110,59 @@ class UiThemeTest {
         // words to find out where they are.
         assertThat(UiTheme.title().getSize()).isGreaterThan(UiTheme.heading().getSize());
         assertThat(UiTheme.heading().getSize()).isGreaterThan(UiTheme.body().getSize());
+    }
+
+    @Test
+    void aWrappedNoteFitsInsideACardAtTheNarrowestTheWindowCanBe() {
+        // The one assertion in this file about pixels after layout, and it earns
+        // its place: NOTE_WIDTH is a CSS length that Swing scales by the screen's
+        // reported resolution, while the room it has to fit in is set by four
+        // unrelated numbers — the rail's width, the window's minimum, the
+        // column's padding and the card's border. Nothing connects them. Widen
+        // the rail, or bump WIDE from 24 to 32 for some other reason, and a
+        // sentence starts being cut off mid-word on a screen nobody is watching.
+        //
+        // Breaks if any of those four grows, or if NOTE_WIDTH does. It caught the
+        // original 400, which laid out at 520 device pixels inside a card with
+        // 409 to give.
+        JPanel column = new JPanel();
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setBorder(UiTheme.pad(UiTheme.WIDE));
+        Card card = new Card("Your wake word");
+        JLabel note = card.note("Say the wake word the way you would actually say it rather "
+            + "than the way you would read it aloud, and vary it: closer and further from "
+            + "the laptop, sitting and standing, quietly, in a hurry.");
+        column.add(card);
+
+        JScrollPane scroll = new JScrollPane(new ContentPane(column),
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        // The body of the window at its narrowest: the frame's minimum, less the
+        // borders a Windows frame keeps for itself (measured: a frame asked for
+        // 720 hands its content pane 708), less the rail and the line beside it.
+        // The scrollbar is inside the scroll pane and takes its own width off.
+        scroll.setSize(AuraWindow.MINIMUM_WIDTH - 12 - AuraWindow.RAIL_WIDTH - 1,
+            AuraWindow.MINIMUM_HEIGHT);
+        layOut(scroll);
+
+        int interior = card.getWidth() - card.getInsets().left - card.getInsets().right;
+        assertThat(interior).as("a card has some width to work in").isPositive();
+        assertThat(note.getPreferredSize().width)
+            .as("a wrapped note, rendered, against the room its card has")
+            .isLessThanOrEqualTo(interior);
+    }
+
+    /**
+     * Lays a tree out without a native window, so this runs anywhere the rest of
+     * the suite does. {@code validate()} needs a peer; {@code doLayout} does not.
+     */
+    private static void layOut(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container container) {
+                layOut(container);
+            }
+        }
     }
 
     /** Perceived lightness, so "quieter" is a measurable claim rather than a hex diff. */

@@ -43,6 +43,14 @@ class VoicePanelTest {
         "voice.reference.record", "voice.reference.action",
         "voice.wake.record", "voice.wake.action", "voice.listen.toggle");
 
+    /** Each button and the label that has to say why, when it is off. */
+    private static final Map<String, String> REASON_FOR = Map.of(
+        "voice.reference.record", "voice.reference.recordReason",
+        "voice.reference.action", "voice.reference.reason",
+        "voice.wake.record", "voice.wake.recordReason",
+        "voice.wake.action", "voice.wake.reason",
+        "voice.listen.toggle", "voice.listen.reason");
+
     @Test
     void enrolIsDisabledWithItsReasonUntilTakesExist() {
         // Breaks if Enrol is enabled whenever the sidecar has answered, or if the
@@ -122,6 +130,108 @@ class VoicePanelTest {
     }
 
     @Test
+    void everyButtonThatIsOffSaysWhyBesideItself() {
+        // The section's central promise, asserted for all five buttons rather
+        // than the two that happened to have tests. Blanking either the record
+        // rows' reason or the listening switch's used to pass the whole suite,
+        // and a reason nobody asserts is one that can quietly become empty.
+        Panel panel = panel();
+        onEdt(() -> {
+            REASON_FOR.forEach((name, reason) -> {
+                assertThat(button(panel.voice, name).isEnabled())
+                    .as(name + " before any event").isFalse();
+                assertThat(text(panel.voice, reason))
+                    .as("why " + name + " is off").isNotEmpty();
+            });
+            panel.status(8, 20, true, true, true, false);
+            panel.arm("wake");
+        });
+        panel.awaitSend();
+        onEdt(() -> REASON_FOR.forEach((name, reason) -> {
+            assertThat(button(panel.voice, name).isEnabled())
+                .as(name + " during a run").isFalse();
+            assertThat(text(panel.voice, reason))
+                .as("why " + name + " is off during a run").isNotEmpty();
+        }));
+    }
+
+    @Test
+    void trainIsDisabledWhenWhatItTrainsFromIsMissing() {
+        // Takes are not training's only precondition. Breaks if the panel offers
+        // Train while openWakeWord's models or the negative audio are absent —
+        // the owner presses a live button and gets NO_FEATURE_MODELS, which is
+        // the failure this whole section is arranged to prevent.
+        onEdt(() -> {
+            Panel panel = new Panel();
+            panel.status(8, 20, true, false, true, false, false, 143);
+
+            assertThat(button(panel.voice, "voice.wake.action").isEnabled()).isFalse();
+            assertThat(text(panel.voice, "voice.wake.reason")).contains("openWakeWord");
+
+            panel.status(8, 20, true, false, true, false, true, 0);
+
+            assertThat(button(panel.voice, "voice.wake.action").isEnabled()).isFalse();
+            assertThat(text(panel.voice, "voice.wake.reason")).contains("not the wake word");
+
+            panel.status(8, 20, true, false, true, false, true, 143);
+
+            assertThat(button(panel.voice, "voice.wake.action").isEnabled()).isTrue();
+        });
+    }
+
+    @Test
+    void theMicrophoneIsNotAskedForUntilTheCountReachesZero() {
+        // The count-in is the panel's own, run before the command is sent, which
+        // is the only place it can honestly run. Breaks if agreeing sends record
+        // immediately — the count would then be decoration over a microphone
+        // that was already open — or if Cancel stops explaining itself.
+        // A minute a tick, so the count cannot reach zero inside the test.
+        Panel panel = panel(60_000);
+        onEdt(() -> {
+            panel.status(8, 20, true, true, true, false);
+            panel.arm("wake");
+
+            assertThat(panel.sent).isEmpty();
+            assertThat(text(panel.voice, "voice.wake.warning")).contains("opens in 3");
+            assertThat(button(panel.voice, "voice.wake.cancel").isEnabled()).isTrue();
+            assertThat(button(panel.voice, "voice.wake.record").isEnabled()).isFalse();
+
+            button(panel.voice, "voice.wake.cancel").doClick();
+
+            assertThat(panel.sent).isEmpty();
+            assertThat(find(panel.voice, "voice.wake.warning").isVisible()).isFalse();
+            assertThat(button(panel.voice, "voice.wake.record").isEnabled()).isTrue();
+        });
+    }
+
+    @Test
+    void theSectionDoesNotSayTheMicrophoneIsOpenUntilATakeProvesIt() {
+        // protocol.py emits record.started from the loop thread, before the
+        // worker that pauses listening and opens the device has been started —
+        // and if that pause fails the device never opens at all. Breaks if the
+        // panel treats record.started as proof of an open microphone.
+        Panel panel = panel();
+        onEdt(() -> {
+            panel.status(8, 20, true, true, true, false);
+            panel.arm("wake");
+        });
+        panel.awaitSend();
+        onEdt(() -> {
+            panel.event("{\"ev\":\"record.started\",\"kind\":\"wake\",\"takes\":2,\"for\":\""
+                + panel.lastId() + "\"}");
+
+            assertThat(progress(panel.voice, "voice.wake.progress")).contains("opening")
+                .doesNotContain("recording");
+
+            panel.event("{\"ev\":\"record.take\",\"kind\":\"wake\",\"number\":21,"
+                + "\"level\":0.08,\"path\":\"voice/wake/wake-021.wav\",\"for\":\""
+                + panel.lastId() + "\"}");
+
+            assertThat(progress(panel.voice, "voice.wake.progress")).contains("recording");
+        });
+    }
+
+    @Test
     void recordingDoesNotStartUntilTheWarningAboutTheMicrophoneIsAccepted() {
         // The one check the product rests on. Breaks if Record sends the command
         // straight away: the microphone would open on a click whose label never
@@ -149,13 +259,14 @@ class VoicePanelTest {
         // Breaks if the panel sends the other section's kind, ignores the spinner
         // and sends its default, or sends twice. Twenty takes is ten minutes of
         // the owner's time, so the number on the spinner is not a detail.
+        Panel panel = panel();
         onEdt(() -> {
-            Panel panel = new Panel();
             panel.status(8, 20, true, true, true, false);
-
             spinner(panel.voice, "voice.wake.spinner").setValue(5);
-            panel.record("wake");
-
+            panel.arm("wake");
+        });
+        panel.awaitSend();
+        onEdt(() -> {
             assertThat(panel.sent).hasSize(1);
             assertThat(panel.sent.get(0)).containsEntry("cmd", "record")
                 .containsEntry("kind", "wake").containsEntry("takes", 5);
@@ -168,11 +279,13 @@ class VoicePanelTest {
         // the second command comes back BUSY, and an error is a worse way to say
         // "not now" than a button that is visibly not offering. Also breaks if
         // record.done is not treated as the end of the run.
+        Panel panel = panel();
         onEdt(() -> {
-            Panel panel = new Panel();
             panel.status(8, 20, true, true, true, false);
-            panel.record("wake");
-
+            panel.arm("wake");
+        });
+        panel.awaitSend();
+        onEdt(() -> {
             for (String name : BUTTONS) {
                 assertThat(button(panel.voice, name).isEnabled())
                     .as(name + " while recording").isFalse();
@@ -194,11 +307,13 @@ class VoicePanelTest {
         // ends a command without a done event, and a panel that only listens for
         // record.done or train.done stays disabled for the rest of the session —
         // with no way back except closing the window.
+        Panel panel = panel();
         onEdt(() -> {
-            Panel panel = new Panel();
             panel.status(8, 20, true, true, true, false);
-            panel.record("reference");
-
+            panel.arm("reference");
+        });
+        panel.awaitSend();
+        onEdt(() -> {
             assertThat(button(panel.voice, "voice.wake.record").isEnabled()).isFalse();
 
             panel.event("{\"ev\":\"error\",\"code\":\"BUSY\",\"fatal\":false,\"for\":\""
@@ -218,11 +333,13 @@ class VoicePanelTest {
         // Breaks if the 0.005 threshold is dropped or its comparison inverted. A
         // take too quiet to hear is worse than a missing one, because nothing
         // downstream refuses it: it is silently trained on.
+        Panel panel = panel();
         onEdt(() -> {
-            Panel panel = new Panel();
             panel.status(8, 20, true, true, true, false);
-            panel.record("wake");
-
+            panel.arm("wake");
+        });
+        panel.awaitSend();
+        onEdt(() -> {
             panel.event("{\"ev\":\"record.take\",\"kind\":\"wake\",\"number\":21,"
                 + "\"level\":0.002,\"path\":\"voice/wake/wake-021.wav\",\"for\":\""
                 + panel.lastId() + "\"}");
@@ -328,8 +445,20 @@ class VoicePanelTest {
     /** The panel, the commands it sent, and the shorthand for driving it. */
     private static final class Panel {
 
-        private final List<Map<String, Object>> sent = new ArrayList<>();
-        private final VoicePanel voice = new VoicePanel(sent::add);
+        // Synchronized because the count-in's last tick appends from the event
+        // dispatch thread while awaitSend polls from JUnit's.
+        private final List<Map<String, Object>> sent =
+            java.util.Collections.synchronizedList(new ArrayList<>());
+        private final VoicePanel voice;
+        private int sentBeforeArming;
+
+        Panel() {
+            this(1);
+        }
+
+        Panel(int tickMillis) {
+            voice = new VoicePanel(sent::add, tickMillis);
+        }
 
         void event(String json) {
             try {
@@ -340,19 +469,61 @@ class VoicePanelTest {
             }
         }
 
-        /** One voice.status, the event every other state in the panel hangs off. */
+        /**
+         * One voice.status, the event every other state in the panel hangs off.
+         *
+         * <p>The feature models and the negative clips default to present, so
+         * that a test about takes is about takes. The case where they are
+         * missing has a test of its own.
+         */
         void status(int referenceTakes, int wakeTakes, boolean reference, boolean wakeModel,
                     boolean speakerModel, boolean listening) {
+            status(referenceTakes, wakeTakes, reference, wakeModel, speakerModel, listening,
+                true, 143);
+        }
+
+        void status(int referenceTakes, int wakeTakes, boolean reference, boolean wakeModel,
+                    boolean speakerModel, boolean listening, boolean featureModels,
+                    int negatives) {
             event("{\"ev\":\"voice.status\",\"referenceTakes\":" + referenceTakes
                 + ",\"wakeTakes\":" + wakeTakes + ",\"reference\":" + reference
                 + ",\"wakeModel\":" + wakeModel + ",\"speakerModel\":" + speakerModel
+                + ",\"featureModels\":" + featureModels + ",\"negatives\":" + negatives
                 + ",\"listening\":" + listening + "}");
         }
 
-        /** Both presses recording takes: the one that asks, and the one that agrees. */
-        void record(String kind) {
+        /**
+         * The two presses recording takes: the one that asks, and the one that
+         * agrees and starts the count-in. Runs on the event dispatch thread.
+         *
+         * <p>The count is not skipped for tests — it is the path the owner
+         * walks, and a suite that jumped over it would be covering a panel
+         * nobody has. It is only made fast, at a millisecond a tick.
+         */
+        void arm(String kind) {
+            sentBeforeArming = sent.size();
             button(voice, "voice." + kind + ".record").doClick();
             button(voice, "voice." + kind + ".confirm").doClick();
+        }
+
+        /**
+         * Waits for the count-in to reach zero and send. Runs on JUnit's thread,
+         * never the event dispatch thread: the count ticks <em>on</em> the EDT,
+         * so a test still holding it would wait for something that cannot happen.
+         * Touches no component — only the list the stub sender appends to.
+         */
+        void awaitSend() {
+            long deadline = System.currentTimeMillis() + 5000;
+            while (sent.size() == sentBeforeArming && System.currentTimeMillis() < deadline) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            assertThat(sent.size())
+                .as("the count-in never reached the sidecar").isGreaterThan(sentBeforeArming);
         }
 
         /**
@@ -364,6 +535,22 @@ class VoicePanelTest {
             assertThat(sent).isNotEmpty();
             return String.valueOf(sent.get(sent.size() - 1).get("id"));
         }
+    }
+
+    /** A panel constructed on the event dispatch thread, like every other one. */
+    private static Panel panel() {
+        return panel(1);
+    }
+
+    private static Panel panel(int tickMillis) {
+        Panel[] built = new Panel[1];
+        onEdt(() -> built[0] = new Panel(tickMillis));
+        return built[0];
+    }
+
+    /** What the progress bar is saying it is doing. */
+    private static String progress(Container root, String name) {
+        return ((javax.swing.JProgressBar) find(root, name)).getString();
     }
 
     private static void onEdt(Runnable work) {

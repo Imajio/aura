@@ -27,7 +27,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from aura_speech import protocol                    # noqa: E402
+from aura_speech import protocol, training          # noqa: E402
 from aura_speech.protocol import VoiceResources      # noqa: E402
 from aura_speech.recording import take_path, write_take  # noqa: E402
 
@@ -88,35 +88,42 @@ def until_terminal(stdout, timeout=5.0):
 
 
 class FakeListening:
-    """Stands in for Task 2's Listening: a shared call log and a fixed pause() answer.
+    """Stands in for Task 2's Listening, including the part that is easy to get wrong.
 
-    `active()` follows the calls rather than staying at whatever it was built
-    with, because the events under test are answered from it: a status emitted
-    after a start() that the fake did not notice would agree with the assertion
-    for the wrong reason.
+    `active()` is `wanted and not closed`, and `pause()` clears `wanted`
+    **before** it reports whether the device actually closed — both exactly as
+    `listening.py` does them. That distinction is the whole subsystem: a pause
+    that times out has already stopped wanting the microphone while the stream
+    is still open, so a fake that went inactive only on a *successful* pause
+    would report `listening: true` in the one case this code exists to catch,
+    and a mutation dropping the check would sail past green.
     """
 
     def __init__(self, log=None, pause_returns=True, active=True):
         self.calls = log if log is not None else []
         self.pause_returns = pause_returns
-        self._active = active
+        self._wanted = active
+        self._closed = False
 
     def start(self):
         self.calls.append("start")
-        self._active = True
+        self._wanted = True
 
     def pause(self, timeout=5.0):
         self.calls.append("pause")
-        if self.pause_returns:
-            self._active = False
+        self._wanted = False
         return self.pause_returns
 
     def resume(self):
         self.calls.append("resume")
-        self._active = True
+        self._wanted = True
+
+    def close(self):
+        self._closed = True
+        self._wanted = False
 
     def active(self):
-        return self._active
+        return self._wanted and not self._closed
 
 
 def fake_record_take(log, level=0.05):
@@ -173,6 +180,44 @@ def test_voice_status_reports_each_artefact_and_the_listening_state(tmp_path):
     assert status["wakeModel"] is True
     assert status["speakerModel"] is True
     assert status["listening"] is True
+    assert status["featureModels"] is False
+    assert status["negatives"] == 0
+
+
+def test_voice_status_reports_the_two_things_training_needs_besides_takes(tmp_path):
+    # Breaks if status() stops reporting either one. train_wake_word refuses
+    # without openWakeWord's two ONNX files and without audio that is not the
+    # wake word, and a client that cannot see them has to offer a button that
+    # fails — which is the one thing the window is built not to do. The negative
+    # count is recursive because training.py collects them with rglob: the
+    # audition samples sit in one folder per voice.
+    for name in training.FEATURE_MODELS:
+        model = tmp_path / "models" / "openwakeword" / name
+        model.parent.mkdir(parents=True, exist_ok=True)
+        model.write_bytes(b"x")
+    for voice_name in ("v4", "v5"):
+        clip = tmp_path / "negative" / voice_name / "line.wav"
+        clip.parent.mkdir(parents=True, exist_ok=True)
+        clip.write_bytes(b"x")
+    voice = a_voice(tmp_path)
+
+    status = events_of(run([{"id": "s2", "cmd": "voice.status"}], voice=voice))[1]
+
+    assert status["featureModels"] is True
+    assert status["negatives"] == 2
+
+
+def test_voice_status_reports_feature_models_missing_when_only_one_is_there(tmp_path):
+    # Breaks if the check is any() rather than all(). One of the two files is
+    # useless on its own: training loads both and raises on whichever is absent.
+    model = tmp_path / "models" / "openwakeword" / training.FEATURE_MODELS[0]
+    model.parent.mkdir(parents=True, exist_ok=True)
+    model.write_bytes(b"x")
+    voice = a_voice(tmp_path)
+
+    status = events_of(run([{"id": "s3", "cmd": "voice.status"}], voice=voice))[1]
+
+    assert status["featureModels"] is False
 
 
 def test_record_emits_started_then_one_take_per_recording_then_done(tmp_path):

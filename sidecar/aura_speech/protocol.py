@@ -34,6 +34,7 @@ DEFAULT_VERBOSITY = "normal"
 _RECORD_SECONDS = {"reference": 6.0, "wake": 2.0}
 
 
+
 class VoiceResources:
     """Paths, the listening handle, and the one-at-a-time rule that `record`,
     `enrol` and `train.wake` all share.
@@ -84,19 +85,34 @@ class VoiceResources:
             self._busy = False
 
     def status(self) -> dict:
+        """Everything a caller needs to know whether a command can succeed.
+
+        `featureModels` and `negatives` are here for the window's sake. Takes
+        are not training's only precondition — `train_wake_word` also needs
+        openWakeWord's two ONNX files and a pile of audio that is not the wake
+        word — and a client that cannot see them has to offer a button that
+        fails, which is exactly what the window is built not to do.
+        """
         return {
             "referenceTakes": _wav_count(self.reference_dir),
             "wakeTakes": _wav_count(self.wake_dir),
             "reference": self.reference_path.is_file(),
             "wakeModel": self.wake_model_path.is_file(),
             "speakerModel": self.speaker_model_path.is_file(),
+            "featureModels": all((self.feature_models_dir / name).is_file()
+                                 for name in training.FEATURE_MODELS),
+            # Counted the way training.py collects them, recursively: the
+            # narrator audition samples sit in one folder per voice.
+            "negatives": _wav_count(self.negative_dir, recursive=True),
             "listening": self.listening.active() if self.listening is not None else False,
         }
 
 
-def _wav_count(directory) -> int:
+def _wav_count(directory, recursive: bool = False) -> int:
     directory = pathlib.Path(directory)
-    return len(list(directory.glob("*.wav"))) if directory.is_dir() else 0
+    if not directory.is_dir():
+        return 0
+    return len(list(directory.rglob("*.wav") if recursive else directory.glob("*.wav")))
 
 
 def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None,

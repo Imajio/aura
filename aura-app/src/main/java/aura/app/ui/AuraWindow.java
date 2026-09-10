@@ -69,6 +69,19 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     /** The section the Status panel sends people to when voice setup is missing. */
     public static final String VOICE_SECTION = "Voice setup";
 
+    /**
+     * The rail's width and the narrowest the window may be.
+     *
+     * <p>Named rather than written into the constructor because they set the
+     * width a card has to work in, and something has to check that a wrapped
+     * sentence still fits it. {@code UiThemeTest} does that arithmetic against
+     * these; widening the rail without widening the window fails there instead
+     * of cutting a sentence off on screen.
+     */
+    static final int RAIL_WIDTH = 200;
+    static final int MINIMUM_WIDTH = 720;
+    static final int MINIMUM_HEIGHT = 480;
+
     static {
         // Once, before the first component exists: a look and feel set after a
         // component is built leaves that component styled the old way. Failing
@@ -136,7 +149,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
         JScrollPane rail = new JScrollPane(sectionList,
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        rail.setPreferredSize(new Dimension(200, 0));
+        rail.setPreferredSize(new Dimension(RAIL_WIDTH, 0));
         rail.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.LINE));
 
         body.setBackground(UiTheme.CANVAS);
@@ -146,7 +159,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         frame.add(rail, BorderLayout.WEST);
         frame.add(body, BorderLayout.CENTER);
         frame.setSize(900, 640);
-        frame.setMinimumSize(new Dimension(720, 480));
+        frame.setMinimumSize(new Dimension(MINIMUM_WIDTH, MINIMUM_HEIGHT));
         frame.setLocationRelativeTo(null);
 
         voice = new VoicePanel(toSidecar);

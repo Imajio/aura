@@ -83,6 +83,12 @@ def enrol(takes_dir, model_path, out_path, progress, embed_factory=None) -> dict
     }
 
 
+#: What `feature_models` must contain. Named here, where the requirement is
+#: enforced, and read by protocol.py so that `voice.status` can report the same
+#: two files rather than keeping its own copy of the pair.
+FEATURE_MODELS = ("melspectrogram.onnx", "embedding_model.onnx")
+
+
 def train_wake_word(takes_dir, negative_dir, feature_models, out_path, progress,
                     sessions_factory=None) -> dict:
     """Fits the wake word on the owner's takes against audio that is not it."""
@@ -100,7 +106,7 @@ def train_wake_word(takes_dir, negative_dir, feature_models, out_path, progress,
             f"wake word learns to say yes to everything")
 
     feature_models = pathlib.Path(feature_models)
-    for name in ("melspectrogram.onnx", "embedding_model.onnx"):
+    for name in FEATURE_MODELS:
         if not (feature_models / name).is_file():
             raise ValueError(f"no {name} in {feature_models}")
 

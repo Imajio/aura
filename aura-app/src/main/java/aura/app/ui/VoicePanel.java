@@ -23,6 +23,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +87,20 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     /** And this many is what it takes to be any good. */
     private static final int WAKE_RECOMMENDED = 20;
 
+    /**
+     * Seconds between agreeing to record and the microphone opening.
+     *
+     * <p>The count runs here, before the command is sent, which is the only
+     * place it can honestly run. Counting down from events that arrive after
+     * {@code record} has already been sent would be narrating a fiction: by then
+     * the sidecar is already opening the device. Counted this way the owner gets
+     * the same three seconds the terminal recorder gave them to get ready, and
+     * nothing is asked of the microphone until they are up.
+     */
+    private static final int COUNT_IN = 3;
+
     private final Consumer<Map<String, Object>> toSidecar;
+    private final int tickMillis;
 
     private final Section reference = new Section("reference", "Your voice", "Voice reference",
         "recorded", 3, 6,
@@ -117,6 +131,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     private boolean hasReference;
     private boolean hasWakeModel;
     private boolean hasSpeakerModel;
+    private boolean featureModels;
+    private int negatives;
     private boolean listening;
 
     // The command in flight, or null. Correlation ids are unique per press so
@@ -128,7 +144,20 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     private int commands;
 
     VoicePanel(Consumer<Map<String, Object>> toSidecar) {
+        this(toSidecar, 1000);
+    }
+
+    /**
+     * The same panel with a count-in that ticks faster, for tests.
+     *
+     * <p>The number of ticks is fixed at {@link #COUNT_IN}; only how long one
+     * lasts is open. A test that had to sit through three real seconds would
+     * either be slow or would skip the count-in altogether and stop covering the
+     * path the owner actually walks.
+     */
+    VoicePanel(Consumer<Map<String, Object>> toSidecar, int tickMillis) {
         this.toSidecar = toSidecar;
+        this.tickMillis = tickMillis;
 
         JPanel column = new JPanel();
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
@@ -192,6 +221,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 hasReference = event.flag("reference");
                 hasWakeModel = event.flag("wakeModel");
                 hasSpeakerModel = event.flag("speakerModel");
+                featureModels = event.flag("featureModels");
+                negatives = (int) event.number("negatives");
                 listening = event.flag("listening");
                 // This is how the listening toggle finishes: the sidecar answers
                 // a configure with a status, and that status is the only thing
@@ -202,8 +233,14 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             case "record.started" -> {
                 Section section = sectionForKind(event.text("kind"));
                 if (section != null) {
+                    // Provisional on purpose. protocol.py emits record.started
+                    // from the loop thread, before the worker that will pause
+                    // listening and open the device has even been started — and
+                    // if that pause fails the device never opens for this take
+                    // at all. The panel says it is open only when a take proves
+                    // it, on the first record.take below.
                     section.startProgress((int) event.number("takes"),
-                        "the microphone is open — recording now");
+                        "opening the microphone…");
                     applyState();
                 }
             }
@@ -346,12 +383,12 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         listenToggle.setOpaque(false);
         listenToggle.setFocusPainted(false);
         listenToggle.addActionListener(e -> {
-            // A JCheckBox flips itself before anybody is asked. Put it back: what
-            // it shows is the sidecar's last answer, and the request that has
-            // just been sent may yet be refused — the microphone can fail to
-            // release, or this sidecar may have been started without listening
-            // at all.
-            listenToggle.setSelected(listening);
+            // A JCheckBox flips itself before anybody is asked. Nothing puts it
+            // back here: send() ends in applyState(), which is the single place
+            // this switch's state is written, and it writes the sidecar's last
+            // answer. Undoing the flip here as well would be a second guard that
+            // masks a break in the first, and then no test could say which one
+            // was holding the line.
             send(Map.of("cmd", "configure", "listen", !listening), null);
         });
         listenReason.setName("voice.listen.reason");
@@ -393,6 +430,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         private final JPanel armRow;
 
         private boolean armed;
+        private int counting;
+        private final Timer countIn;
         private final List<String> lines = new ArrayList<>();
         private int quiet;
 
@@ -410,6 +449,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             this.command = command;
 
             takes = new JSpinner(new SpinnerNumberModel(defaultTakes, 1, 50, 1));
+            // A Swing Timer, so every tick lands on the event dispatch thread
+            // like everything else that touches these components.
+            countIn = new Timer(1000, e -> tick());
             confirm = button("Open the microphone and record");
             action = button(actionLabel);
             armRow = row(confirm, cancel);
@@ -430,11 +472,10 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             Dimension spinnerSize = new Dimension(64, takes.getPreferredSize().height);
             takes.setPreferredSize(spinnerSize);
             takes.setMaximumSize(spinnerSize);
-            takes.addChangeListener(e -> {
-                if (armed) {
-                    warning.setText(UiTheme.html(warningSentence()));
-                }
-            });
+            // The warning names the number of takes, so changing the number
+            // while it is on screen has to rewrite it. Through applyState, which
+            // is the one place that sentence is written.
+            takes.addChangeListener(e -> applyState());
 
             progress.setStringPainted(true);
             UiTheme.capped(progress, progress.getPreferredSize().height);
@@ -444,17 +485,23 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 lines.clear();
                 quiet = 0;
                 report("", UiTheme.MUTED);
-                warning.setText(UiTheme.html(warningSentence()));
                 applyState();
             });
             cancel.addActionListener(e -> {
+                // Cancels an arm and a count-in alike. Stopping the count is the
+                // last moment at which nothing has been asked of the microphone,
+                // so the button that offers it stays live for the whole count.
                 armed = false;
+                stopCounting();
                 applyState();
             });
             confirm.addActionListener(e -> {
                 armed = false;
-                send(Map.of("cmd", "record", "kind", kind,
-                    "takes", ((Number) takes.getValue()).intValue()), this);
+                counting = COUNT_IN;
+                countIn.setInitialDelay(tickMillis);
+                countIn.setDelay(tickMillis);
+                countIn.restart();
+                applyState();
             });
             action.addActionListener(e -> {
                 report("", UiTheme.MUTED);
@@ -476,6 +523,33 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             return card;
         }
 
+        /** Whether this half is counting the owner in rather than recording yet. */
+        boolean counting() {
+            return counting > 0;
+        }
+
+        private void stopCounting() {
+            counting = 0;
+            countIn.stop();
+        }
+
+        /**
+         * One second of the count-in. At zero the command goes, and not before.
+         *
+         * <p>This is the only place {@code record} is sent, so there is no path
+         * from a click to an open microphone that skips the count.
+         */
+        private void tick() {
+            counting--;
+            if (counting > 0) {
+                applyState();
+                return;
+            }
+            stopCounting();
+            send(Map.of("cmd", "record", "kind", kind,
+                "takes", ((Number) takes.getValue()).intValue()), this);
+        }
+
         /** The sentence the owner reads before any microphone is opened. */
         private String warningSentence() {
             int wanted = ((Number) takes.getValue()).intValue();
@@ -483,6 +557,21 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 + secondsPerTake + " seconds, one after another with no pause between them. "
                 + "Nothing leaves this machine, and the new takes are added to the "
                 + count(takesOnDisk(), "take") + " already recorded rather than replacing them.";
+        }
+
+        /**
+         * The count, said out loud, with the one caveat that makes it honest.
+         *
+         * <p>With listening on, the sidecar has to get the device back from its
+         * own capture thread before the first frame is captured, and that wait
+         * is bounded by five seconds rather than instant. Promising the exact
+         * moment would be a promise this panel cannot keep.
+         */
+        private String countdownSentence() {
+            return "The microphone opens in " + counting + "…"
+                + (listening ? " Listening has to let go of it first, which can take a "
+                             + "moment." : "")
+                + " Cancel stops it; nothing has been recorded yet.";
         }
 
         private int takesOnDisk() {
@@ -509,8 +598,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             // amber for one quiet take prints "good" in amber as well.
             report(lines, UiTheme.MUTED);
             progress.setValue(Math.min(progress.getValue() + 1, progress.getMaximum()));
-            progress.setString("recorded " + progress.getValue() + " of "
-                + progress.getMaximum());
+            // The first take is the proof that the device really did open.
+            progress.setString("recording — " + progress.getValue() + " of "
+                + progress.getMaximum() + " done");
         }
 
         void recorded(int written) {
@@ -588,10 +678,12 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
          */
         void apply(boolean live, int onDisk, boolean artefact, String why, boolean actionable,
                    String whyNoRecording) {
-            if (!live) {
+            if (!live && !counting()) {
                 // Consent to open a microphone is given for a moment, not kept.
                 // An arm that survived a training run would sit there through it
-                // and start recording on a click made much later.
+                // and start recording on a click made much later. A count-in is
+                // exempt because it is what made the panel busy in the first
+                // place, and cancelling it is the point of the button below.
                 armed = false;
             }
             takesValue.setText(count(onDisk, "recording"));
@@ -601,10 +693,14 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             record.setEnabled(live && !armed);
             recordReason.setText(whyNoRecording);
             recordReason.setToolTipText(whyNoRecording.isEmpty() ? null : whyNoRecording);
-            confirm.setEnabled(live);
-            cancel.setEnabled(live);
-            warning.setVisible(armed);
-            armRow.setVisible(armed);
+            confirm.setEnabled(live && armed);
+            // The one button that stays live while the panel is busy: until the
+            // count reaches zero nothing has been asked of the microphone, and
+            // taking the way out away would make the count a formality.
+            cancel.setEnabled(armed || counting());
+            warning.setText(UiTheme.html(counting() ? countdownSentence() : warningSentence()));
+            warning.setVisible(armed || counting());
+            armRow.setVisible(armed || counting());
             action.setEnabled(live && actionable);
             reason.setText(why);
             reason.setToolTipText(why.isEmpty() ? null : why);
@@ -614,12 +710,11 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
 
     /** Repaints every control from what the sidecar last said. */
     private void applyState() {
-        boolean idle = pendingId == null;
+        boolean idle = pendingId == null && !reference.counting() && !wake.counting();
         boolean live = idle && answered && !unavailable;
         reference.apply(live, referenceTakes, hasReference, enrolReason(),
             referenceTakes > 0 && hasSpeakerModel, waiting());
-        wake.apply(live, wakeTakes, hasWakeModel, trainReason(), wakeTakes >= WAKE_MINIMUM,
-            waiting());
+        wake.apply(live, wakeTakes, hasWakeModel, trainReason(), canTrain(), waiting());
 
         listenState.setText(listening ? "on" : "off");
         listenState.setForeground(listening ? UiTheme.GOOD : UiTheme.MUTED);
@@ -644,6 +739,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         }
         if (!answered) {
             return "waiting for the sidecar to say what is on disk";
+        }
+        if (reference.counting() || wake.counting()) {
+            return "waiting for the recording about to start";
         }
         if (pendingId != null) {
             // Said beside every dead button rather than only beside the one that
@@ -676,10 +774,30 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         if (!waiting.isEmpty()) {
             return waiting;
         }
+        String recommendation = WAKE_RECOMMENDED + " takes recommended; " + wakeTakes
+            + " recorded";
+        if (wakeTakes < WAKE_MINIMUM) {
+            return recommendation;
+        }
+        // Takes are not training's only precondition, any more than they are
+        // enrolment's. Without these two the sidecar answers NO_FEATURE_MODELS
+        // or refuses for want of anything to train against — both of which the
+        // panel can see coming in voice.status.
+        if (!featureModels) {
+            return "openWakeWord's models are missing — see models\\openwakeword";
+        }
+        if (negatives == 0) {
+            return "nothing to train against — no audio that is not the wake word";
+        }
         if (wakeTakes < WAKE_RECOMMENDED) {
-            return WAKE_RECOMMENDED + " takes recommended; " + wakeTakes + " recorded";
+            return recommendation;
         }
         return "";
+    }
+
+    /** Whether {@code train.wake} would get past its own preconditions. */
+    private boolean canTrain() {
+        return wakeTakes >= WAKE_MINIMUM && featureModels && negatives > 0;
     }
 
     /** A row of controls, left-packed, that gives its spare width away to nothing. */
