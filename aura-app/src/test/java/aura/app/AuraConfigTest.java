@@ -261,6 +261,42 @@ class AuraConfigTest {
         assertThat(lines).contains("voiceSomethingElse: untouched", "voice: xenia");
     }
 
+    /**
+     * Breaks if save() reads with Files.readAllLines and writes with
+     * Files.write(Path, List) — both discard the file's actual line terminator, and
+     * the latter appends System.lineSeparator() after every line including the last.
+     * On Windows that turns a plain \n file with no trailing newline — the owner's
+     * real config.yaml is exactly this shape — into \r\n throughout, rewriting the
+     * bytes of every line, not just the three save() owns. The file is written with
+     * Files.write(Path, byte[]) here rather than a text API, so the bytes on disk
+     * before save() runs are exactly what this test asks for.
+     */
+    @Test
+    void savePreservesTheFilesLineEndingAndTrailingNewlineExactly(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, ("hookJar: C:\\tools\\claude.exe\nvoice: aidar\nprofile: en\nlisten: false")
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
+
+        String saved = Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(saved).isEqualTo(
+            "hookJar: C:\\tools\\claude.exe\nvoice: xenia\nprofile: ru\nlisten: false");
+    }
+
+    /** The other direction of the same guarantee: CRLF and a trailing newline survive too. */
+    @Test
+    void savePreservesCrlfAndATrailingNewlineWhenTheFileHasThem(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, "voice: aidar\r\nprofile: en\r\nlisten: false\r\n"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
+
+        String saved = Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(saved).isEqualTo("voice: xenia\r\nprofile: ru\r\nlisten: false\r\n");
+    }
+
     /** Breaks if save() assumed the file already exists instead of creating it. */
     @Test
     void saveCreatesTheFileWhenItDoesNotExistYet(@TempDir Path tmp) throws Exception {

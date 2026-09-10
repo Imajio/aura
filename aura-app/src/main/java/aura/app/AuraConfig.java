@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -149,15 +150,79 @@ public record AuraConfig(
      * key or a comment the owner put there is a worse bug than one that cannot save at
      * all, so each of the three keys below is updated in place if a line already sets
      * it, or appended if none does — and nothing else in the file is touched.
+     *
+     * <p>"Nothing else" includes the file's own line terminator and whether it ends in
+     * one. {@code Files.readAllLines} discards both, and {@code Files.write(Path,
+     * Iterable)} puts {@link System#lineSeparator()} back after every line including
+     * the last — on Windows that turns a plain {@code \n} file with no trailing newline
+     * (the owner's real file is exactly this) into {@code \r\n} throughout, rewriting
+     * every line's bytes rather than the three this method owns. Reading and writing
+     * the whole file as one string, and detecting both the terminator and the trailing
+     * newline from it, is what keeps a file the application never rewrote look
+     * unrewritten in every byte save() does not own.
      */
     public void save(Path yamlFile) throws IOException {
-        List<String> lines = Files.isRegularFile(yamlFile)
-            ? Files.readAllLines(yamlFile, StandardCharsets.UTF_8)
-            : new ArrayList<>();
+        String original = Files.isRegularFile(yamlFile)
+            ? Files.readString(yamlFile, StandardCharsets.UTF_8)
+            : "";
+        String terminator = lineTerminatorOf(original);
+        List<String> lines = linesOf(original);
         lines = upsert(lines, "voice", voice);
         lines = upsert(lines, "profile", profile);
         lines = upsert(lines, "listen", Boolean.toString(listen));
-        Files.write(yamlFile, lines, StandardCharsets.UTF_8);
+        Files.writeString(yamlFile, join(lines, terminator, endsWithNewline(original)),
+            StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The line terminator {@code text} already uses, so a file the owner wrote with
+     * plain {@code \n} is written back with plain {@code \n} — never the JVM's platform
+     * default. {@code \r\n} is checked first because the pattern for a lone {@code \n}
+     * also matches inside it. Text with no terminator at all (new, or a single line)
+     * has nothing to detect, so plain {@code \n} is used, matching every other text
+     * file in this project.
+     */
+    private static String lineTerminatorOf(String text) {
+        if (text.contains("\r\n")) {
+            return "\r\n";
+        }
+        if (text.contains("\n")) {
+            return "\n";
+        }
+        return text.contains("\r") ? "\r" : "\n";
+    }
+
+    private static boolean endsWithNewline(String text) {
+        return text.isEmpty() || text.endsWith("\n") || text.endsWith("\r");
+    }
+
+    /** {@code text} split into lines, with no trailing empty line for a terminator at the end. */
+    private static List<String> linesOf(String text) {
+        if (text.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> lines = new ArrayList<>(Arrays.asList(text.split("\r\n|\r|\n", -1)));
+        if (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
+            // The empty element String.split leaves after the final terminator — not a
+            // blank line the owner wrote. endsWithNewline() is what remembers whether
+            // to put a terminator back after the real last line.
+            lines.remove(lines.size() - 1);
+        }
+        return lines;
+    }
+
+    private static String join(List<String> lines, String terminator, boolean trailingNewline) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                text.append(terminator);
+            }
+            text.append(lines.get(i));
+        }
+        if (trailingNewline && !lines.isEmpty()) {
+            text.append(terminator);
+        }
+        return text.toString();
     }
 
     /**
