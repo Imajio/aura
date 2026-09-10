@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -173,5 +174,120 @@ class AuraConfigTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("listen")
             .hasMessageContaining("got '1'");
+    }
+
+    // The tests below cover save(), the other half of the round trip load() has had
+    // since M1. VoiceChoicePanel is the one caller: it loads the file fresh, changes
+    // voice and profile, and saves — so what matters most is not what save() writes,
+    // it is what save() leaves alone.
+
+    /**
+     * The exact case the brief names: a hand-written comment and two keys save() does
+     * not know about (claudeExe, idleTimeoutSec) must survive a save that changes
+     * voice. Breaks if save() ever moves from a targeted line rewrite to parsing the
+     * file into a map and re-dumping it through SnakeYAML — Yaml().dump() drops every
+     * comment even when it keeps every key, which this test would still catch on the
+     * comment line alone.
+     */
+    @Test
+    void saveKeepsEveryKeyAndCommentItDoesNotOwn(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, String.join("\n",
+            "# a setting the owner wrote by hand; not one save() ever touches",
+            "claudeExe: C:\\tools\\claude.exe",
+            "idleTimeoutSec: 900",
+            "voice: aidar",
+            "profile: en",
+            "listen: false",
+            ""));
+
+        AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
+
+        List<String> lines = Files.readAllLines(yaml);
+        assertThat(lines).contains(
+            "# a setting the owner wrote by hand; not one save() ever touches",
+            "claudeExe: C:\\tools\\claude.exe",
+            "idleTimeoutSec: 900");
+    }
+
+    /**
+     * The other half of the same save: the three keys save() does own must actually
+     * change. Breaks if save() were a no-op, or if it wrote the pre-change values.
+     */
+    @Test
+    void saveWritesTheNewVoiceProfileAndListen(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, "voice: aidar\nprofile: en\nlisten: false\n");
+
+        AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
+
+        List<String> lines = Files.readAllLines(yaml);
+        assertThat(lines).contains("voice: xenia", "profile: ru", "listen: false");
+    }
+
+    /**
+     * Breaks if upsert() always appends instead of replacing a key already present —
+     * the file would grow a new "voice:" line on every save instead of updating the
+     * one that is there, and a human reading the file (or a naive script re-reading
+     * only the first match) would see the voice chosen on session one forever.
+     */
+    @Test
+    void saveReplacesAnExistingLineRatherThanDuplicatingIt(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, "voice: aidar\nprofile: en\nlisten: false\n");
+
+        AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
+        AuraConfig.load(yaml).withVoice("baya", "ru").save(yaml);
+
+        List<String> lines = Files.readAllLines(yaml);
+        assertThat(lines).filteredOn(line -> line.startsWith("voice:")).containsExactly("voice: baya");
+        assertThat(lines).hasSize(3);
+    }
+
+    /**
+     * Breaks if upsert() matched on the key as a substring or prefix instead of the
+     * whole key name — "voice" would then also match "voiceSomethingElse", overwriting
+     * a key that happens to start the same way instead of leaving it alone and adding
+     * "voice" as its own line.
+     */
+    @Test
+    void saveDoesNotConfuseAKeyWithOneThatSharesItsPrefix(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, "voiceSomethingElse: untouched\n");
+
+        AuraConfig.defaults().withVoice("xenia", "ru").save(yaml);
+
+        List<String> lines = Files.readAllLines(yaml);
+        assertThat(lines).contains("voiceSomethingElse: untouched", "voice: xenia");
+    }
+
+    /** Breaks if save() assumed the file already exists instead of creating it. */
+    @Test
+    void saveCreatesTheFileWhenItDoesNotExistYet(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("new-config.yaml");
+
+        AuraConfig.defaults().withVoice("baya", "ru").save(yaml);
+
+        assertThat(Files.readAllLines(yaml)).contains("voice: baya", "profile: ru", "listen: false");
+    }
+
+    /**
+     * Breaks if withVoice() were implemented by re-deriving defaults() instead of
+     * copying every other field of the receiver — the owner's claudeExe, timeouts and
+     * every path would silently reset to the factory defaults the moment a voice was
+     * chosen from the window.
+     */
+    @Test
+    void withVoiceChangesOnlyVoiceAndProfile() {
+        AuraConfig original = AuraConfig.defaults();
+
+        AuraConfig changed = original.withVoice("xenia", "ru");
+
+        assertThat(changed.voice()).isEqualTo("xenia");
+        assertThat(changed.profile()).isEqualTo("ru");
+        assertThat(changed.claudeExe()).isEqualTo(original.claudeExe());
+        assertThat(changed.hookJar()).isEqualTo(original.hookJar());
+        assertThat(changed.idleTimeout()).isEqualTo(original.idleTimeout());
+        assertThat(changed.listen()).isEqualTo(original.listen());
     }
 }

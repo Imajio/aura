@@ -1,10 +1,15 @@
 package aura.app;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -37,6 +42,23 @@ public record AuraConfig(
      */
     public Path socketPath() {
         return runDir.resolve("aura.sock");
+    }
+
+    /**
+     * The same settings with a different voice and profile — the pair {@code
+     * VoiceChoicePanel}'s "Use this voice" changes together, since every candidate in
+     * the audition is a Russian voice and picking one is picking the Russian profile.
+     *
+     * <p>A copy, not a mutation: {@code AuraConfig} is a record, and the caller saves
+     * the result with {@link #save}. Every field besides the two named is carried over
+     * from the receiver — never re-derived from {@link #defaults()}, which would reset
+     * the owner's own paths and timeouts to the factory ones the moment a voice was
+     * chosen from the window.
+     */
+    public AuraConfig withVoice(String voice, String profile) {
+        return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
+            idleTimeout, confirmTimeout, sidecarDir, pythonExe, voice, profile, wakeModel,
+            speakerModel, speakerReference, listen);
     }
 
     public static AuraConfig defaults() {
@@ -113,6 +135,50 @@ public record AuraConfig(
             throw new IllegalStateException(
                 "failed to read configuration: " + yamlFile + " — " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Writes {@code voice}, {@code profile} and {@code listen} into {@code yamlFile} —
+     * the three settings the window can change — and leaves every other line exactly
+     * as it was, key or comment alike.
+     *
+     * <p>This is a targeted rewrite of the file's lines, not a parse into a map and a
+     * re-dump through SnakeYAML: {@code new Yaml().dump(map)} would silently drop
+     * every comment even if it kept every key, and could reformat a value the owner
+     * typed by hand. A config file the application improves by quietly discarding a
+     * key or a comment the owner put there is a worse bug than one that cannot save at
+     * all, so each of the three keys below is updated in place if a line already sets
+     * it, or appended if none does — and nothing else in the file is touched.
+     */
+    public void save(Path yamlFile) throws IOException {
+        List<String> lines = Files.isRegularFile(yamlFile)
+            ? Files.readAllLines(yamlFile, StandardCharsets.UTF_8)
+            : new ArrayList<>();
+        lines = upsert(lines, "voice", voice);
+        lines = upsert(lines, "profile", profile);
+        lines = upsert(lines, "listen", Boolean.toString(listen));
+        Files.write(yamlFile, lines, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Replaces the line that already sets {@code key}, if there is one, or appends a
+     * new line. Matched on the key followed by optional whitespace and a colon, so
+     * that {@code voice} can update {@code voice: aidar} without also matching {@code
+     * voiceSomethingElse: x} — a longer key that merely starts the same way — and a
+     * commented-out {@code # voice: x}, which has something other than whitespace
+     * before the key, is left alone rather than mistaken for the active setting.
+     */
+    private static List<String> upsert(List<String> lines, String key, String value) {
+        Pattern activeLine = Pattern.compile("^\\s*" + Pattern.quote(key) + "\\s*:.*$");
+        List<String> result = new ArrayList<>(lines);
+        for (int i = 0; i < result.size(); i++) {
+            if (activeLine.matcher(result.get(i)).matches()) {
+                result.set(i, key + ": " + value);
+                return result;
+            }
+        }
+        result.add(key + ": " + value);
+        return result;
     }
 
     private static String text(Map<String, Object> root, String key, String fallback) {

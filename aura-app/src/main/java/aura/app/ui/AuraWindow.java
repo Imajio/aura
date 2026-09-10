@@ -110,6 +110,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     private final List<Consumer<SidecarEvent>> listeners = new CopyOnWriteArrayList<>();
     private final StatusPanel status;
     private final VoicePanel voice;
+    private final VoiceChoicePanel voiceChoice;
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -118,9 +119,11 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
      *                  sidecar could be started, so panels may always call it
      * @param onStopAgent stops the running agent — the same action the tray has
      * @param logDir the folder the Log card offers to open
+     * @param configFile {@code config.yaml} — read and rewritten by the voice choice
+     *                   section's {@code Use this voice} button, nowhere else here
      */
     public AuraWindow(Consumer<Map<String, Object>> toSidecar, Runnable onStopAgent,
-                      Path logDir) {
+                      Path logDir, Path configFile) {
         status = new StatusPanel(toSidecar, onStopAgent, logDir, this::hasSection, this::select);
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -163,11 +166,15 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         frame.setLocationRelativeTo(null);
 
         voice = new VoicePanel(toSidecar);
+        // Reads and writes config.yaml directly; it never talks to the sidecar, so it
+        // is added but not subscribed — there is no sidecar event this section acts on.
+        voiceChoice = new VoiceChoicePanel(VoiceChoicePanel.DEFAULT_AUDITION_ROOT, configFile);
 
         addTab("Status", status);
         subscribe(status);
         addTab(VOICE_SECTION, voice);
         subscribe(voice);
+        addTab("Choose a voice", voiceChoice);
     }
 
     /**

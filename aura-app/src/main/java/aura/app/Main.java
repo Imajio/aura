@@ -246,7 +246,8 @@ public final class Main {
                     }
                 },
                 supervisor::close,
-                logDir);
+                logDir,
+                configFile);
             // Null when there is no sidecar directory at all — see where
             // sidecarEvents is assigned. Nothing to listen to, and the window
             // says so on its Sidecar card rather than waiting forever.
