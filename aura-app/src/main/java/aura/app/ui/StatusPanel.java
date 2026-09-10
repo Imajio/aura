@@ -7,10 +7,6 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.Rectangle;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,7 +22,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.Scrollable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,14 +47,6 @@ import org.slf4j.LoggerFactory;
 public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> {
 
     private static final Logger log = LoggerFactory.getLogger(StatusPanel.class);
-
-    /** Wide enough for the longest row label the four cards use. */
-    private static final int NAME_WIDTH = 140;
-
-    // A note wraps at this width. Chosen to fit a card at the window's 720px
-    // minimum — rail, padding and card border taken off — so the same number
-    // is safe at every size the window can be.
-    private static final int NOTE_WIDTH = 400;
 
     private final Consumer<Map<String, Object>> toSidecar;
     private final Runnable onStopAgent;
@@ -239,7 +226,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             card.note("Aura still dispatches typed tasks and gates tool calls without it. "
                 + "What it cannot do is hear or speak.");
         }
-        return card.panel;
+        return card;
     }
 
     private JComponent voiceCard() {
@@ -247,19 +234,19 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         if (voiceUnavailable) {
             card.line("Voice support", UiTheme.status("not in this build", UiTheme.WARN), null);
             card.note("The sidecar that is running has no voice support compiled in.");
-            return card.panel;
+            return card;
         }
         if (!voiceAnswered) {
             card.line("Voice setup", UiTheme.status("not known yet", UiTheme.MUTED), null);
             card.note(sidecarReady
                 ? "Waiting for the sidecar to answer."
                 : "Nothing to ask until the sidecar is running.");
-            return card.panel;
+            return card;
         }
         artefact(card, "Speaker model", speakerModel, "trained", -1);
         artefact(card, "Voice reference", reference, "recorded", referenceTakes);
         artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes);
-        return card.panel;
+        return card;
     }
 
     /**
@@ -292,23 +279,26 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             card.line("Why not", UiTheme.body("there is no wake-word model to listen for"),
                 setUpButton());
         } else {
-            // Deliberately not a toggle. Listening is a sidecar start-up flag —
-            // protocol.py's `configure` reads only `profile` and `verbosity` —
-            // so a switch here would send a command the sidecar drops on the
-            // floor, flip, and then be contradicted by the next voice.status.
-            card.note("Switch it on with  listen: true  in %APPDATA%\\Aura\\config.yaml. "
-                + "It starts with Aura, so the change takes effect next launch.");
+            // The switch itself lives in the Voice section, beside the model it
+            // listens for, and this card sends people there instead of growing a
+            // second copy of it. Until protocol.py's `configure` learned to read
+            // `listen` there was no switch to send anyone to, and this card
+            // could only name a line of config.yaml.
+            card.line("Why not", UiTheme.body("it has not been switched on"), setUpButton());
+            card.note("Switching it on in the Voice section takes effect at once. "
+                + "listen: true in %APPDATA%\\Aura\\config.yaml is what starts it with "
+                + "Aura, for a machine that is left running.");
         }
-        return card.panel;
+        return card;
     }
 
     private JComponent logCard() {
         Card card = new Card("Log");
         JLabel path = UiTheme.body(logDir.toString());
         path.setFont(UiTheme.mono());
-        card.line("Folder", elastic(path), openLogButton());
+        card.line("Folder", UiTheme.elastic(path), openLogButton());
         card.note("Everything Aura did, including what it refused and why.");
-        return card.panel;
+        return card;
     }
 
     /** The three model slots on one line, each with its own state colour. */
@@ -330,9 +320,9 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         // line is the widest row on the page, and a row that cannot shrink is a
         // row that shoves the whole grid off the left edge at a narrow window —
         // the state alone being shrinkable would not save it.
-        row.add(elastic(UiTheme.hint(name)));
+        row.add(UiTheme.elastic(UiTheme.hint(name)));
         row.add(Box.createHorizontalStrut(UiTheme.GAP));
-        row.add(elastic(modelState(state)));
+        row.add(UiTheme.elastic(modelState(state)));
     }
 
     /** Goes to the section that fixes voice setup, or stays disabled until it exists. */
@@ -388,174 +378,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         return count == 1 ? "1 recording" : count + " recordings";
     }
 
-    /**
-     * A row label of fixed width, so that the state words in every card start at
-     * the same x.
-     *
-     * <p>Each card is its own grid, and left to themselves the four grids find
-     * four different widths for their name column — which reads, down the page,
-     * as four things that were built separately rather than one screen.
-     */
-    private static JLabel nameColumn(String name) {
-        JLabel label = UiTheme.body(name);
-        Dimension natural = label.getPreferredSize();
-        // max, not a flat NAME_WIDTH: a label longer than the column would
-        // otherwise be cut off in silence. This way a name that outgrows the
-        // column pushes its own row wider — visibly out of line with the rest,
-        // which is a bug report rather than a missing word.
-        label.setPreferredSize(new Dimension(Math.max(NAME_WIDTH, natural.width), natural.height));
-        return label;
-    }
-
-    /**
-     * A muted note that breaks onto a second line instead of running off the card.
-     *
-     * <p>A plain {@code JLabel} does not wrap: it asks for however wide its one
-     * line is, and a sentence that outgrows the card widens the card. Swing's own
-     * wrapping is reached through HTML, which needs a width to wrap at — {@link
-     * #NOTE_WIDTH} is that width, chosen to fit inside a card at the window's
-     * minimum size so a note never has to be re-checked against the layout.
-     */
-    private static JLabel wrapped(String text) {
-        return UiTheme.hint("<html><body style='width:" + NOTE_WIDTH + "px'>"
-            + text.replace("&", "&amp;").replace("<", "&lt;") + "</body></html>");
-    }
-
-    /**
-     * A label holding a value nobody chose the length of, made shrinkable.
-     *
-     * <p>A {@code JLabel} reports the width of its whole text as its minimum, and
-     * {@code GridBagLayout} that cannot meet the minimum widths of its columns
-     * stops laying the grid out inside the container and centres it instead —
-     * which pushes column zero to a negative x, so the card's heading and its row
-     * label leave the window altogether. Not clipped: gone. Saying the minimum is
-     * zero lets the column shrink, and Swing then ellipsises the text to whatever
-     * width is left, with the whole of it on hover.
-     *
-     * <p>Everything this is applied to comes from outside the window: a log path
-     * the owner chose, model states the sidecar names. A value the panel writes
-     * itself does not need it — the panel's own strings are known to fit.
-     */
-    private static JLabel elastic(JLabel label) {
-        label.setMinimumSize(new Dimension(0, label.getPreferredSize().height));
-        label.setToolTipText(label.getText());
-        return label;
-    }
-
     private static JComponent leftAligned(JComponent component) {
         component.setAlignmentX(Component.LEFT_ALIGNMENT);
         return component;
-    }
-
-    /**
-     * The scrollable view: the cards at their natural height, never wider than
-     * the window.
-     *
-     * <p>{@code NORTH} takes the column's preferred height and leaves the rest
-     * empty, which is what makes four short cards sit at the top instead of four
-     * tall ones sharing out the screen. Tracking the viewport width is the other
-     * half: without it the view is laid out at its own preferred width, so one
-     * over-long line in one card widens every card past the right edge of the
-     * window — and with no horizontal scrollbar, what is past the edge is simply
-     * gone. Bounded this way the worst a long line can do is get clipped itself.
-     */
-    private static final class ContentPane extends JPanel implements Scrollable {
-
-        ContentPane(JComponent content) {
-            super(new BorderLayout());
-            setOpaque(false);
-            add(content, BorderLayout.NORTH);
-        }
-
-        @Override
-        public Dimension getPreferredScrollableViewportSize() {
-            return getPreferredSize();
-        }
-
-        @Override
-        public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) {
-            return UiTheme.SECTION;
-        }
-
-        @Override
-        public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) {
-            return visible.height;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportWidth() {
-            return true;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
-    }
-
-    /**
-     * One bordered card: a heading, then rows of name, state and an optional
-     * button, on a grid so that every state word in a card starts at the same x
-     * whatever the names beside them are.
-     */
-    private static final class Card {
-
-        private final JPanel panel;
-        private int row;
-
-        Card(String heading) {
-            panel = new JPanel(new GridBagLayout()) {
-                @Override
-                public Dimension getMaximumSize() {
-                    // Full width, natural height. Without this a BoxLayout column
-                    // either centres the card at its preferred width or stretches
-                    // it to the height of the window, and both look like a bug.
-                    return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-                }
-            };
-            panel.setBackground(Color.WHITE);
-            panel.setBorder(UiTheme.card());
-            panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            add(UiTheme.heading(heading), 0, 3, 0, false);
-            row++;
-        }
-
-        void line(String name, JComponent state, JComponent action) {
-            add(nameColumn(name), 0, 1, 0, false);
-            // The state column is the one that both grows and gives way, so it
-            // carries the row's weight and is filled to its cell. Both halves of
-            // that matter. GridBagLayout hands a zero-weight column exactly its
-            // minimum whenever the row is short of space, so weight on the button
-            // instead would leave a long value at nothing while the button's
-            // column swallowed the window; and a cell at fill NONE keeps its
-            // preferred width whatever the cell can spare, which is how a long
-            // value comes to overrun the column beside it rather than ellipsise
-            // inside its own.
-            add(state, 1, action == null ? 2 : 1, 0, true);
-            if (action != null) {
-                add(action, 2, 1, 0, false);
-            }
-            row++;
-        }
-
-        void note(String text) {
-            add(wrapped(text), 0, 3, 0, false);
-            row++;
-        }
-
-        private void add(JComponent component, int x, int width, int below, boolean elastic) {
-            GridBagConstraints c = new GridBagConstraints();
-            c.gridx = x;
-            c.gridy = row;
-            c.gridwidth = width;
-            c.anchor = GridBagConstraints.WEST;
-            c.insets = new Insets(row == 0 ? 0 : UiTheme.GAP, x == 0 ? 0 : UiTheme.WIDE,
-                below, 0);
-            // Something in the grid must carry weight, or GridBagLayout centres
-            // the whole thing in the card instead of packing it to the left.
-            c.weightx = elastic ? 1 : 0;
-            c.fill = elastic ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
-            panel.add(component, c);
-        }
     }
 }

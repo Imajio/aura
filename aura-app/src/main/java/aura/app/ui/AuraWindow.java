@@ -96,6 +96,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     private final Map<String, JComponent> sections = new ConcurrentHashMap<>();
     private final List<Consumer<SidecarEvent>> listeners = new CopyOnWriteArrayList<>();
     private final StatusPanel status;
+    private final VoicePanel voice;
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -148,8 +149,12 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         frame.setMinimumSize(new Dimension(720, 480));
         frame.setLocationRelativeTo(null);
 
+        voice = new VoicePanel(toSidecar);
+
         addTab("Status", status);
         subscribe(status);
+        addTab(VOICE_SECTION, voice);
+        subscribe(voice);
     }
 
     /**
@@ -170,6 +175,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             // can change while the window is closed, and one JSON line is cheaper
             // than showing a stale answer to "what is missing?".
             status.refresh();
+            voice.refresh();
         });
     }
 
