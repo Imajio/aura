@@ -249,8 +249,12 @@ public final class VoiceChoicePanel extends JPanel {
         }
         try {
             AuraConfig.load(configFile).withVoice(selected.name(), "ru").save(configFile);
-            useReport.setText(UiTheme.html("Saved \"" + selected.name() + "\" and profile "
-                + "\"ru\". Takes effect the next time Aura starts."));
+            // Named only after reveal, or this message would do the one thing blind
+            // listening exists to prevent: telling the owner which row was which voice.
+            String saved = revealToggle.isSelected()
+                ? "Saved \"" + selected.name() + "\" and profile \"ru\"."
+                : "Saved your choice.";
+            useReport.setText(UiTheme.html(saved + " Takes effect the next time Aura starts."));
             useReport.setForeground(UiTheme.GOOD);
         } catch (Exception e) {
             log.warn("could not save the chosen voice to {}", configFile, e);

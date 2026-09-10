@@ -308,14 +308,23 @@ class AuraConfigTest {
     }
 
     /**
-     * Breaks if withVoice() were implemented by re-deriving defaults() instead of
-     * copying every other field of the receiver — the owner's claudeExe, timeouts and
-     * every path would silently reset to the factory defaults the moment a voice was
-     * chosen from the window.
+     * Breaks if withVoice() re-derives every field from defaults() instead of copying
+     * the receiver. The fixture is loaded from a file with non-default values in it,
+     * not built with defaults() directly, so a re-derive and a copy actually disagree
+     * instead of producing the same result by coincidence.
      */
     @Test
-    void withVoiceChangesOnlyVoiceAndProfile() {
-        AuraConfig original = AuraConfig.defaults();
+    void withVoiceChangesOnlyVoiceAndProfile(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, String.join("\n",
+            "claudeExe: C:\\custom\\claude.exe",
+            "hookJar: C:\\custom\\aura-hook.jar",
+            "idleTimeoutSec: 999",
+            "listen: true",
+            "voice: aidar",
+            "profile: en",
+            ""));
+        AuraConfig original = AuraConfig.load(yaml);
 
         AuraConfig changed = original.withVoice("xenia", "ru");
 
