@@ -94,6 +94,12 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     private final JList<Row> activity = new JList<>(rows);
     private boolean scrollPending;
     private final JTextField phraseField = new JTextField();
+    private final JButton sendButton = button("Send");
+    // dispatch.accept(phrase) now hands the work to Main's own background
+    // executor and returns before anything has happened, so returning is no
+    // longer proof of anything - taskRouted/taskNotStarted are what actually
+    // end this, whenever Main's queued dispatch resolves.
+    private boolean dispatchPending;
 
     TasksPanel(Consumer<String> dispatch, Runnable onStopAgent, ProjectRegistry registry) {
         this.dispatch = dispatch;
@@ -146,14 +152,13 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         JPanel buttons = new JPanel();
         buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
         buttons.setOpaque(false);
-        JButton send = button("Send");
-        send.setName("tasks.send");
-        send.addActionListener(e -> submit());
+        sendButton.setName("tasks.send");
+        sendButton.addActionListener(e -> submit());
         JButton stop = button("Stop agent");
         stop.setName("tasks.stop");
         stop.setToolTipText("Closes the running agent session. The tray has the same button.");
         stop.addActionListener(e -> onStopAgent.run());
-        buttons.add(send);
+        buttons.add(sendButton);
         buttons.add(Box.createHorizontalStrut(UiTheme.GAP));
         buttons.add(stop);
         row.add(buttons, BorderLayout.EAST);
@@ -164,11 +169,17 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     }
 
     private void submit() {
+        if (dispatchPending) {
+            return;
+        }
         String phrase = phraseField.getText().trim();
         if (phrase.isEmpty()) {
             return;
         }
         phraseField.setText("");
+        dispatchPending = true;
+        sendButton.setEnabled(false);
+        sendButton.setText("Sending…");
         dispatch.accept(phrase);
     }
 
@@ -193,19 +204,19 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
 
     private JComponent activityCard() {
         JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Color.WHITE);
+        card.setBackground(UiTheme.SURFACE);
         card.setBorder(UiTheme.card());
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(UiTheme.heading("Activity"), BorderLayout.NORTH);
 
         activity.setName("tasks.log");
         activity.setFont(UiTheme.body());
-        activity.setBackground(Color.WHITE);
+        activity.setBackground(UiTheme.SURFACE);
         ListCellRenderer<Row> renderer = (list, value, index, selected, focused) -> {
             JLabel cell = UiTheme.body(value.text());
             cell.setForeground(value.colour());
             cell.setOpaque(true);
-            cell.setBackground(Color.WHITE);
+            cell.setBackground(UiTheme.SURFACE);
             cell.setBorder(UiTheme.pad(UiTheme.TIGHT));
             return cell;
         };
@@ -240,12 +251,29 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     void taskRouted(String phrase, String projectName) {
         addRow("Task: " + phrase, UiTheme.INK);
         addRow("Routed to project " + projectName, UiTheme.GOOD);
+        endDispatch();
     }
 
     /** The counterpart to {@link #taskRouted}: the phrase went nowhere, and why. */
     void taskNotStarted(String phrase, String reason) {
         addRow("Task: " + phrase, UiTheme.INK);
         addRow(reason, UiTheme.BAD);
+        endDispatch();
+    }
+
+    /**
+     * Restores Send once a dispatch answers, however it answers.
+     *
+     * <p>Both callers above are Main's own two outcomes for whichever phrase it
+     * queued, from any of the three sources that share {@code dispatch} - the
+     * tray, a spoken utterance, or this panel's own Send. Clearing the flag on
+     * either one, regardless of source, keeps this in step with dispatchPending
+     * even when a dispatch this panel did not start is what finishes first.
+     */
+    private void endDispatch() {
+        dispatchPending = false;
+        sendButton.setEnabled(true);
+        sendButton.setText("Send");
     }
 
     /** One row per agent event, on the thread {@link AuraWindow} already put it on. */

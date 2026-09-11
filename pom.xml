@@ -94,7 +94,7 @@
       providers were found" warning, and test output stops being clean.
       NOP is chosen over logback: tests check the code's behaviour, not its
       logs, and logback without configuration prints all of debug to the
-      console — noisier than the one warning it removes.
+      console - noisier than the one warning it removes.
     -->
     <dependency>
       <groupId>org.slf4j</groupId>

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -98,6 +99,16 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
      * nothing is asked of the microphone until they are up.
      */
     private static final int COUNT_IN = 3;
+
+    /**
+     * Error codes the background listening thread raises on its own, with no
+     * command to answer - {@code aura_speech/main.py}'s {@code _start_listening}
+     * has no {@code message_id} in scope for any of them, since nothing sent a
+     * message to reply to. Kept apart from every other error code, which does
+     * carry one whenever it is answering something in flight.
+     */
+    private static final Set<String> LISTENING_SUBSYSTEM_CODES = Set.of(
+        "MICROPHONE_FAILED", "RECOGNITION_FAILED", "NO_SPEAKER_REFERENCE", "NO_WAKE_WORD");
 
     private final Consumer<Map<String, Object>> toSidecar;
     private final int tickMillis;
@@ -291,8 +302,18 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
      * halfway through a training run also arrives as an {@code error}, and a
      * panel that treated every error as the end of its own command would set its
      * buttons live while the sidecar was still busy - straight into {@code BUSY}
-     * on the next press. An error carrying no id at all is the exception: nothing
-     * else will arrive to end the command, so it ends it.
+     * on the next press. An error carrying no id at all is normally the
+     * exception: nothing else will arrive to end the command, so it ends it.
+     *
+     * <p>{@link #LISTENING_SUBSYSTEM_CODES} is the exception to that exception.
+     * {@code MICROPHONE_FAILED} and {@code RECOGNITION_FAILED} come from the
+     * background listening thread, which neither {@code enrol} nor {@code
+     * train.wake} pauses - so with listening on, a recognition hiccup can land
+     * mid-training, carrying no id for the same reason those two never will:
+     * nothing sent a message for it to answer. Reading that bare {@code for} as
+     * "nothing else will end this, so it must" would paint a still-running
+     * training command as failed over an error that has nothing to do with it.
+     * These four are reported in the Listening card instead, where they belong.
      */
     private void failed(SidecarEvent event) {
         String code = event.text("code");
@@ -300,6 +321,13 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             unavailable = true;
         }
         String answers = event.text("for");
+        if (answers.isEmpty() && LISTENING_SUBSYSTEM_CODES.contains(code)) {
+            String detail = event.text("detail");
+            say(code + " - " + (detail.isEmpty() ? "the sidecar reported a listening problem"
+                : detail));
+            applyState();
+            return;
+        }
         if (pendingId == null || !(answers.isEmpty() || pendingId.equals(answers))) {
             applyState();
             return;

@@ -64,7 +64,19 @@ public final class SpeechClient implements AutoCloseable {
         return new SpeechClient(process, onEvent);
     }
 
-    public void send(Map<String, Object> command) {
+    /**
+     * Sends one command as a single JSON line.
+     *
+     * <p>Synchronized because {@code write(json); write('\n'); flush()} is three
+     * calls on one shared {@link BufferedWriter}, and callers are not confined to
+     * one thread: the EDT (panels, the tray's narration menu), an agent thread
+     * ({@code NarrationBridge}) and the idle sweeper's heartbeat all call this on
+     * the same {@code SpeechClient}. Two interleaved calls merge into one line
+     * neither command's JSON parses as, so the sidecar answers {@code BAD_JSON}
+     * and both are lost with no retry - the Python side guards the same hazard
+     * on its own send path with a lock, and this is the Java mirror of it.
+     */
+    public synchronized void send(Map<String, Object> command) {
         try {
             stdin.write(MAPPER.writeValueAsString(command));
             stdin.write('\n');

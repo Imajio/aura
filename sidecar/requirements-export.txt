@@ -1,10 +1,10 @@
-# Model export toolchain. Needed once per model, on a workstation — never by the
+# Model export toolchain. Needed once per model, on a workstation - never by the
 # running sidecar, which must not carry torch and transformers into memory.
 #
 # These are not chosen versions. They are what pip resolved against
 # openvino==2026.3.0 on 2026-09-04, on the run that actually produced a working
 # whisper-large-v3-turbo INT8 export. Pinned exactly because a fresh box resolves
-# differently otherwise and the export silently changes shape — transformers in
+# differently otherwise and the export silently changes shape - transformers in
 # particular, where 5.x moved the feature extractor into processor_config.json and
 # broke WhisperPipeline's mel-bin detection.
 -r requirements.txt

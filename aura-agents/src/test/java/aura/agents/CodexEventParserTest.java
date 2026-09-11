@@ -60,8 +60,9 @@ class CodexEventParserTest {
             assertThat(e.target()).isEqualTo("git status");
         });
 
-        // Команда намеренно не тест-раннер: прогон тестов станет отдельным видом
-        // события в Task 5, и этот тест должен остаться про обычный вызов.
+        // The command is deliberately not a test runner: running tests becomes a
+        // separate kind of event in Task 5, and this test should stay about an
+        // ordinary call.
         List<AgentEvent> ended = parser.parseLine("""
             {"type":"item.completed","item":{"id":"i1","type":"command_execution",
              "command":"git status","exit_code":0,"aggregated_output":"nothing to commit"}}""");
@@ -77,8 +78,9 @@ class CodexEventParserTest {
         CodexEventParser parser = new CodexEventParser(FIXED);
         parser.parseLine("""
             {"type":"thread.started","thread_id":"t1"}""");
-        // Команда намеренно не тест-раннер: прогон тестов станет отдельным видом
-        // события в Task 5, и этот тест должен остаться про обычный вызов.
+        // The command is deliberately not a test runner: running tests becomes a
+        // separate kind of event in Task 5, and this test should stay about an
+        // ordinary call.
         List<AgentEvent> events = parser.parseLine("""
             {"type":"item.completed","item":{"id":"i9","type":"command_execution",
              "command":"git push","exit_code":1,"aggregated_output":"rejected: non-fast-forward"}}""");
@@ -122,7 +124,7 @@ class CodexEventParserTest {
 
     @Test
     void longCommandOutputIsBoundedInTheHint() {
-        // Подсказка кормит языковую модель; сырой вывод сборки - это килобайты.
+        // The hint feeds the language model; raw build output is kilobytes of it.
         CodexEventParser parser = new CodexEventParser(FIXED);
         parser.parseLine("""
             {"type":"thread.started","thread_id":"t1"}""");

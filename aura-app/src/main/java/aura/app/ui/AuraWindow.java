@@ -52,6 +52,12 @@ import org.slf4j.LoggerFactory;
  * it, and every subscriber registered through {@link #subscribe} is called on
  * that thread as a consequence. Sections do not need to hop again.
  *
+ * <p>The constructor is the one exception, by necessity rather than oversight:
+ * it builds the frame and its panels on whichever thread calls it, the
+ * traditional place for a Swing application's first frame - before the frame is
+ * realised or shown, which is what {@link #show} still fences. {@code Main}
+ * calls it from the main thread, not the EDT.
+ *
  * <p>The two methods that touch no component - {@link #subscribe} and {@link
  * #hasSection} - are safe from any thread instead, because they are held in
  * concurrent collections. Hopping them to the EDT would be the other answer, but

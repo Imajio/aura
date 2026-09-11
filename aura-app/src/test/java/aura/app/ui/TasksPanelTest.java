@@ -84,6 +84,62 @@ class TasksPanelTest {
     }
 
     @Test
+    void sendIsDisabledWhilePendingAndLiveAgainOnceTheTaskIsRouted() {
+        // dispatch.accept now hands off to Main's own background executor and
+        // returns at once - Main.java:250 - so returning proves nothing by
+        // itself. Breaks if Send stays live through that window: the window
+        // this section exists to show progress through would look untouched
+        // for however long claude.exe takes to start, with nothing telling a
+        // person their press registered.
+        Panel panel = panel();
+        onEdt(() -> {
+            phraseField(panel.tasks).setText("почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+
+            assertThat(button(panel.tasks, "tasks.send").isEnabled()).isFalse();
+
+            panel.tasks.taskRouted("почини баг", "sandbox");
+
+            assertThat(button(panel.tasks, "tasks.send").isEnabled()).isTrue();
+        });
+    }
+
+    @Test
+    void sendIsLiveAgainWhenTheDispatchDoesNotStart() {
+        // The counterpart to the test above: taskNotStarted is the other of
+        // the two answers a queued dispatch can bring back, and it has to
+        // restore the button exactly as taskRouted does or a project-unknown
+        // phrase leaves Send disabled for the rest of the session.
+        Panel panel = panel();
+        onEdt(() -> {
+            phraseField(panel.tasks).setText("почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+
+            panel.tasks.taskNotStarted("почини баг",
+                "Could not tell which project. Name the project in the phrase.");
+
+            assertThat(button(panel.tasks, "tasks.send").isEnabled()).isTrue();
+        });
+    }
+
+    @Test
+    void aSecondPressWhileTheFirstIsPendingIsIgnored() {
+        // Breaks if submit() has no guard of its own and relies only on the
+        // button's disabled state - the phrase field stays enabled on purpose
+        // (so the next task can be typed while claude.exe starts), and Enter
+        // in it calls submit() the same way Send does.
+        Panel panel = panel();
+        onEdt(() -> {
+            phraseField(panel.tasks).setText("почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+            phraseField(panel.tasks).setText("почини другой баг");
+            phraseField(panel.tasks).postActionEvent();
+
+            assertThat(panel.sent).containsExactly("почини баг");
+        });
+    }
+
+    @Test
     void stopAgentCallsTheSameActionTheTrayUses() {
         // Breaks if the button moved here without being wired, which would look
         // identical until the day somebody presses it and nothing stops.

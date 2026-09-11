@@ -14,7 +14,7 @@ openvino-genai==2026.3.0.0
 # RISK-9 measured the idle-unload policy at twelve seconds to the first spoken
 # reply, so both models are now resident and the sidecar holds ~3.4 GB by
 # design. Torch adds 183 MB and Silero 99 more, peaking near 520 MB after a
-# synthesis — 15% on top of what is already there.
+# synthesis - 15% on top of what is already there.
 #
 # The alternative was converting Silero to OpenVINO IR, and it does not exist:
 # the model is one TorchScript system whose forward takes strings, with accent
@@ -31,7 +31,7 @@ omegaconf==2.3.0
 # PyAudioWPatch rather than sounddevice, and the reason is RISK-3 rather than
 # taste: measuring the application's own speech in the microphone signal needs
 # WASAPI *loopback* capture, and sounddevice 0.5.6 exposes exclusive,
-# auto_convert and explicit_sample_format — no loopback at all. Verified on this
+# auto_convert and explicit_sample_format - no loopback at all. Verified on this
 # machine: PyAudioWPatch enumerates both the microphone and the speakers as
 # capture devices; sounddevice sees only the microphone. Discovering that after
 # building the capture layer would have meant rewriting it.

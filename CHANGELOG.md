@@ -100,6 +100,14 @@ by running Aura itself against a live sidecar. What ships is code covered by
   the type, classified it as an unknown tool, and dropped the only field it
   carried.
 - The confirmation dialog renders tool arguments as fields instead of raw JSON.
+- A command sent to the speech sidecar while another was already in flight
+  could interleave into one unparseable line, losing both.
+- Sending a task from the window froze it for as long as the agent process
+  took to start; the send now runs in the background and the button shows it
+  is working instead.
+- An unrelated microphone or recognition hiccup arriving while enrolment or
+  wake-word training was running could paint that still-running command as
+  failed.
 
 ### Decisions
 

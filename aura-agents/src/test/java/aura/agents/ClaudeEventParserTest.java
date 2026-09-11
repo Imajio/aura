@@ -38,8 +38,8 @@ class ClaudeEventParserTest {
     @Test
     void dropsHookNoiseLines() throws Exception {
         List<AgentEvent> events = parseFixture();
-        // В фикстуре есть строки system/hook_started и system/hook_response.
-        // Ни одна из них не должна дожить до канонического потока.
+        // The fixture has system/hook_started and system/hook_response lines.
+        // Neither of them should survive into the canonical stream.
         assertThat(events)
             .noneMatch(e -> e.raw().contains("\"hook_started\""))
             .noneMatch(e -> e.raw().contains("\"hook_response\""));
@@ -72,7 +72,7 @@ class ClaudeEventParserTest {
             .findFirst()
             .orElseThrow();
 
-        // Класс не написан в строке результата - он берётся из запомненного вызова.
+        // The class is not written in the result line - it comes from the remembered call.
         assertThat(end.toolClass()).isEqualTo(ToolClass.EXEC);
         assertThat(end.ok()).isTrue();
         assertThat(end.summaryHint()).contains("hi");

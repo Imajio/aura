@@ -329,6 +329,46 @@ class VoicePanelTest {
     }
 
     @Test
+    void anIdLessListeningErrorDuringATrainingRunDoesNotEndIt() {
+        // RECOGNITION_FAILED and MICROPHONE_FAILED come from the background
+        // listening thread, which _enrol and _train_wake never pause - so with
+        // listening on, a recognition hiccup can arrive mid-run carrying no id
+        // at all, because nothing sent a message for it to answer. Breaks if
+        // failed() still reads a bare "for" as "nothing else will answer this,
+        // so end whatever is pending" for these codes, which would paint a
+        // training run that is still going as a failure.
+        Panel panel = panel();
+        onEdt(() -> {
+            panel.status(8, 20, true, true, true, false);
+            button(panel.voice, "voice.wake.action").doClick();
+            String id = panel.lastId();
+
+            for (String name : BUTTONS) {
+                assertThat(button(panel.voice, name).isEnabled())
+                    .as(name + " while training").isFalse();
+            }
+
+            panel.event("{\"ev\":\"error\",\"code\":\"RECOGNITION_FAILED\","
+                + "\"detail\":\"could not decode a frame\",\"fatal\":false}");
+
+            for (String name : BUTTONS) {
+                assertThat(button(panel.voice, name).isEnabled())
+                    .as(name + " right after a stray RECOGNITION_FAILED").isFalse();
+            }
+            assertThat(text(panel.voice, "voice.listen.report")).contains("RECOGNITION_FAILED");
+
+            panel.event("{\"ev\":\"train.done\",\"cmd\":\"train.wake\",\"takes\":20,"
+                + "\"negatives\":143,\"recognised\":20,\"falsePositives\":0,"
+                + "\"out\":\"voice/wake-word.npz\",\"for\":\"" + id + "\"}");
+
+            for (String name : BUTTONS) {
+                assertThat(button(panel.voice, name).isEnabled())
+                    .as(name + " after the real train.done").isTrue();
+            }
+        });
+    }
+
+    @Test
     void aQuietTakeSaysSoAndALoudOneDoesNot() {
         // Breaks if the 0.005 threshold is dropped or its comparison inverted. A
         // take too quiet to hear is worse than a missing one, because nothing

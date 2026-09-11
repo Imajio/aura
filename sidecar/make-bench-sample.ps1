@@ -3,7 +3,7 @@
 # Windows' built-in speech synthesiser is used on purpose: it needs no network,
 # no dataset licence and no model download, and it produces the same audio on
 # every machine, so a latency number measured here is comparable with one
-# measured there. The file itself is not committed — it is regenerated.
+# measured there. The file itself is not committed - it is regenerated.
 #
 # The benchmark wants roughly six seconds, matching the utterance length the
 # design's 550 ms recognition budget is written against.

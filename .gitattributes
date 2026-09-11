@@ -1,6 +1,6 @@
 * text=auto
 
-# Fixtures are compared byte for byte — line endings are not to be changed
+# Fixtures are compared byte for byte - line endings are not to be changed
 *.jsonl text eol=lf
 
 # Scripts that run in a POSIX environment

@@ -19,7 +19,7 @@ max_line_length = 100
 [*.md]
 trim_trailing_whitespace = false
 
-# Fixtures are captured from live processes — their bytes are not to be touched
+# Fixtures are captured from live processes - their bytes are not to be touched
 [*.jsonl]
 trim_trailing_whitespace = false
 insert_final_newline = false

@@ -23,11 +23,14 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -250,34 +253,87 @@ public final class Main {
             // needs it to construct; windowRef is null until the window exists, so
             // whichever of the tray, the window or the microphone gets there first
             // still reports through the same two calls once it does.
+            //
+            // dispatcher.dispatch itself runs on dispatchWorker, off whichever
+            // thread called dispatch.accept - the EDT for the tray dialog and the
+            // window's Tasks section, the sidecar's reader thread for a spoken
+            // phrase. It writes settings.json to disk and calls
+            // ProcessBuilder.start(), and starting claude.exe or codex.exe on
+            // Windows is routinely a second or more; on the EDT that is the window
+            // frozen for the whole interval on the one button whose entire purpose
+            // is showing a task as it runs. Single-threaded so two dispatches still
+            // resolve in the order they were made, the same ordering one shared
+            // consumer already implied. The two calls back to the tray and the
+            // window are posted to the EDT from there, reading tray[0] and
+            // windowRef[0] fresh at that point rather than capturing them earlier.
+            ExecutorService dispatchWorker = Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "aura-task-dispatch");
+                t.setDaemon(true);
+                return t;
+            });
             java.util.function.Consumer<String> dispatch = phrase -> {
                 try {
-                    var result = dispatcher.dispatch(phrase);
-                    if (result instanceof TaskDispatcher.ProjectUnknown) {
-                        String reason =
-                            "Could not tell which project. Name the project in the phrase.";
-                        tray[0].alert(reason);
-                        if (windowRef[0] != null) {
-                            windowRef[0].taskNotStarted(phrase, reason);
+                    dispatchWorker.execute(() -> {
+                        try {
+                            var result = dispatcher.dispatch(phrase);
+                            switch (result) {
+                                case TaskDispatcher.ProjectUnknown ignored -> {
+                                    String reason = "Could not tell which project. "
+                                        + "Name the project in the phrase.";
+                                    SwingUtilities.invokeLater(() -> {
+                                        if (tray[0] != null) {
+                                            tray[0].alert(reason);
+                                        }
+                                        if (windowRef[0] != null) {
+                                            windowRef[0].taskNotStarted(phrase, reason);
+                                        }
+                                    });
+                                }
+                                case TaskDispatcher.Sent sent -> SwingUtilities.invokeLater(() -> {
+                                    if (tray[0] != null) {
+                                        tray[0].message("Sent to project " + sent.projectName());
+                                    }
+                                    if (windowRef[0] != null) {
+                                        windowRef[0].taskRouted(phrase, sent.projectName());
+                                    }
+                                });
+                            }
+                        } catch (RuntimeException e) {
+                            // Wider than the IllegalStateException dispatch() itself
+                            // documents on purpose: unlike the EDT or SpeechClient's own
+                            // pump, dispatchWorker's thread has no handler above this one.
+                            // Anything uncaught here - an UncheckedIOException out of
+                            // SettingsFileWriter.write on a permissions problem, say -
+                            // would otherwise die on this thread with nothing to report
+                            // it and no caller left waiting, leaving a panel that showed
+                            // "Sending…" disabled for the rest of the session. The
+                            // commonest cause is still claude/codex not resolving on the
+                            // GUI process's PATH, since the default is the bare binary
+                            // name.
+                            log.warn("task dispatch failed", e);
+                            String reason = "Could not start the task: " + e.getMessage();
+                            SwingUtilities.invokeLater(() -> {
+                                if (tray[0] != null) {
+                                    tray[0].alert(reason);
+                                }
+                                if (windowRef[0] != null) {
+                                    windowRef[0].taskNotStarted(phrase, reason);
+                                }
+                            });
                         }
-                    } else if (result instanceof TaskDispatcher.Sent sent) {
-                        tray[0].message("Sent to project " + sent.projectName());
+                    });
+                } catch (RejectedExecutionException e) {
+                    // Only reachable in the gap between dispatchWorker shutting down
+                    // and the process actually exiting - Aura is on its way out
+                    // either way, but a panel left waiting on this phrase still
+                    // deserves an answer rather than a button stuck disabled for
+                    // whatever is left of that gap.
+                    log.warn("task dispatch rejected, Aura is shutting down", e);
+                    SwingUtilities.invokeLater(() -> {
                         if (windowRef[0] != null) {
-                            windowRef[0].taskRouted(phrase, sent.projectName());
+                            windowRef[0].taskNotStarted(phrase, "Aura is shutting down");
                         }
-                    }
-                } catch (IllegalStateException e) {
-                    // The commonest first cause is claude/codex not resolving on the
-                    // GUI process's PATH, since the default is the bare binary name.
-                    // Without this, the exception reaches the event thread's default
-                    // handler and prints a stack trace to a console that does not
-                    // exist when the app is launched from a shortcut - total silence.
-                    log.warn("task dispatch failed", e);
-                    String reason = "Could not start the task: " + e.getMessage();
-                    tray[0].alert(reason);
-                    if (windowRef[0] != null) {
-                        windowRef[0].taskNotStarted(phrase, reason);
-                    }
+                    });
                 }
             };
             spoken[0] = dispatch;
@@ -314,6 +370,7 @@ public final class Main {
                 supervisor::close,
                 () -> {
                     idleSweeper.shutdownNow();
+                    dispatchWorker.shutdownNow();
                     supervisor.close();
                     hookServer.close();
                     closeQuietly(speech);
@@ -341,6 +398,7 @@ public final class Main {
             tray[0].status("ready");
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 idleSweeper.shutdownNow();
+                dispatchWorker.shutdownNow();
                 supervisor.close();
                 hookServer.close();
                 closeQuietly(speech);

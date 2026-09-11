@@ -388,7 +388,7 @@ public final class VoiceChoicePanel extends JPanel {
                 boolean isSelected, boolean cellHasFocus) {
             AuditionVoice voice = (AuditionVoice) value;
             String text = revealToggle.isSelected()
-                ? voice.name() + " \u2014 " + voice.release()
+                ? voice.name() + " - " + voice.release()
                 : blindLabelFor(index);
             Component cell = super.getListCellRendererComponent(
                 list, text, index, isSelected, cellHasFocus);

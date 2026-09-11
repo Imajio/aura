@@ -1,6 +1,5 @@
 package aura.app.ui;
 
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
@@ -43,7 +42,7 @@ final class Card extends JPanel {
 
     Card(String heading) {
         setLayout(new GridBagLayout());
-        setBackground(Color.WHITE);
+        setBackground(UiTheme.SURFACE);
         setBorder(UiTheme.card());
         setAlignmentX(Component.LEFT_ALIGNMENT);
         add(UiTheme.heading(heading), 0, 3, false);

@@ -38,15 +38,22 @@ public final class UiTheme {
     public static final Color WARN = new Color(0xA8631B);
     public static final Color BAD = new Color(0xB3261E);
 
+    public static final Color SURFACE = Color.WHITE;
+
     // A note wraps at this width - a CSS length, not a count of screen pixels,
-    // which is the trap it was set in the first time. Swing scales an HTML px on
-    // a high-DPI display: on the owner's 192dpi screen this number comes out
-    // about 1.3 times bigger, and a note declared 400 laid itself out at 520
-    // inside a card that had 409 to give, so three sentences were cut off mid-
-    // word at the window's minimum size. The narrowest card the window can show
-    // is about 410 screen pixels across - rail, scrollbar, column padding and
-    // card border taken off the 720px minimum - and 300 stays inside that with
-    // room for a display that scales harder than this one.
+    // which is the trap it was set in the first time. javax.swing.text.html's
+    // CSS class hardcodes one CSS "px" in an inline style width to 1.3 Java2D
+    // pixels - CSS.LengthUnit's own mapping for "px", carrying the JDK's own
+    // comment "Not sure about 1.3, determined by experimentation" - and that
+    // factor applies on every machine at every screen resolution alike; it is
+    // not a response to this display's DPI, and no scaling setting changes it.
+    // A note declared 400 therefore always lays out at 520, which cut three
+    // sentences off mid-word inside a card that had 409 to give at the
+    // window's minimum size. The narrowest card the window can show is about
+    // 410 screen pixels across - rail, scrollbar, column padding and card
+    // border taken off the 720px minimum - and 300 lays out at 390, 17px
+    // inside that. Only the JDK itself changing that 1.3 would move this
+    // arithmetic, not anything this codebase controls.
     private static final int NOTE_WIDTH = 300;
 
     public static Font title() {
