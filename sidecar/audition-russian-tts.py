@@ -1,14 +1,14 @@
 """Renders the narrator's own phrases with every candidate Russian voice.
 
-This is the machine half of RISK-4. The risk is decided by ear — the owner
-listens blind and picks — but nothing could be listened to until the candidates
+This is the machine half of RISK-4. The risk is decided by ear - the owner
+listens blind and picks - but nothing could be listened to until the candidates
 existed. This produces them, and measures the one part of the question that is
 not a matter of taste: **how long synthesis takes**, which comes out of the same
 900 ms budget as the narrator's generation (RISK-7).
 
 The phrases are the narrator's real vocabulary, taken from the product
 scenarios: short, functional lines about tests and permissions. The risk
-register is explicit that this is what gets judged, not literary text —
+register is explicit that this is what gets judged, not literary text -
 expressiveness over a long paragraph is not what this component is for.
 
     .venv-export/Scripts/python.exe audition-russian-tts.py
@@ -30,12 +30,12 @@ import wave
 PHRASES = [
     ("agent-took-it", "Клод взялся, проект backend"),
     ("running-tests", "запускаю тесты"),
-    ("one-test-failed", "один тест упал — проверка срока токена"),
+    ("one-test-failed", "один тест упал - проверка срока токена"),
     ("all-green", "починил, четыре из четырёх зелёные"),
     ("permission-ask", "Клод хочет выполнить: удалить папку build. Разрешить?"),
     ("declined-timeout", "отклонил по таймауту"),
     ("stopped", "остановил"),
-    ("wrong-project", "не понял, в каком проекте — назовите проект"),
+    ("wrong-project", "не понял, в каком проекте - назовите проект"),
     ("agent-failed", "агент упал: не найден модуль авторизации"),
     ("done", "готово, три файла изменены"),
 ]
@@ -71,11 +71,11 @@ def main() -> int:
                                       model="silero_tts", language="ru",
                                       speaker=release, trust_repo=True)
         except Exception as e:
-            print(f"{release}: unavailable — {type(e).__name__}: {e}")
+            print(f"{release}: unavailable - {type(e).__name__}: {e}")
             continue
 
         voices = [v for v in model.speakers if v != "random"]
-        print(f"\n=== silero {release} — {len(voices)} voices ===")
+        print(f"\n=== silero {release} - {len(voices)} voices ===")
 
         for voice in voices:
             timings, spoken = [], 0.0
@@ -98,7 +98,7 @@ def main() -> int:
     print(f"\nSamples in {out}")
     print("Listen blind: the register asks which voice is judged, not which name.")
     print("Synthesis latency shares the 900 ms budget with the narrator's own")
-    print("generation — see RISK-7 for the other half.")
+    print("generation - see RISK-7 for the other half.")
     return 0
 
 

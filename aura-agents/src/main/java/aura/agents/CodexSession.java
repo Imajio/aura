@@ -73,7 +73,7 @@ public final class CodexSession implements AgentSession {
 
             // Drained, not ignored. A pipe nobody reads fills up, and a child
             // process blocked writing to it stops producing events without ever
-            // saying why — which looks exactly like an agent that is thinking.
+            // saying why - which looks exactly like an agent that is thinking.
             Thread errors = new Thread(() -> drainStderr(process), "aura-codex-stderr");
             errors.setDaemon(true);
             errors.start();

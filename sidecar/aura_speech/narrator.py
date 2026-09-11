@@ -39,7 +39,7 @@ _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 _MARKDOWN = re.compile(r"[*_`#]+")
 # A terminator only ends a sentence when something stops after it. Without the
 # lookahead the dot in "App.java" ends the sentence and the narration is cut in
-# half — which is exactly what happens the first time a model mentions a file
+# half - which is exactly what happens the first time a model mentions a file
 # despite being told not to.
 _SENTENCE_END = re.compile(r"[.!?…](?=\s|$)")
 

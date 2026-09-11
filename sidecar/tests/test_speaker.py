@@ -1,7 +1,7 @@
 """Telling the owner from everybody else.
 
-The model is injected as a plain callable, so the arithmetic around it — the
-averaging, the threshold, the refusal to compare against nothing — is tested
+The model is injected as a plain callable, so the arithmetic around it - the
+averaging, the threshold, the refusal to compare against nothing - is tested
 without loading ninety megabytes of ONNX.
 """
 
@@ -48,7 +48,7 @@ class TestEnrolment:
         # The reference is normalised on construction; the probe arrives from
         # `embed`, which `verifier` takes as an injected callable. Trusting its
         # norm makes the threshold mean something different for every caller: this
-        # probe sits at a true cosine of 0.30 and, unnormalised, scores 0.90 —
+        # probe sits at a true cosine of 0.30 and, unnormalised, scores 0.90 -
         # comfortably above a threshold calibrated for a cosine, so a stranger is
         # accepted. sqrt(0.09 + 0.91) is 1, so scaling by 3 gives exactly norm 3.
         enrolment = Enrolment.from_embeddings([unit(1, 0)])
@@ -77,7 +77,7 @@ class TestEnrolment:
 
     def test_enrolling_on_nothing_is_refused(self):
         # An empty reference matches everybody at zero similarity, which reads as
-        # "no voice is the owner" — or, with an unlucky threshold, as "everybody
+        # "no voice is the owner" - or, with an unlucky threshold, as "everybody
         # is". Refusing is the only honest answer.
         with pytest.raises(ValueError):
             Enrolment.from_embeddings([])

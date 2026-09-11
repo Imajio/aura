@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 /**
  * What is worth asserting about a visual language.
  *
- * <p>Not that a colour equals a hex value — that only detects change, and every
+ * <p>Not that a colour equals a hex value - that only detects change, and every
  * palette edit would then have to be made twice. What is asserted here is the
  * set of relations the design depends on: that the grid has distinct rungs, that
  * a hint is quieter than body text, that a status stands out, and that the four
@@ -44,7 +44,7 @@ class UiThemeTest {
 
     @Test
     void aHintIsQuieterThanBodyText() {
-        // Breaks if hint() is changed to use INK — the sentence under a control
+        // Breaks if hint() is changed to use INK - the sentence under a control
         // would then read as loudly as the control's own label, and the reader
         // loses the cue that says "this is explanation, not content". Asserted
         // as a relation rather than a hex value so that repainting the palette
@@ -62,7 +62,7 @@ class UiThemeTest {
     @Test
     void aStatusWordIsBoldAndBodyTextIsNot() {
         // Breaks if the deriveFont(Font.BOLD) is dropped from status(). The
-        // state word — "running", "missing" — is the one word on a card a person
+        // state word - "running", "missing" - is the one word on a card a person
         // scans for, and unbolded it sits at the same weight as the label beside
         // it. Body is asserted plain in the same test so that making *everything*
         // bold does not quietly satisfy the first half.
@@ -75,8 +75,8 @@ class UiThemeTest {
 
     @Test
     void theStateColoursCanBeToldApartFromEachOtherAndFromInk() {
-        // Breaks if two state colours are collapsed onto one value — WARN set to
-        // BAD's red, say, so "missing" and "broken" become the same signal — or
+        // Breaks if two state colours are collapsed onto one value - WARN set to
+        // BAD's red, say, so "missing" and "broken" become the same signal - or
         // if any of them is set to INK, which would make a coloured state word
         // indistinguishable from ordinary text and undo the point of colouring
         // it at all.
@@ -117,7 +117,7 @@ class UiThemeTest {
         // The one assertion in this file about pixels after layout, and it earns
         // its place: NOTE_WIDTH is a CSS length that Swing scales by the screen's
         // reported resolution, while the room it has to fit in is set by four
-        // unrelated numbers — the rail's width, the window's minimum, the
+        // unrelated numbers - the rail's width, the window's minimum, the
         // column's padding and the card's border. Nothing connects them. Widen
         // the rail, or bump WIDE from 24 to 32 for some other reason, and a
         // sentence starts being cut off mid-word on a screen nobody is watching.

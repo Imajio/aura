@@ -1,14 +1,14 @@
 """The cascade, wired: audio frames in, recognised utterances out.
 
 Each stage runs only because the one before it opened. That ordering is the
-whole design — stage 0 costs a fraction of a core and is wrong often, stage 1
+whole design - stage 0 costs a fraction of a core and is wrong often, stage 1
 costs a millisecond a frame and corrects it, stage 2 costs about two, stage 3
 costs about fifteen (once per utterance, only after the wake word), and
 recognition costs hundreds and runs once per utterance. Reversing any two of
 them would work and would cost the battery the product is built around.
 
-Nothing here loads a model. Every stage is passed in, so the wiring — which is
-what goes wrong — can be tested without any of them.
+Nothing here loads a model. Every stage is passed in, so the wiring - which is
+what goes wrong - can be tested without any of them.
 """
 
 import numpy as np
@@ -21,9 +21,9 @@ class Listener:
 
     **Without a wake word every sentence in the room is a command.** That is why
     `is_wake` is not optional by accident: when it is absent the listener
-    dispatches everything it hears, which is correct for exactly one situation —
+    dispatches everything it hears, which is correct for exactly one situation -
     answering a question Aura has just asked, where demanding the wake word again
-    would be absurd — and catastrophic for every other.
+    would be absurd - and catastrophic for every other.
 
     **Without speaker verification every voice is accepted.** That is why `is_owner`
     is not optional by design: when it is absent the listener accepts all voices
@@ -36,7 +36,7 @@ class Listener:
                  is_wake=None, on_wake=None, is_owner=None, on_rejected=None,
                  tail_seconds: float = 0.5, max_seconds: float = 30.0,
                  # The arm this buys is spent by the next utterance in the room,
-                 # whoever it belongs to — a stranger or a television talking
+                 # whoever it belongs to - a stranger or a television talking
                  # inside these seconds consumes it exactly as a command would,
                  # and the owner then has to say the wake word again. Deliberate:
                  # shortening the annoyance would mean widening the window during

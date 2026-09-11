@@ -119,7 +119,7 @@ def test_the_configured_voice_reaches_the_synthesiser():
 
 
 class TestTheRealPlayer:
-    """`_play` itself — the one part every other test in this file injects away.
+    """`_play` itself - the one part every other test in this file injects away.
 
     It was wrong from the day it was written and no test could see it: every
     check above hands `Voice` a fake player, so the default was exercised for

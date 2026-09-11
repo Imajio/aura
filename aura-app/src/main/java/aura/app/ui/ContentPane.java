@@ -16,7 +16,7 @@ import javax.swing.Scrollable;
  * tall ones sharing out the screen. Tracking the viewport width is the other
  * half: without it the view is laid out at its own preferred width, so one
  * over-long line in one card widens every card past the right edge of the
- * window — and with no horizontal scrollbar, what is past the edge is simply
+ * window - and with no horizontal scrollbar, what is past the edge is simply
  * gone. Bounded this way the worst a long line can do is get clipped itself.
  */
 final class ContentPane extends JPanel implements Scrollable {

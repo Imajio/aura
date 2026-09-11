@@ -17,7 +17,7 @@ import java.time.Duration;
 public enum Verbosity {
 
     /**
-     * Permissions, the first error, test results, completion — and nothing else.
+     * Permissions, the first error, test results, completion - and nothing else.
      * The ceiling is off: an application asked to be quiet stays quiet, even when
      * that means saying nothing for ten minutes.
      */
@@ -51,7 +51,7 @@ public enum Verbosity {
 
     /**
      * Whether this level narrates with the smaller model. A quiet narrator says less
-     * and says it about simpler things, so it does not need the larger one — which is
+     * and says it about simpler things, so it does not need the larger one - which is
      * also what makes {@link #quieter()} a workable answer to running on battery.
      */
     public boolean smallModel() {

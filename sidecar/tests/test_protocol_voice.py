@@ -1,7 +1,7 @@
 """voice.status, record, enrol and train.wake, over the same protocol.
 
 Every worker-backed command answers from a thread, not from the loop that reads
-stdin — `serve` has to stay free to answer `narrate` and `speak.cancel` while a
+stdin - `serve` has to stay free to answer `narrate` and `speak.cancel` while a
 hundred clips are being embedded. `io.StringIO` does not block like a real pipe
 would, so `serve` here returns long before a worker thread is done; every test
 that starts one waits for its own terminal event with `wait_for` rather than
@@ -10,8 +10,8 @@ reading `stdout` the instant `serve` returns.
 `VoiceResources` is the plain object `serve`'s new `voice` parameter expects:
 paths, an optional listening handle, optional factories that stand in for real
 models, and the one busy flag that makes the three worker commands mutually
-exclusive. The sequencing itself — pause before recording, resume after; one
-worker at a time; a `ValueError` from training becoming an `error` event — lives
+exclusive. The sequencing itself - pause before recording, resume after; one
+worker at a time; a `ValueError` from training becoming an `error` event - lives
 in `protocol.py`'s `_record`/`_enrol`/`_train_wake`, so it is exercised here
 directly rather than trusted to untested wiring in main.py.
 """
@@ -91,7 +91,7 @@ class FakeListening:
     """Stands in for Task 2's Listening, including the part that is easy to get wrong.
 
     `active()` is `wanted and not closed`, and `pause()` clears `wanted`
-    **before** it reports whether the device actually closed — both exactly as
+    **before** it reports whether the device actually closed - both exactly as
     `listening.py` does them. That distinction is the whole subsystem: a pause
     that times out has already stopped wanting the microphone while the stream
     is still open, so a fake that went inactive only on a *successful* pause
@@ -188,7 +188,7 @@ def test_voice_status_reports_the_two_things_training_needs_besides_takes(tmp_pa
     # Breaks if status() stops reporting either one. train_wake_word refuses
     # without openWakeWord's two ONNX files and without audio that is not the
     # wake word, and a client that cannot see them has to offer a button that
-    # fails — which is the one thing the window is built not to do. The negative
+    # fails - which is the one thing the window is built not to do. The negative
     # count is recursive because training.py collects them with rglob: the
     # audition samples sit in one folder per voice.
     for name in training.FEATURE_MODELS:
@@ -290,7 +290,7 @@ def test_record_while_listening_is_off_leaves_the_microphone_off(tmp_path):
 
 def test_configure_listen_true_starts_listening_and_answers_with_a_status(tmp_path):
     # Breaks if configure ignores the listen field again, calls something other
-    # than start(), or stays silent — the window's toggle reads its state from
+    # than start(), or stays silent - the window's toggle reads its state from
     # the voice.status this emits, so no status means a toggle that shows the
     # click rather than the microphone.
     log = []
@@ -323,7 +323,7 @@ def test_configure_listen_false_that_cannot_release_the_device_says_listening_is
         tmp_path):
     # The reason pause() has a return value at all. Breaks if _listen ignores it
     # and emits a status claiming the microphone is off while the stream is
-    # still open — the owner would be told the room is private when it is not.
+    # still open - the owner would be told the room is private when it is not.
     log = []
     listening = FakeListening(log=log, pause_returns=False, active=True)
     voice = a_voice(tmp_path, listening=listening)
@@ -511,7 +511,7 @@ def test_narrate_is_still_answered_while_a_training_run_is_in_progress(tmp_path)
     voice = a_voice(tmp_path, embed_factory=blocking_embed_factory)
 
     # speak: False, so narrate's reply is exactly one event (narration) and not
-    # also a SPEECH_UNAVAILABLE error from the absent speak callable — which
+    # also a SPEECH_UNAVAILABLE error from the absent speak callable - which
     # would otherwise be a second, unrelated "terminal-looking" event here.
     stdout = run([{"id": "e1", "cmd": "enrol"},
                   {"id": "n1", "cmd": "narrate", "speak": False,
@@ -528,7 +528,7 @@ def test_narrate_is_still_answered_while_a_training_run_is_in_progress(tmp_path)
 
 def test_the_four_commands_answer_voice_unavailable_without_a_voice_object():
     # Breaks if any of the four falls through to UNKNOWN_COMMAND instead of
-    # being recognised and refused — what stub.py and the Java contract test
+    # being recognised and refused - what stub.py and the Java contract test
     # see, since neither ever supplies a voice object.
     events = events_of(run([
         {"id": "s1", "cmd": "voice.status"},

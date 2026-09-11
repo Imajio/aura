@@ -93,7 +93,7 @@ class HookChannelTest {
         try (HookServer server = new HookServer(socket, req -> new HookResponse("allow", ""))) {
             server.start();
 
-            // Connect and say nothing at all — the shape that used to wedge the acceptor.
+            // Connect and say nothing at all - the shape that used to wedge the acceptor.
             SocketChannel stalled = SocketChannel.open(StandardProtocolFamily.UNIX);
             stalled.connect(UnixDomainSocketAddress.of(socket));
             try {

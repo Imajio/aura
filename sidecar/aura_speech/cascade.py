@@ -13,7 +13,7 @@ waiting thirty seconds.
 import numpy as np
 
 RATE = 16000
-FRAME = 512                       # 32 ms — the window Silero VAD expects
+FRAME = 512                       # 32 ms - the window Silero VAD expects
 FRAME_SECONDS = FRAME / RATE
 
 
@@ -55,7 +55,7 @@ class NoiseFloor:
 class EnergyGate:
     """Stage 0: is there anything here worth waking a network for?
 
-    Energy alone, no model. It is wrong often — a door closing opens it — and
+    Energy alone, no model. It is wrong often - a door closing opens it - and
     that is acceptable, because everything behind it is cheap enough to run on a
     false positive and expensive enough to matter on every frame.
     """
@@ -76,7 +76,7 @@ class EnergyGate:
 class Segmenter:
     """Turns a stream of speech / not-speech decisions into whole utterances.
 
-    Two rules, both from the design and both about the same thing — what counts
+    Two rules, both from the design and both about the same thing - what counts
     as the end of what somebody said.
 
     **A tail of half a second.** People pause inside sentences; cutting at the

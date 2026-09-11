@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Speech sidecar client: JSON-lines over stdio.
  *
- * <p>Audio never crosses this boundary in either direction — only commands
+ * <p>Audio never crosses this boundary in either direction - only commands
  * and events. That is by design: PCM lives in the sidecar, the JVM never
  * touches it.
  */

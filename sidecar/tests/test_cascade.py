@@ -39,7 +39,7 @@ class TestNoiseFloor:
             floor.update(0.01, at=i * FRAME_SECONDS)
 
         assert floor.level() == 0.01
-        # Six decibels above the floor is very nearly twice its amplitude —
+        # Six decibels above the floor is very nearly twice its amplitude -
         # 10^(6/20) = 1.995, not 2, which is the sort of rounding that only shows
         # up when a test asserts equality on it.
         assert floor.threshold() == pytest.approx(0.01 * 10 ** 0.3, rel=1e-6)

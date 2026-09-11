@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** What reaches the sidecar, and — the part with teeth — what does not. */
+/** What reaches the sidecar, and - the part with teeth - what does not. */
 class NarrationBridgeTest {
 
     private final List<Map<String, Object>> sent = new ArrayList<>();

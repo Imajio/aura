@@ -8,7 +8,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * When the narrator opens its mouth, and — more importantly — when it does not.
+ * When the narrator opens its mouth, and - more importantly - when it does not.
  *
  * <p>Both failures are user-visible and neither is a crash: a policy that fires too
  * often produces an application nobody can think next to, and one that fires too

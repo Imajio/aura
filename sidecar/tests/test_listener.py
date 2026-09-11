@@ -1,7 +1,7 @@
 """The cascade wired together: frames in, utterances out.
 
-Every stage is injected. The point of these tests is the wiring — which stage
-runs when, and what happens when one of them fails — and none of that needs a
+Every stage is injected. The point of these tests is the wiring - which stage
+runs when, and what happens when one of them fails - and none of that needs a
 model or a microphone to be wrong.
 """
 
@@ -290,8 +290,8 @@ class TestSpeakerVerification:
 
     def test_an_exception_in_verification_refuses_and_recovers(self):
         # A verifier that fails once must not leave the application deaf. The
-        # failure is treated as a refusal — a stranger's words do not travel
-        # through a model — and the next utterance is handled normally.
+        # failure is treated as a refusal - a stranger's words do not travel
+        # through a model - and the next utterance is handled normally.
         state = {"first": True}
 
         def flaky_verify(audio):

@@ -12,7 +12,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
- * Modal confirmation dialog — the M1 path, before voice arrives.
+ * Modal confirmation dialog - the M1 path, before voice arrives.
  *
  * <p>Stays in the system after M4 too: when the microphone is busy or speech
  * recognition is in the DEGRADED state, the user still has to be asked.
@@ -31,7 +31,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
         try {
             SwingUtilities.invokeAndWait(() -> {
                 JOptionPane pane = pane(request);
-                JDialog dialog = pane.createDialog(null, "Aura — permission");
+                JDialog dialog = pane.createDialog(null, "Aura - permission");
                 dialog.setAlwaysOnTop(true);
 
                 // The window closes itself. Without this, the timeout would leave a
@@ -76,7 +76,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
     }
 
     /**
-     * What the user reads: which tool, which arguments, in which directory — and
+     * What the user reads: which tool, which arguments, in which directory - and
      * nothing else. They are deciding in about two seconds, and a fourth line is a
      * line they will not read.
      */
@@ -103,7 +103,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
      * order the CLI sent them. A user staring at a confirmation dialog reads "command: rm -rf
      * build", not the raw {@code {"command":"rm -rf build"}} it came from.
      *
-     * <p>Anything that is not a JSON object — malformed text, an array, a bare scalar — falls
+     * <p>Anything that is not a JSON object - malformed text, an array, a bare scalar - falls
      * back to the flattened raw text: still visible, just not itemised.
      */
     static String describeArguments(String toolInputJson) {

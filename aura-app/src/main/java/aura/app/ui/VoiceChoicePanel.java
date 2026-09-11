@@ -35,7 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Choosing the narrator's Russian voice by ear — RISK-4, open since M1 and blocked on
+ * Choosing the narrator's Russian voice by ear - RISK-4, open since M1 and blocked on
  * nothing but a person listening. A hundred lines already exist at {@code
  * C:\Aura\tts-audition} (two Silero releases times five voices times the narrator's own
  * ten lines); this panel is the button in front of them, so the choice takes twenty
@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * <h2>Blind, and staying blind until asked not to be</h2>
  *
  * <p>The ten voices are shown as {@code Voice A}…{@code Voice J}, in an order shuffled
- * once when the panel is built and kept for as long as it stays open — not
+ * once when the panel is built and kept for as long as it stays open - not
  * re-shuffled on every repaint, and not sorted back to disk order, which would put the
  * current default first and invite judging it as the default rather than as a voice.
  * {@link #ENGLISH_TERM_LINES} names the two of the ten lines that put an English
@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
  * <p>Every line is played on its own short-lived daemon thread: a {@link Clip} is
  * opened, started, waited on and closed there, never on the event dispatch thread. A
  * file that will not open or will not play reports one sentence in the panel and does
- * not throw — {@code Exception}, not the three checked sound exceptions by name,
+ * not throw - {@code Exception}, not the three checked sound exceptions by name,
  * because {@link AudioSystem#getClip()} and {@link Clip#open} can also fail with an
  * unchecked {@code IllegalArgumentException} when nothing on the machine supports the
  * file's format, and that failure deserves the same one sentence, not a stack trace on
@@ -86,14 +86,14 @@ public final class VoiceChoicePanel extends JPanel {
      * The two of the narrator's ten lines that put an English technical term inside
      * Russian speech, read from {@code sidecar/audition-russian-tts.py}'s own {@code
      * PHRASES}: {@code agent-took-it} says "backend", {@code permission-ask} says
-     * "build". Named here rather than in {@link AuditionLibrary} — what a line means is
+     * "build". Named here rather than in {@link AuditionLibrary} - what a line means is
      * this panel's business, not a file scanner's.
      */
     private static final Set<String> ENGLISH_TERM_LINES = Set.of("agent-took-it", "permission-ask");
 
     /**
      * The narrator's ten lines, in the order {@code audition-russian-tts.py} speaks
-     * them rather than alphabetically — pressing down the list then reads as the
+     * them rather than alphabetically - pressing down the list then reads as the
      * scenario the product actually tells, not a sorted word list. A voice missing one
      * of these (it should not happen; {@link AuditionLibrary} only says a voice exists
      * once it has at least one line) simply leaves that one button disabled rather than
@@ -129,7 +129,7 @@ public final class VoiceChoicePanel extends JPanel {
     }
 
     /**
-     * The same panel with the session shuffle pinned to a known seed — what the render
+     * The same panel with the session shuffle pinned to a known seed - what the render
      * harness and any future panel test use, so a captured state does not depend on
      * which order the JVM happened to draw.
      */
@@ -147,7 +147,7 @@ public final class VoiceChoicePanel extends JPanel {
         column.add(Box.createVerticalStrut(UiTheme.TIGHT));
         column.add(leftAligned(UiTheme.wrapped(
             "The same ten lines, in every candidate voice. Listen blind and judge how "
-                + "natural the short, functional line sounds — not how a name you "
+                + "natural the short, functional line sounds - not how a name you "
                 + "already trust would sound saying it.")));
         column.add(Box.createVerticalStrut(UiTheme.WIDE));
 
@@ -178,7 +178,7 @@ public final class VoiceChoicePanel extends JPanel {
             card.note(UiTheme.wrapped("No audition samples found at " + auditionRoot
                 + ". Run sidecar/audition-russian-tts.py to render them.", UiTheme.WARN));
         } else {
-            card.note("Ten voices — two Silero releases, five voices each. Names stay "
+            card.note("Ten voices - two Silero releases, five voices each. Names stay "
                 + "hidden until you ask for them.");
         }
         revealToggle.setName("voice.choice.reveal");
@@ -218,7 +218,7 @@ public final class VoiceChoicePanel extends JPanel {
     private JComponent linesCard() {
         Card card = new Card("Lines");
         card.note("Press a line to hear the selected voice say it. * marks a line that "
-            + "puts an English technical term inside the Russian sentence — the case a "
+            + "puts an English technical term inside the Russian sentence - the case a "
             + "Russian voice is most likely to mangle.");
 
         JPanel grid = new JPanel(new GridLayout(0, 2, UiTheme.GAP, UiTheme.GAP));
@@ -291,11 +291,11 @@ public final class VoiceChoicePanel extends JPanel {
     }
 
     /**
-     * Opens, plays and closes exactly one clip. Runs entirely off the EDT — the
+     * Opens, plays and closes exactly one clip. Runs entirely off the EDT - the
      * caller's thread is a short-lived daemon dedicated to this one line.
      *
-     * <p>Catches nothing: every failure here — a missing file, a format nothing on the
-     * machine supports, a busy mixer — is left for the caller to log and report as one
+     * <p>Catches nothing: every failure here - a missing file, a format nothing on the
+     * machine supports, a busy mixer - is left for the caller to log and report as one
      * sentence, uniformly, rather than sorted into which of {@code
      * UnsupportedAudioFileException}, {@code IOException}, {@code
      * LineUnavailableException} or the unchecked {@code IllegalArgumentException}
@@ -314,7 +314,7 @@ public final class VoiceChoicePanel extends JPanel {
                 clip.open(in);
                 clip.start();
                 // A line that never fires its own STOP event must still let the panel
-                // go — a bounded wait rather than an indefinite one is what keeps a
+                // go - a bounded wait rather than an indefinite one is what keeps a
                 // single stuck clip from disabling every line button for the rest of
                 // the session.
                 finished.await(PLAYBACK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -334,7 +334,7 @@ public final class VoiceChoicePanel extends JPanel {
         playing = false;
         String reason = e.getMessage() == null || e.getMessage().isBlank()
             ? e.getClass().getSimpleName() : e.getMessage();
-        playbackStatus.setText(UiTheme.html("Could not play \"" + humanize(lineId) + "\" — " + reason));
+        playbackStatus.setText(UiTheme.html("Could not play \"" + humanize(lineId) + "\" - " + reason));
         playbackStatus.setForeground(UiTheme.BAD);
         applyEnablement();
     }
@@ -346,7 +346,7 @@ public final class VoiceChoicePanel extends JPanel {
         String whyNotUsable = selected == null ? "select a voice above first" : "";
         useReason.setText(whyNotUsable);
         // useReason is elastic (UiTheme.elastic), which sets its tooltip once at
-        // construction from the text at that moment — empty, since nothing has been
+        // construction from the text at that moment - empty, since nothing has been
         // selected yet. Refreshed here on every call, the same as VoicePanel's reason
         // labels, so a sentence Swing ellipsises at a narrow width still reads in full
         // on hover instead of showing whatever the tooltip happened to be at startup.

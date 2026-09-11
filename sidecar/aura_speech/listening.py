@@ -2,7 +2,7 @@
 
 Until now listening was a daemon thread with an endless loop: correct while the
 only question was whether to start it. Recording the owner's voice asks a second
-question — can the microphone be borrowed and given back — and a thread with no
+question - can the microphone be borrowed and given back - and a thread with no
 answer to that is a thread that has to be killed and rebuilt, or a second stream
 opened on a device that may or may not allow one.
 

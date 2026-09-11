@@ -2,7 +2,7 @@
 
 The unit tests next door use a fake that answers whatever they ask it to, which
 proves the guards work on the shapes we know about. This proves the shapes are
-the ones the model actually produces — the reason the think-block guard exists
+the ones the model actually produces - the reason the think-block guard exists
 at all is that Qwen3 emits it unbidden, and a fake cannot notice when that
 stops being true.
 

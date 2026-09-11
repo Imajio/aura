@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  * <p>Both failure modes are user-visible and neither looks like a bug. Narrating too
  * often produces an application nobody can think next to; narrating too rarely produces
  * one that appears to have crashed. This class is where that balance lives, which is
- * why it holds no models, no audio and no I/O — only the rules, so they can be tested
+ * why it holds no models, no audio and no I/O - only the rules, so they can be tested
  * at the speed of a hand-moved clock.
  *
  * <p>Not thread-safe by design: it is fed from one place, the event stream of one
@@ -52,7 +52,7 @@ public final class NarrationPolicy {
     /**
      * Offers an event to the policy.
      *
-     * @return the window to narrate when this event calls for speech, otherwise empty —
+     * @return the window to narrate when this event calls for speech, otherwise empty -
      *         the event is remembered either way, so whatever is said next covers it
      */
     public Optional<NarrationRequest> accept(AgentEvent event) {
@@ -121,7 +121,7 @@ public final class NarrationPolicy {
     }
 
     /**
-     * A change of tool class — search to read to edit to run — is the shape of progress.
+     * A change of tool class - search to read to edit to run - is the shape of progress.
      * The fifteenth {@code Read} in a row is not a change and says nothing new.
      */
     private boolean isClassChange(AgentEvent event) {
@@ -131,8 +131,8 @@ public final class NarrationPolicy {
     /**
      * Moving from one part of the tree to another is worth a word; moving between two
      * files in the same directory is not. The module is taken to be the directory the
-     * target sits in, which is what the design's own example — {@code auth/*} to
-     * {@code api/*} — describes.
+     * target sits in, which is what the design's own example - {@code auth/*} to
+     * {@code api/*} - describes.
      */
     private boolean isModuleChange(AgentEvent event) {
         String module = moduleOf(event.target());

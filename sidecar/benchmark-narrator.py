@@ -2,15 +2,15 @@
 
 This is the experiment behind RISK-7. The design budgets **900 ms from event to
 first spoken word**, and the sidecar generates and speaks sentence by sentence
-rather than waiting for the whole answer — so the number that matters is not
+rather than waiting for the whole answer - so the number that matters is not
 total generation time but the time until the first sentence exists.
 
 Three timings, and the budget belongs to all of them together:
 
-* **compile** — building the pipeline for the device, paid once and then served
+* **compile** - building the pipeline for the device, paid once and then served
   from the blob cache.
-* **TTFT** — event in, first token out. The model's own latency floor.
-* **first sentence** — until there is something a synthesiser can start on.
+* **TTFT** - event in, first token out. The model's own latency floor.
+* **first sentence** - until there is something a synthesiser can start on.
   This, plus whatever TTS costs, is what has to fit inside 900 ms. The
   measurement here covers the first two of three legs; a pass on this script is
   necessary for the budget, not sufficient for it.
@@ -48,7 +48,7 @@ EVENTS = {
     "en": ("Events: started task in project backend; ran pytest; "
            "3 passed, 1 failed; failing test is token expiry check."),
     "ru": ("События: начата задача в проекте бэкенд; запущен pytest; "
-           "3 passed, 1 failed; упавший тест — проверка срока токена."),
+           "3 passed, 1 failed; упавший тест - проверка срока токена."),
 }
 
 
@@ -93,7 +93,7 @@ def main() -> int:
 
     def build(lang: str) -> str:
         # Qwen3 is a reasoning model and thinks out loud by default: left alone it
-        # spends the entire budget on a monologue the user never hears — 2.5 s to
+        # spends the entire budget on a monologue the user never hears - 2.5 s to
         # the first sentence, against 900 ms for the whole path.
         #
         # The template's `enable_thinking` hook is not usable here: LLMPipeline
@@ -119,13 +119,13 @@ def main() -> int:
 
                 # Constant work per chunk. Rejoining the whole text and splitting
                 # it on every callback costs more as the answer grows, and that
-                # cost lands inside the very measurement — it inflated the first
+                # cost lands inside the very measurement - it inflated the first
                 # sentence past the time a full 40-token generation takes without
                 # a streamer attached, which is how the bug announced itself.
                 if not marks["past_think"]:
                     # Everything up to </think> is not speech, even when the
                     # block is empty: timing it would report a latency the user
-                    # never experiences. The buffer stays tiny — the block is a
+                    # never experiences. The buffer stays tiny - the block is a
                     # handful of characters once reasoning is suppressed.
                     marks["head"] += chunk
                     if "</think>" in marks["head"]:

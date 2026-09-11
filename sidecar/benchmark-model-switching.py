@@ -3,7 +3,7 @@
 This is RISK-9, and its original framing has expired. It asked what switching
 compiled blobs costs *on the NPU*. RISK-1 then established that recognition
 does not run on the NPU at all, so both the recogniser and the narrator now
-live on the same iGPU — which makes the real question sharper and more
+live on the same iGPU - which makes the real question sharper and more
 expensive to get wrong:
 
     the model registry unloads STT after 60 s idle and the narrator after 120 s.
@@ -11,11 +11,11 @@ expensive to get wrong:
 
 Three costs, and only the first is the one people think of:
 
-* **load** — building the pipeline again from the blob cache.
-* **first inference** — measured separately, because it is not free and not
+* **load** - building the pipeline again from the blob cache.
+* **first inference** - measured separately, because it is not free and not
   small: Whisper costs several seconds on its first call after a load and
   roughly 300 ms on every call after that.
-* **steady state** — what the design's latency budgets were written against.
+* **steady state** - what the design's latency budgets were written against.
 
 Two regimes are compared. *Resident* keeps both models alive and alternates
 between them, which is what happens inside the idle window. *Reloaded* drops
@@ -25,7 +25,7 @@ it. The difference between them is the true price of the unload policy.
     .venv-export/Scripts/python.exe benchmark-model-switching.py --device GPU
 
 Exit code is 0 whenever the measurement completed: this script reports a cost,
-it does not judge a threshold — the number feeds a policy decision that is not
+it does not judge a threshold - the number feeds a policy decision that is not
 the script's to make.
 """
 
@@ -47,7 +47,7 @@ NARRATOR_PROMPT = (
 def read_wav(path: pathlib.Path) -> np.ndarray:
     if not path.is_file():
         raise SystemExit(
-            f"no audio at {path} — run make-bench-sample.ps1 to generate it")
+            f"no audio at {path} - run make-bench-sample.ps1 to generate it")
     with wave.open(str(path), "rb") as f:
         frames = f.readframes(f.getnframes())
     return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
@@ -105,7 +105,7 @@ def main() -> int:
         del pipe
     gc.collect()
 
-    print("resident — both models alive, alternating (inside the idle window)")
+    print("resident - both models alive, alternating (inside the idle window)")
     resident = {name: [] for name, _, _ in stages}
     pipes = {name: load() for name, load, _ in stages}
     for name, _, run in stages:
@@ -120,7 +120,7 @@ def main() -> int:
     del pipes
     gc.collect()
 
-    print("\nreloaded — dropped and rebuilt before every use (outside it)")
+    print("\nreloaded - dropped and rebuilt before every use (outside it)")
     loads = {name: [] for name, _, _ in stages}
     firsts = {name: [] for name, _, _ in stages}
     for _ in range(args.cycles):
@@ -140,7 +140,7 @@ def main() -> int:
         steady = statistics.median(resident[name])
         print(f"  {name}: load {load_p50:7.0f} ms + first inference {first_p50:7.0f} ms"
               f"  =  {load_p50 + first_p50:7.0f} ms")
-        print(f"       against {steady:.0f} ms resident — "
+        print(f"       against {steady:.0f} ms resident - "
               f"{(load_p50 + first_p50) / steady:.1f}x")
 
     print("\nThe multiplier is what the unload policy charges the user for the "

@@ -2,7 +2,7 @@
 
 The design makes this mandatory and not switchable off, which decides how every
 failure here resolves: **not knowing means no.** A missing reference, a model
-that will not load, a recording too short to have features — each of them
+that will not load, a recording too short to have features - each of them
 refuses. An application that accepts a stranger because something went wrong is
 worse than one that accepts nobody and says why.
 """
@@ -53,7 +53,7 @@ class Enrolment:
 
         The probe is normalised here rather than trusted to arrive that way. The
         reference already is, so the dot product alone would be a cosine only
-        while every caller happened to hand over a unit vector — and the
+        while every caller happened to hand over a unit vector - and the
         threshold is calibrated for a cosine. `embed()` does return unit vectors,
         but `verifier` takes `embed` as an injected callable, which makes that
         caller discipline on a public seam: a probe of norm 3 at a true cosine of

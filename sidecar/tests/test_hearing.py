@@ -47,7 +47,7 @@ class TestTrainedWakeWord:
         # it to the shared state as it is built leaves the guard satisfied by a
         # state that has no feature models in it, and the next call then skips the
         # whole init block. Leaving the state empty is what lets the next frame
-        # retry — a load that failed once must not brick the wake word.
+        # retry - a load that failed once must not brick the wake word.
         attempts = []
         monkeypatch.setitem(sys.modules, "onnxruntime", refusing_onnxruntime(attempts))
         is_wake = trained_wake_word(a_trained_model(tmp_path / "wake-word.npz"))
@@ -65,7 +65,7 @@ class TestTrainedWakeWord:
         # The symptom the retry exists to prevent. With a half-built state the init
         # block is skipped from the second call on, the buffer quietly fills, and
         # the frame that completes one second reaches `state["melspec"]` and raises
-        # `KeyError: 'melspec'` — an error naming neither the wake word nor the
+        # `KeyError: 'melspec'` - an error naming neither the wake word nor the
         # file that was missing, roughly every sixteen speech frames for the rest
         # of the session. The loop is two seconds of frames, which is long enough
         # for a half-built state to reach that boundary twice.

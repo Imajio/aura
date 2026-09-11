@@ -75,7 +75,7 @@ public final class HookMain {
      * A missing or unrecognised verdict is a refusal, never an absence of one.
      *
      * <p>Printing {@code null} here would leave the agent with no decision to act on,
-     * and it would fall back to its own permission flow — the one outcome this hook
+     * and it would fall back to its own permission flow - the one outcome this hook
      * exists to prevent.
      */
     private static String normalize(String decision) {

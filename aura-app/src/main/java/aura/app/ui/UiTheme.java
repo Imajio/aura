@@ -13,7 +13,7 @@ import javax.swing.border.Border;
  * The whole visual language, in one file.
  *
  * <p>The owner asked for a window they can use "without thinking". That is not a
- * request for decoration — it is a request that every screen look the same, so
+ * request for decoration - it is a request that every screen look the same, so
  * that a heading is always a heading and a warning always reads as one. Five
  * spacings, four type sizes and eight colours are enough for that, and a small
  * fixed set is what keeps a second panel from inventing a sixth spacing.
@@ -38,14 +38,14 @@ public final class UiTheme {
     public static final Color WARN = new Color(0xA8631B);
     public static final Color BAD = new Color(0xB3261E);
 
-    // A note wraps at this width — a CSS length, not a count of screen pixels,
+    // A note wraps at this width - a CSS length, not a count of screen pixels,
     // which is the trap it was set in the first time. Swing scales an HTML px on
     // a high-DPI display: on the owner's 192dpi screen this number comes out
     // about 1.3 times bigger, and a note declared 400 laid itself out at 520
     // inside a card that had 409 to give, so three sentences were cut off mid-
     // word at the window's minimum size. The narrowest card the window can show
-    // is about 410 screen pixels across — rail, scrollbar, column padding and
-    // card border taken off the 720px minimum — and 300 stays inside that with
+    // is about 410 screen pixels across - rail, scrollbar, column padding and
+    // card border taken off the 720px minimum - and 300 stays inside that with
     // room for a display that scales harder than this one.
     private static final int NOTE_WIDTH = 300;
 
@@ -103,7 +103,7 @@ public final class UiTheme {
      *
      * <p>A plain {@code JLabel} does not wrap: it asks for however wide its one
      * line is, and a sentence that outgrows the card widens the card. Swing's own
-     * wrapping is reached through HTML, which needs a width to wrap at — {@link
+     * wrapping is reached through HTML, which needs a width to wrap at - {@link
      * #NOTE_WIDTH} is that width, chosen to fit inside a card at the window's
      * minimum size so a note never has to be re-checked against the layout.
      *
@@ -115,7 +115,7 @@ public final class UiTheme {
         return hint(html(text));
     }
 
-    /** The same wrapping, in a colour the caller chooses — a warning, usually. */
+    /** The same wrapping, in a colour the caller chooses - a warning, usually. */
     public static JLabel wrapped(String text, Color colour) {
         JLabel label = wrapped(text);
         label.setForeground(colour);
@@ -155,7 +155,7 @@ public final class UiTheme {
      *
      * <p>A {@code JLabel} reports the width of its whole text as its minimum, and
      * {@code GridBagLayout} that cannot meet the minimum widths of its columns
-     * stops laying the grid out inside the container and centres it instead —
+     * stops laying the grid out inside the container and centres it instead -
      * which pushes column zero to a negative x, so the card's heading and its row
      * label leave the window altogether. Not clipped: gone. Saying the minimum is
      * zero lets the column shrink, and Swing then ellipsises the text to whatever

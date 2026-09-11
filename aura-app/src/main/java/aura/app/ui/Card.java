@@ -17,7 +17,7 @@ import javax.swing.JPanel;
  *
  * <p>Shared rather than owned by one panel. It began inside {@link StatusPanel},
  * and the second section that wanted a card had the choice of copying it or
- * moving it here — and two copies of a layout drift into two subtly different
+ * moving it here - and two copies of a layout drift into two subtly different
  * ones, which reads down the page as two screens built by different people.
  *
  * <p>A card is built once and then written to, not rebuilt. {@code StatusPanel}
@@ -34,7 +34,7 @@ final class Card extends JPanel {
      *
      * <p>One number for the whole application, not one per panel: each card is
      * its own grid, and left to themselves the grids find as many different
-     * widths for their name column as there are cards — which reads, down the
+     * widths for their name column as there are cards - which reads, down the
      * page, as several things built separately rather than one screen.
      */
     private static final int NAME_WIDTH = 140;
@@ -92,7 +92,7 @@ final class Card extends JPanel {
     /**
      * A row of controls across the card's whole width.
      *
-     * <p>For the rows that are not a name and a value — a spinner beside a
+     * <p>For the rows that are not a name and a value - a spinner beside a
      * button, a button beside the reason it is disabled. The content lays itself
      * out; the card only decides where the row sits.
      */
@@ -131,7 +131,7 @@ final class Card extends JPanel {
         Dimension natural = label.getPreferredSize();
         // max, not a flat NAME_WIDTH: a label longer than the column would
         // otherwise be cut off in silence. This way a name that outgrows the
-        // column pushes its own row wider — visibly out of line with the rest,
+        // column pushes its own row wider - visibly out of line with the rest,
         // which is a bug report rather than a missing word.
         label.setPreferredSize(new Dimension(Math.max(NAME_WIDTH, natural.width), natural.height));
         return label;

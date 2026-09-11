@@ -1,7 +1,7 @@
 """Speaks a line, and stops speaking when told to.
 
-Synthesis and playback are kept apart on purpose. Rendering is pure — text in,
-WAV bytes out — so it can be tested, cached and measured without a sound card,
+Synthesis and playback are kept apart on purpose. Rendering is pure - text in,
+WAV bytes out - so it can be tested, cached and measured without a sound card,
 and so a test suite never makes noise. Playback is the only part that touches
 the machine.
 
@@ -11,8 +11,8 @@ requirement, and it costs no dependency in a process that is meant to sit idle
 all day.
 
 **Stopping matters more than it looks.** The stop word has to interrupt
-narration that is already playing — that is the one control the user has when
-the application is talking over them — so playback is asynchronous and
+narration that is already playing - that is the one control the user has when
+the application is talking over them - so playback is asynchronous and
 `cancel()` is always available, never conditional on bookkeeping about what is
 currently playing.
 """
@@ -33,7 +33,7 @@ def _play(data: bytes) -> None:
     # controls. So the blocking call goes on a thread of its own instead. The
     # protocol loop stays free either way, which is what asynchrony was for, and
     # PlaySound(None, SND_PURGE) still cuts the sound off mid-word from any thread
-    # — being interruptible is the point and it survives intact.
+    # - being interruptible is the point and it survives intact.
     def run():
         try:
             winsound.PlaySound(data, winsound.SND_MEMORY)
@@ -62,7 +62,7 @@ def silero(release: str = "v4_ru", threads: int = 4):
     the model is one TorchScript system whose forward takes strings, with accent
     placement inside the graph, and OpenVINO refuses it on SequenceInsert. There
     is no tensors-in-tensors-out boundary to export instead. The cost was
-    measured before it was accepted — 183 MB for torch, 99 for the model — and
+    measured before it was accepted - 183 MB for torch, 99 for the model - and
     weighed against the ~3.4 GB the sidecar already holds resident.
     """
     state = {}
@@ -123,7 +123,7 @@ def _wav(samples, rate: int) -> bytes:
 def _pcm(samples) -> bytes:
     import numpy as np
     # numpy, not a comprehension. A two-second line is fifty thousand samples,
-    # and converting them one at a time in Python costs 3.6 s — thirty times the
+    # and converting them one at a time in Python costs 3.6 s - thirty times the
     # synthesis it is packaging, which is how this was found.
     #
     # Clipped, not wrapped. A sample above 1.0 wrapped into int16 arrives in the

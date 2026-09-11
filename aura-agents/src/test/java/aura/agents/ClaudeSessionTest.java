@@ -123,7 +123,7 @@ class ClaudeSessionTest {
             await().atMost(Duration.ofSeconds(10)).until(() ->
                 events.stream().filter(e -> e.kind() == EventKind.DONE).count() == 2);
 
-            // Exactly one SESSION_START across two turns — the process was not restarted.
+            // Exactly one SESSION_START across two turns - the process was not restarted.
             assertThat(events).filteredOn(e -> e.kind() == EventKind.SESSION_START).hasSize(1);
         }
     }

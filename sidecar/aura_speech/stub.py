@@ -9,7 +9,7 @@ import sys
 
 # Pin both pipes to UTF-8. A piped child on Windows inherits the console code page
 # (cp1252 here). Its surrogateescape error handler only rescues bytes that failed to
-# decode — it cannot encode a genuine character the codec has no mapping for, and
+# decode - it cannot encode a genuine character the codec has no mapping for, and
 # cp1252 has none for Cyrillic. So an echoed string survives while the first freshly
 # generated Russian narration line raises UnicodeEncodeError and kills the sidecar,
 # with the traceback going to a stderr stream the client logs below its default level.
@@ -61,7 +61,7 @@ def main():
             continue
         if command in ("voice.status", "record", "enrol", "train.wake"):
             # This build carries no voice support at all, so these are refused
-            # by name rather than falling through to UNKNOWN_COMMAND — the
+            # by name rather than falling through to UNKNOWN_COMMAND - the
             # window needs to tell "this build cannot" from "I sent nonsense".
             emit({"ev": "error", "code": "VOICE_UNAVAILABLE",
                  "detail": "no voice support in this build", "for": message_id,

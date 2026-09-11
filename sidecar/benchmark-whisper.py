@@ -1,17 +1,17 @@
 """Measures Whisper recognition latency on a given device.
 
 This is the experiment behind RISK-1. The design gives recognition 550 ms of the
-1.2 s end-to-end budget, on an utterance of roughly six seconds — the rest is
+1.2 s end-to-end budget, on an utterance of roughly six seconds - the rest is
 the VAD tail, speaker verification and routing. A threshold set against the
 whole 1.2 s would call it a success at twice the real overrun, so this script
 reports the one number the risk is judged on and nothing else dressed up as it.
 
 Two timings, and they answer different questions:
 
-* **compile** — building the pipeline for the device. Paid once per model per
+* **compile** - building the pipeline for the device. Paid once per model per
   driver version, then served from `cache_dir`. On the NPU this is the step that
   fails outright if a model cannot be made static.
-* **recognition** — what the user waits for, measured warm and repeated.
+* **recognition** - what the user waits for, measured warm and repeated.
 
     .venv-export/Scripts/python.exe benchmark-whisper.py --device NPU
     .venv-export/Scripts/python.exe benchmark-whisper.py --device GPU --runs 10
@@ -42,7 +42,7 @@ def read_wav(path: pathlib.Path) -> tuple[np.ndarray, float]:
     """Reads a 16 kHz mono PCM file as float32 in [-1, 1]."""
     if not path.is_file():
         raise SystemExit(
-            f"no audio at {path} — run make-bench-sample.ps1 to generate it")
+            f"no audio at {path} - run make-bench-sample.ps1 to generate it")
     with wave.open(str(path), "rb") as f:
         if f.getnchannels() != 1 or f.getframerate() != 16000 or f.getsampwidth() != 2:
             raise SystemExit(
@@ -70,7 +70,7 @@ def main() -> int:
 
     model = pathlib.Path(args.model)
     if not model.is_dir():
-        raise SystemExit(f"no exported model at {model} — run export-whisper.py first")
+        raise SystemExit(f"no exported model at {model} - run export-whisper.py first")
 
     audio, seconds = read_wav(pathlib.Path(args.audio))
     # Per device: a shared cache makes measuring the fallback ladder destroy the

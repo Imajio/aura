@@ -72,7 +72,7 @@ class ClaudeEventParserTest {
             .findFirst()
             .orElseThrow();
 
-        // Класс не написан в строке результата — он берётся из запомненного вызова.
+        // Класс не написан в строке результата - он берётся из запомненного вызова.
         assertThat(end.toolClass()).isEqualTo(ToolClass.EXEC);
         assertThat(end.ok()).isTrue();
         assertThat(end.summaryHint()).contains("hi");
@@ -92,7 +92,7 @@ class ClaudeEventParserTest {
     void aFailedRunIsDoneButNotOk() {
         // What a refused run actually looks like: one turn, no tool calls, and a
         // result line carrying the reason. Reported by the owner after every task
-        // finished in under a second — ANTHROPIC_API_KEY was set in the environment
+        // finished in under a second - ANTHROPIC_API_KEY was set in the environment
         // Aura passes to the agent, so the CLI billed an account with no credit.
         // Without `ok`, this is indistinguishable from a task that worked.
         ClaudeEventParser parser = new ClaudeEventParser(FIXED);

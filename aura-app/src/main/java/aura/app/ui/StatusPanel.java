@@ -29,14 +29,14 @@ import org.slf4j.LoggerFactory;
  * The first section: what Aura is, without being asked.
  *
  * <p>Four questions a person has when something is not working, answered in four
- * cards — is the sidecar alive, what can it do, what is missing before voice
+ * cards - is the sidecar alive, what can it do, what is missing before voice
  * works, and where is the log. Anything missing is a line with a button beside it
  * that goes to the section which fixes it, because a screen that reports a
  * problem and then offers no way out is a dead end with good manners.
  *
  * <p>Nothing here reads the filesystem. Whether the wake-word model exists is the
  * sidecar's answer to {@code voice.status}, not this panel's own {@code
- * Files.exists} — two readers of one truth is how they come to disagree, and the
+ * Files.exists} - two readers of one truth is how they come to disagree, and the
  * one that is wrong is always the one the user is looking at. The question is
  * asked when the window opens and again after {@code train.done} or {@code
  * record.done}, the two events that change what is on disk.
@@ -158,7 +158,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      *
      * <p>Rebuilt wholesale rather than patched line by line. Four cards of labels
      * cost nothing to recreate, and a panel that edits itself in place needs a
-     * handle on every label it might later have to change — which is how a card
+     * handle on every label it might later have to change - which is how a card
      * ends up showing two states at once because one of the handles was missed.
      */
     private void rebuild() {
@@ -199,8 +199,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         row.add(UiTheme.title("Status"));
         row.add(Box.createHorizontalGlue());
         // The header's height is settled the moment it is built, so the theme's
-        // own capper says it. A card cannot use this — its height changes with
-        // what the sidecar last said — which is why Card overrides
+        // own capper says it. A card cannot use this - its height changes with
+        // what the sidecar last said - which is why Card overrides
         // getMaximumSize instead of calling here.
         return UiTheme.capped(row, row.getPreferredSize().height);
     }
@@ -247,7 +247,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * recordings behind it or the way to make it.
      *
      * <p>The take count rides in the third column when the artefact exists, and
-     * drops to a line of its own only when it does not — where it stops being
+     * drops to a line of its own only when it does not - where it stops being
      * trivia and starts being the answer to "how far off am I?". Pass a negative
      * count for an artefact that has no recordings behind it.
      */
@@ -256,7 +256,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             present ? UiTheme.status(yes, UiTheme.GOOD) : UiTheme.status("missing", UiTheme.WARN),
             present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setUpButton());
         if (!present && count > 0) {
-            card.note(takes(count) + " so far — not enough to train on.");
+            card.note(takes(count) + " so far - not enough to train on.");
         }
     }
 
@@ -311,7 +311,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         }
         // The slot's own name is elastic too. Three names and three states on one
         // line is the widest row on the page, and a row that cannot shrink is a
-        // row that shoves the whole grid off the left edge at a narrow window —
+        // row that shoves the whole grid off the left edge at a narrow window -
         // the state alone being shrinkable would not save it.
         row.add(UiTheme.elastic(UiTheme.hint(name)));
         row.add(Box.createHorizontalStrut(UiTheme.GAP));

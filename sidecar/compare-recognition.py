@@ -2,14 +2,14 @@
 
 Latency is the easy half of choosing a recogniser and it is already measured.
 The half that decides whether the product works is what the model actually
-writes down when the user speaks Russian with English technical terms in it —
+writes down when the user speaks Russian with English technical terms in it -
 "в проекте backend почини падающие тесты". A model that answers in 180 ms and
 mishears the project name is not faster; it is wrong sooner.
 
 The speech comes from Silero, because there is no recorded corpus yet. That is
 a real limitation and it cuts one way: synthesised speech is cleaner than a
 person at a laptop, so every number here is optimistic. It is still a fair
-*comparison* — both models hear the identical audio — and a model that fails on
+*comparison* - both models hear the identical audio - and a model that fails on
 clean synthetic Russian will not do better on the real thing.
 
     .venv-export/Scripts/python.exe compare-recognition.py \\
@@ -30,7 +30,7 @@ import wave
 import numpy as np
 
 # The commands the product is for: Russian speech carrying English technical
-# terms, project names and tool names — the case a small multilingual model is
+# terms, project names and tool names - the case a small multilingual model is
 # most likely to break on.
 COMMANDS = [
     "в проекте бэкенд почини падающие тесты",

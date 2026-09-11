@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * Derives a test run's outcome from a command and its output.
  *
  * <p>Two conditions must hold at once: the command looks like a test runner
- * and the output looks like a summary. Output alone is not enough — otherwise
+ * and the output looks like a summary. Output alone is not enough - otherwise
  * {@code echo "4 passed"} would turn into a cheerful report of green tests.
  */
 public final class TestResultDetector {

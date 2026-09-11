@@ -2,7 +2,7 @@
 
 Both are driven here with stand-ins for the models: what is being tested is the
 part that decides whether there is enough to work with, what is reported while
-it runs, and what comes back — none of which needs a 26 MB ONNX file.
+it runs, and what comes back - none of which needs a 26 MB ONNX file.
 """
 
 import pathlib

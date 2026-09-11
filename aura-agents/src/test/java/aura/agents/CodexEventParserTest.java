@@ -122,7 +122,7 @@ class CodexEventParserTest {
 
     @Test
     void longCommandOutputIsBoundedInTheHint() {
-        // Подсказка кормит языковую модель; сырой вывод сборки — это килобайты.
+        // Подсказка кормит языковую модель; сырой вывод сборки - это килобайты.
         CodexEventParser parser = new CodexEventParser(FIXED);
         parser.parseLine("""
             {"type":"thread.started","thread_id":"t1"}""");

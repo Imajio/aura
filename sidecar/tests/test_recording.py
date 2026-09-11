@@ -1,6 +1,6 @@
 """Recording takes: the numbering, the file, and the level.
 
-Capture itself is not tested here — it needs a microphone, and the project's
+Capture itself is not tested here - it needs a microphone, and the project's
 rule is that a test suite never opens one. What is tested is everything that
 decides where a recording lands, because that is what can destroy one.
 """
@@ -22,7 +22,7 @@ def test_the_first_take_is_one_whether_the_directory_exists_yet_or_not(tmp_path)
     # voice/ is gitignored, so a fresh clone has neither voice/wake/ nor
     # voice/reference/ yet. next_take_number must answer 1 before the
     # directory exists at all, and separately once it exists but is still
-    # empty — tmp_path is always the second state, never the first, so both
+    # empty - tmp_path is always the second state, never the first, so both
     # have to be asked for explicitly.
     assert next_take_number(tmp_path / "reference", "reference") == 1
     assert next_take_number(tmp_path, "reference") == 1
@@ -78,9 +78,9 @@ def test_samples_are_clipped_rather_than_wrapped(tmp_path):
 
 def test_loudness_of_silence_is_zero_and_of_a_tone_is_not():
     # A constant fixture has one value, so its RMS and its mean are the same
-    # number — it cannot tell loudness apart from np.mean(samples). A sine
+    # number - it cannot tell loudness apart from np.mean(samples). A sine
     # over whole periods can: its RMS is 1/sqrt(2) but its mean is ~0, which
-    # is exactly the failure the function's docstring warns about — a
+    # is exactly the failure the function's docstring warns about - a
     # symmetric take averaging to silence.
     tone = np.sin(np.linspace(0, 20 * np.pi, 1000)).astype(np.float32)
 

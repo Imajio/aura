@@ -5,7 +5,7 @@ Codex. It takes a typed task, hands it to the coding-agent CLI, normalises
 the CLI's event stream into one canonical form, and refuses a dangerous tool
 call unless a human confirms it.
 
-**Status:** M1 is complete and accepted (2026-09-04) — tray task entry, a
+**Status:** M1 is complete and accepted (2026-09-04) - tray task entry, a
 long-lived agent session per project, event normalisation for both CLIs, and
 tool-call permission enforcement through a `PreToolUse` hook, verified against
 the live Claude Code CLI. Voice (wake word, recognition, narration, speaker
@@ -18,7 +18,7 @@ dispatched task can be watched running.
 
 The requirements, architecture, decision records and risk register are **not
 in this repository**. They live in a `docs/` directory next to the
-repository, not inside it, and are not published with the code — ask the
+repository, not inside it, and are not published with the code - ask the
 project owner for them if you need them.
 
 | Document | About |
@@ -52,7 +52,7 @@ aura-policy/    classifies a tool call as allow, confirm, or deny
 aura-ipc/       the channel between the PreToolUse hook and the running app
 aura-hook/      the hook process Claude Code / Codex invoke before a tool call
 aura-app/       entry point: tray icon, task dispatch, permission wiring
-sidecar/        Python, OpenVINO — speech, arriving in a later milestone
+sidecar/        Python, OpenVINO - speech, arriving in a later milestone
 testdata/       event streams and audio fixtures captured from live processes
 ```
 

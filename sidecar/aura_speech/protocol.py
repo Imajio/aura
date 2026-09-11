@@ -15,7 +15,7 @@ Every failure becomes an `error` event with `fatal: false`, and the loop keeps
 reading.
 
 **Nothing is claimed that is not done.** When speech cannot play, `speak`
-answers with an error rather than an untruthful `speak.done` — the tray would
+answers with an error rather than an untruthful `speak.done` - the tray would
 otherwise show narration working while the user hears nothing.
 """
 
@@ -39,17 +39,17 @@ class VoiceResources:
     """Paths, the listening handle, and the one-at-a-time rule that `record`,
     `enrol` and `train.wake` all share.
 
-    A plain resource bag, not a command object: the sequencing — pause before
+    A plain resource bag, not a command object: the sequencing - pause before
     recording and resume after, one worker at a time, a `ValueError` from
-    training becoming an `error` event — lives in this module's `_record`,
+    training becoming an `error` event - lives in this module's `_record`,
     `_enrol` and `_train_wake`, where a test can exercise it directly against a
     fake of this class instead of it disappearing into untested wiring in
     main.py, which is the only other place a `VoiceResources` gets built.
 
     `listening` is Task 2's `Listening`, or `None` when the sidecar was not
     started with `--listen`. `record_take`, `embed_factory` and
-    `sessions_factory` default to the real ones — opening a microphone, loading
-    26 MB of ONNX — and exist as parameters so a test can hand over a stand-in
+    `sessions_factory` default to the real ones - opening a microphone, loading
+    26 MB of ONNX - and exist as parameters so a test can hand over a stand-in
     instead, the same way `training.enrol` and `training.train_wake_word`
     already take `embed_factory`/`sessions_factory` for the same reason.
     """
@@ -88,9 +88,9 @@ class VoiceResources:
         """Everything a caller needs to know whether a command can succeed.
 
         `featureModels` and `negatives` are here for the window's sake. Takes
-        are not training's only precondition — `train_wake_word` also needs
+        are not training's only precondition - `train_wake_word` also needs
         openWakeWord's two ONNX files and a pile of audio that is not the wake
-        word — and a client that cannot see them has to offer a button that
+        word - and a client that cannot see them has to offer a button that
         fails, which is exactly what the window is built not to do.
         """
         return {
@@ -123,8 +123,8 @@ def serve(stdin, stdout, narrate, speak=None, cancel=None, devices=None,
     the loop's behaviour is worth testing without loading a model or waking an
     audio device, and which model answers which verbosity is a decision made
     outside this file. `voice` is a `VoiceResources`, or `None` in every build
-    that carries no voice support — `stub.py` and the Java contract test among
-    them — in which case `voice.status`, `record`, `enrol`, `train.wake` and a
+    that carries no voice support - `stub.py` and the Java contract test among
+    them - in which case `voice.status`, `record`, `enrol`, `train.wake` and a
     `configure` carrying `listen` all answer `VOICE_UNAVAILABLE` rather than
     `UNKNOWN_COMMAND`, so a caller can tell "this build cannot" from "I sent
     nonsense".
@@ -330,7 +330,7 @@ def _record(voice: VoiceResources, message, message_id, emit) -> None:
                 # before it is taken away. Listening the owner switched off is
                 # idle already, so pause() answers True at once, and a resume in
                 # the `finally` would then open the device nobody asked to
-                # open — invisible until the toggle in the window made turning
+                # open - invisible until the toggle in the window made turning
                 # listening off something a person does.
                 was_active = voice.listening.active()
                 if not voice.listening.pause(5.0):
@@ -372,7 +372,7 @@ def _enrol(voice: VoiceResources, message_id, emit) -> None:
         return
 
     def progress(stage, done, total, detail):
-        # Must never raise into the worker thread — training.py calls this
+        # Must never raise into the worker thread - training.py calls this
         # directly, with nothing of its own catching a misbehaving callback.
         try:
             emit({"ev": "train.progress", "cmd": "enrol", "stage": stage, "done": done,
@@ -436,7 +436,7 @@ def _training_error_code(message: str) -> str:
     training.py's exceptions are plain `ValueError`, deliberately: a human
     sentence naming the file or the number that is wrong, not a code, because
     that is what a person can act on. The window needs a code as well, so this
-    reads the one signal there is — the sentence's own wording, pinned by
+    reads the one signal there is - the sentence's own wording, pinned by
     test_training.py, which is why a wording change there breaks a test here
     too rather than silently mis-classifying.
     """
@@ -454,7 +454,7 @@ def _emitter(stdout):
     lock = threading.Lock()
 
     def emit(payload):
-        # A worker thread now emits alongside the loop that reads stdin — record,
+        # A worker thread now emits alongside the loop that reads stdin - record,
         # enrol and train.wake report through this same function from their own
         # thread while the loop is free to keep answering narrate and
         # speak.cancel. Two writers on one stream interleave into unparseable

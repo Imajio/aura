@@ -37,7 +37,7 @@ def test_empty_reasoning_block_is_stripped_too():
 
 
 def test_unclosed_reasoning_block_yields_nothing_rather_than_thoughts():
-    # A truncated answer — the token ceiling cut the model off mid-thought.
+    # A truncated answer - the token ceiling cut the model off mid-thought.
     # Saying the fragment aloud is worse than staying quiet.
     speaker, _ = narrator("<think>\nLet me think about what to say about")
 
@@ -45,9 +45,9 @@ def test_unclosed_reasoning_block_yields_nothing_rather_than_thoughts():
 
 
 def test_markdown_and_paths_do_not_reach_speech():
-    speaker, _ = narrator("**Fixed** `src/main/java/aura/App.java` — see the *diff*.")
+    speaker, _ = narrator("**Fixed** `src/main/java/aura/App.java` - see the *diff*.")
 
-    assert speaker.line(["edited a file"]) == "Fixed src/main/java/aura/App.java — see the diff."
+    assert speaker.line(["edited a file"]) == "Fixed src/main/java/aura/App.java - see the diff."
 
 
 def test_only_the_first_sentence_is_spoken():

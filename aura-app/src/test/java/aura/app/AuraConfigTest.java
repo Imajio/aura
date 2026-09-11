@@ -13,8 +13,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link AuraConfig#sidecarCommand()} decides whether the microphone is ever asked
  * to open. Every case below asserts the exact argument list, chosen so that a
- * specific regression — {@code --listen} re-tied to a file instead of to the
- * {@code listen} flag, or either file gate dropped — makes it fail.
+ * specific regression - {@code --listen} re-tied to a file instead of to the
+ * {@code listen} flag, or either file gate dropped - makes it fail.
  */
 class AuraConfigTest {
 
@@ -57,7 +57,7 @@ class AuraConfigTest {
 
     @Test
     void listenTrueWithNoWakeModelAddsListenButNotTheModel(@TempDir Path tmp) {
-        // The sidecar is asked to listen and refuses with NO_WAKE_WORD, audibly —
+        // The sidecar is asked to listen and refuses with NO_WAKE_WORD, audibly -
         // that refusal is the point, not a case to route around here.
         AuraConfig config = config(tmp.resolve("wake-word.npz"), tmp.resolve("speaker.onnx"),
             tmp.resolve("reference.npy"), true);
@@ -100,7 +100,7 @@ class AuraConfigTest {
     }
 
     // The six cases above build an AuraConfig through the record constructor, which
-    // covers sidecarCommand() but not AuraConfig.load() itself — the code path an
+    // covers sidecarCommand() but not AuraConfig.load() itself - the code path an
     // owner actually goes through by editing config.yaml. The two tests below cover
     // that path: a literal `listen` key is what finding 1 requires reading, and
     // absolutising the three new paths (and only those) is what finding 2 requires.
@@ -150,7 +150,7 @@ class AuraConfigTest {
 
     // The two below are the rejected forms. Boolean.parseBoolean answers false to
     // everything it does not recognise, so before this both of them left the
-    // microphone shut and said nothing — the silent failure the `listen` key was
+    // microphone shut and said nothing - the silent failure the `listen` key was
     // introduced to remove, arriving on a different input. The message is asserted
     // on the thrown IllegalStateException rather than on its cause because that is
     // the one the startup dialog puts in front of the owner.
@@ -178,14 +178,14 @@ class AuraConfigTest {
 
     // The tests below cover save(), the other half of the round trip load() has had
     // since M1. VoiceChoicePanel is the one caller: it loads the file fresh, changes
-    // voice and profile, and saves — so what matters most is not what save() writes,
+    // voice and profile, and saves - so what matters most is not what save() writes,
     // it is what save() leaves alone.
 
     /**
      * The exact case the brief names: a hand-written comment and two keys save() does
      * not know about (claudeExe, idleTimeoutSec) must survive a save that changes
      * voice. Breaks if save() ever moves from a targeted line rewrite to parsing the
-     * file into a map and re-dumping it through SnakeYAML — Yaml().dump() drops every
+     * file into a map and re-dumping it through SnakeYAML - Yaml().dump() drops every
      * comment even when it keeps every key, which this test would still catch on the
      * comment line alone.
      */
@@ -226,7 +226,7 @@ class AuraConfigTest {
     }
 
     /**
-     * Breaks if upsert() always appends instead of replacing a key already present —
+     * Breaks if upsert() always appends instead of replacing a key already present -
      * the file would grow a new "voice:" line on every save instead of updating the
      * one that is there, and a human reading the file (or a naive script re-reading
      * only the first match) would see the voice chosen on session one forever.
@@ -246,7 +246,7 @@ class AuraConfigTest {
 
     /**
      * Breaks if upsert() matched on the key as a substring or prefix instead of the
-     * whole key name — "voice" would then also match "voiceSomethingElse", overwriting
+     * whole key name - "voice" would then also match "voiceSomethingElse", overwriting
      * a key that happens to start the same way instead of leaving it alone and adding
      * "voice" as its own line.
      */
@@ -263,10 +263,10 @@ class AuraConfigTest {
 
     /**
      * Breaks if save() reads with Files.readAllLines and writes with
-     * Files.write(Path, List) — both discard the file's actual line terminator, and
+     * Files.write(Path, List) - both discard the file's actual line terminator, and
      * the latter appends System.lineSeparator() after every line including the last.
-     * On Windows that turns a plain \n file with no trailing newline — the owner's
-     * real config.yaml is exactly this shape — into \r\n throughout, rewriting the
+     * On Windows that turns a plain \n file with no trailing newline - the owner's
+     * real config.yaml is exactly this shape - into \r\n throughout, rewriting the
      * bytes of every line, not just the three save() owns. The file is written with
      * Files.write(Path, byte[]) here rather than a text API, so the bytes on disk
      * before save() runs are exactly what this test asks for.

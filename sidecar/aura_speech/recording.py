@@ -1,7 +1,7 @@
 """Capturing one take and putting it somewhere it will not destroy another.
 
 Recording is the only thing in this project that produces something no program
-can make again. Everything else — a model, an embedding, a transcript — can be
+can make again. Everything else - a model, an embedding, a transcript - can be
 rebuilt from what is on disk; a take of somebody's voice cannot. So the numbering
 lives here, in one function, tested from a populated directory, rather than in a
 loop in whichever script happens to be recording.
@@ -27,7 +27,7 @@ def take_path(directory, kind: str, number: int) -> pathlib.Path:
 
 
 def next_take_number(directory, kind: str) -> int:
-    """One past the highest take already there — never a gap, never a reuse.
+    """One past the highest take already there - never a gap, never a reuse.
 
     Filling a gap left by a deleted take would give a new recording a name an
     old one had, which is how a note saying "take 2 was the quiet one" starts
@@ -64,8 +64,8 @@ def loudness(samples: np.ndarray) -> float:
 def record_take(seconds: float, device_index=None) -> np.ndarray:
     """One take from the microphone, 16 kHz mono.
 
-    **This opens the microphone.** It is called from exactly two places — the
-    recording script and the sidecar's `record` command — and both of them say
+    **This opens the microphone.** It is called from exactly two places - the
+    recording script and the sidecar's `record` command - and both of them say
     so to the person first.
     """
     import pyaudiowpatch as pyaudio

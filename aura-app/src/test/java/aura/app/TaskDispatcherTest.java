@@ -79,7 +79,7 @@ class TaskDispatcherTest {
         // Claude Code refuses to create a session with an id it has already seen:
         // "Session ID ... is already in use", and the process dies at once. An id
         // derived from the project name is therefore good for exactly one run in
-        // the whole life of that project — after which every dispatch fails.
+        // the whole life of that project - after which every dispatch fails.
         Path runDir = Files.createTempDirectory("aura-session-id");
         Set<String> ids = new java.util.HashSet<>();
 
@@ -159,7 +159,7 @@ class TaskDispatcherTest {
         assertThat(content).contains("PreToolUse");
         // Parsed, not matched as raw text: the file is JSON, so a Windows path's
         // backslashes are escaped in the bytes on disk and never appear there
-        // literally — the same reason SettingsFileWriterTest parses before asserting.
+        // literally - the same reason SettingsFileWriterTest parses before asserting.
         String socketInFile = new com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(content).at("/env/AURA_HOOK_SOCKET").asText();
         assertThat(socketInFile).isEqualTo(config.socketPath().toString());

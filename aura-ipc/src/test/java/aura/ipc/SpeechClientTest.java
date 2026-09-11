@@ -29,7 +29,7 @@ class SpeechClientTest {
     @BeforeAll
     static void aRunnableInterpreterIsAvailable() {
         assumeTrue(Files.isRegularFile(STUB), "sidecar stub not found");
-        // Checking that stub.py exists proves nothing — it is tracked and always present.
+        // Checking that stub.py exists proves nothing - it is tracked and always present.
         // What varies between machines is Python, so ask Python.
         try {
             Process probe = new ProcessBuilder(python(), "--version")

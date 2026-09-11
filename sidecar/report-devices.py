@@ -16,7 +16,7 @@ import openvino as ov
 
 # Properties worth reporting per device. Asking for one a device does not
 # support raises, so every read is guarded and reported as unsupported rather
-# than killing the run — a partial report is still evidence.
+# than killing the run - a partial report is still evidence.
 PROPERTIES = [
     "FULL_DEVICE_NAME",
     "DEVICE_ARCHITECTURE",
@@ -55,7 +55,7 @@ def main() -> int:
     if not any(d.startswith("NPU") for d in devices):
         # Not a warning to be scrolled past: the device policy assumes an NPU,
         # and every latency and power figure in the design was taken with one.
-        print("\nNO NPU VISIBLE — the execution-device policy (ADR 0001) does not hold here.")
+        print("\nNO NPU VISIBLE - the execution-device policy (ADR 0001) does not hold here.")
         return 1
     return 0
 

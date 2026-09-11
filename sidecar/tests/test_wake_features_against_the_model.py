@@ -1,12 +1,12 @@
 """Checks `wake_features` against the real ONNX models, when they are present.
 
 The unit tests next door construct `WakeClassifier` directly and never touch a
-model at all — they prove the decision boundary and the standardisation are
+model at all - they prove the decision boundary and the standardisation are
 correct once given a 96-number vector, not that a 96-number vector is what the
 real feature pipeline actually produces. `wake_features` is the one function
 `train-wake-word.py` and `hearing.py`'s `trained_wake_word` both call, on the
 premise that identical code is what keeps a classifier's training and its
-scoring from drifting apart — and nothing but this file would notice if that
+scoring from drifting apart - and nothing but this file would notice if that
 premise broke: change the melspectrogram's scale, the window size or the step,
 and the other 94 tests would keep passing while the wake word quietly stopped
 recognising anything.
@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(
     reason=f"no openWakeWord feature models at {MELSPEC.parent}")
 
 # Separate ONNX sessions measured 3.24e-05 apart on identical input during
-# review — float32 noise between sessions, not a scale or shape error. An
+# review - float32 noise between sessions, not a scale or shape error. An
 # exact comparison here would be flaky rather than useful.
 TOLERANCE = 1e-3
 
@@ -95,7 +95,7 @@ def test_it_matches_recorded_constants(sessions):
     # Computed once against the real models on a fixed seed, then pasted in.
     # These five numbers encode the melspectrogram's x/10 + 2 scaling, the
     # 76-frame window and the step of 8 all at once: change any of those three
-    # and this fails — which is the entire point of the test, since nothing
+    # and this fails - which is the entire point of the test, since nothing
     # else here would notice.
     melspec, embedding = sessions
     features = wake_features(_noise(16000), melspec, embedding)

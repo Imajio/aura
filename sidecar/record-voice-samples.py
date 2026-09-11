@@ -9,7 +9,7 @@ Two things Aura cannot have until somebody says them out loud:
 
 This records. It says so before it starts, it counts down, and every file it
 writes is under `voice/`, which is ignored by git and never leaves the machine
-— that is stated in the repository's own rules and this is the script that has
+- that is stated in the repository's own rules and this is the script that has
 to honour it.
 
     .venv/Scripts/python.exe record-voice-samples.py wake      --takes 20
@@ -30,7 +30,7 @@ WHAT = {
         "say": "Аура",
         "seconds": 2.0,
         "advice": [
-            "Say it the way you actually would — not the way you would read it aloud.",
+            "Say it the way you actually would - not the way you would read it aloud.",
             "Vary it: closer and further from the laptop, sitting and standing,",
             "quietly, in a hurry, mid-sentence. A model trained on twenty identical",
             "takes recognises one mood and misses every other.",
@@ -100,7 +100,7 @@ def main(argv=None) -> int:
         # missing one, because it is silently trained on.
         if level < 0.005:
             quiet_takes += 1
-            print(f"very quiet ({level:.4f}) — move closer, or record this one again")
+            print(f"very quiet ({level:.4f}) - move closer, or record this one again")
         else:
             print(f"ok ({level:.3f})  {path.name}")
 

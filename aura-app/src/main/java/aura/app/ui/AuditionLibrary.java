@@ -17,14 +17,14 @@ import org.slf4j.LoggerFactory;
 /**
  * Reads the narrator-voice audition tree from disk: {@code <release>/<voice>/<line>.wav}.
  *
- * <p>Produced once, by hand, outside the repository — {@code
+ * <p>Produced once, by hand, outside the repository - {@code
  * sidecar/audition-russian-tts.py} renders it and this class only ever reads what is
  * already there. Nothing here knows what any of the ten lines mean; that is a decision
  * for whoever presents them, not for a file scanner.
  *
  * <p>The folder is optional. It exists on the machine that ran the render script and on
  * no other, so {@link #scan} answers an absent, renamed or unreadable root with an
- * empty list rather than a stack trace — a window that fails to open because an
+ * empty list rather than a stack trace - a window that fails to open because an
  * evaluation artefact is missing is a worse failure than one that opens and says there
  * is nothing to audition.
  */
@@ -47,7 +47,7 @@ public final class AuditionLibrary {
 
     /**
      * Every voice under {@code root} that has at least one {@code .wav} file, in a
-     * fixed (alphabetical by release, then by voice) order — the order a caller
+     * fixed (alphabetical by release, then by voice) order - the order a caller
      * shuffles for blind listening, not an order meant to be shown as-is.
      *
      * <p>A voice directory with no {@code .wav} files in it is skipped rather than
@@ -71,13 +71,13 @@ public final class AuditionLibrary {
     }
 
     /**
-     * {@code voices}, reordered — the same way for the same seed, a different way for
+     * {@code voices}, reordered - the same way for the same seed, a different way for
      * a different one. The panel draws one seed when it is built and keeps it for as
      * long as it is open, which is what makes the blind order "shuffled per session but
      * stable within it" rather than reshuffling on every repaint.
      *
      * <p>{@code voices} itself is left untouched, so a caller may shuffle the one scan
-     * result more than once — for two separate panels open at once, say — without one
+     * result more than once - for two separate panels open at once, say - without one
      * shuffle's order leaking into the other's starting point.
      */
     public static List<AuditionVoice> shuffled(List<AuditionVoice> voices, long seed) {
@@ -95,7 +95,7 @@ public final class AuditionLibrary {
             entries.forEach(found::add);
         } catch (IOException e) {
             // A directory that Files.isDirectory just confirmed can still fail to list
-            // — removed, or permissions changed, between the two calls. Either way the
+            // - removed, or permissions changed, between the two calls. Either way the
             // audition is optional: log it and move on as if this branch were empty,
             // rather than let a race condition become a startup failure.
             log.debug("could not list {}, treating it as empty", dir, e);

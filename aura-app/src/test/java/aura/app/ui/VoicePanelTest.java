@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
  * fail on a font and pass on a panel that had stopped working.
  *
  * <p>Everything runs inside {@link SwingUtilities#invokeAndWait} because that is
- * the contract the panel is written to — {@code AuraWindow} puts every sidecar
+ * the contract the panel is written to - {@code AuraWindow} puts every sidecar
  * event on the event dispatch thread before fanning it out, and a test that
  * touched these components from JUnit's own thread would be testing something
  * the application never does.
@@ -55,7 +55,7 @@ class VoicePanelTest {
     void enrolIsDisabledWithItsReasonUntilTakesExist() {
         // Breaks if Enrol is enabled whenever the sidecar has answered, or if the
         // reason beside it is dropped. Then the owner presses a live button and
-        // gets NOT_ENOUGH_TAKES back from the sidecar — an error where the panel
+        // gets NOT_ENOUGH_TAKES back from the sidecar - an error where the panel
         // already knew the answer.
         onEdt(() -> {
             Panel panel = new Panel();
@@ -63,7 +63,7 @@ class VoicePanelTest {
 
             assertThat(button(panel.voice, "voice.reference.action").isEnabled()).isFalse();
             assertThat(text(panel.voice, "voice.reference.reason"))
-                .contains("no takes yet — record some first");
+                .contains("no takes yet - record some first");
 
             panel.status(3, 0, false, false, true, false);
 
@@ -75,7 +75,7 @@ class VoicePanelTest {
     void enrolIsDisabledWhenTheSpeakerModelIsMissingHoweverManyTakesThereAre() {
         // Breaks if takes are treated as enrolment's only precondition. training.py
         // also needs models/speaker.onnx and raises NO_SPEAKER_MODEL without it,
-        // and voice.status reports whether it is there — so the panel can say so
+        // and voice.status reports whether it is there - so the panel can say so
         // instead of letting the owner discover it by pressing.
         onEdt(() -> {
             Panel panel = new Panel();
@@ -116,7 +116,7 @@ class VoicePanelTest {
     void nothingCanBePressedBeforeTheSidecarHasAnswered() {
         // Breaks if the panel starts out live. With no sidecar the send is a
         // no-op, so a pressed button would set the panel running and nothing
-        // would ever arrive to set it back — the stuck panel, reached by
+        // would ever arrive to set it back - the stuck panel, reached by
         // pressing a button that was never usable.
         onEdt(() -> {
             Panel panel = new Panel();
@@ -158,7 +158,7 @@ class VoicePanelTest {
     @Test
     void trainIsDisabledWhenWhatItTrainsFromIsMissing() {
         // Takes are not training's only precondition. Breaks if the panel offers
-        // Train while openWakeWord's models or the negative audio are absent —
+        // Train while openWakeWord's models or the negative audio are absent -
         // the owner presses a live button and gets NO_FEATURE_MODELS, which is
         // the failure this whole section is arranged to prevent.
         onEdt(() -> {
@@ -183,8 +183,8 @@ class VoicePanelTest {
     void theMicrophoneIsNotAskedForUntilTheCountReachesZero() {
         // The count-in is the panel's own, run before the command is sent, which
         // is the only place it can honestly run. Breaks if agreeing sends record
-        // immediately — the count would then be decoration over a microphone
-        // that was already open — or if Cancel stops explaining itself.
+        // immediately - the count would then be decoration over a microphone
+        // that was already open - or if Cancel stops explaining itself.
         // A minute a tick, so the count cannot reach zero inside the test.
         Panel panel = panel(60_000);
         onEdt(() -> {
@@ -207,7 +207,7 @@ class VoicePanelTest {
     @Test
     void theSectionDoesNotSayTheMicrophoneIsOpenUntilATakeProvesIt() {
         // protocol.py emits record.started from the loop thread, before the
-        // worker that pauses listening and opens the device has been started —
+        // worker that pauses listening and opens the device has been started -
         // and if that pause fails the device never opens at all. Breaks if the
         // panel treats record.started as proof of an open microphone.
         Panel panel = panel();
@@ -275,7 +275,7 @@ class VoicePanelTest {
 
     @Test
     void everyButtonIsDisabledWhileACommandRunsAndLiveAgainAfterRecordDone() {
-        // Breaks if the panel leaves its buttons live while the sidecar is busy —
+        // Breaks if the panel leaves its buttons live while the sidecar is busy -
         // the second command comes back BUSY, and an error is a worse way to say
         // "not now" than a button that is visibly not offering. Also breaks if
         // record.done is not treated as the end of the run.
@@ -305,7 +305,7 @@ class VoicePanelTest {
     void busyRestoresTheButtonsInsteadOfLeavingThePanelStuck() {
         // Named after the failure it prevents. An error is the one answer that
         // ends a command without a done event, and a panel that only listens for
-        // record.done or train.done stays disabled for the rest of the session —
+        // record.done or train.done stays disabled for the rest of the session -
         // with no way back except closing the window.
         Panel panel = panel();
         onEdt(() -> {
@@ -345,7 +345,7 @@ class VoicePanelTest {
                 + panel.lastId() + "\"}");
 
             assertThat(text(panel.voice, "voice.wake.report"))
-                .contains("too quiet — move closer");
+                .contains("too quiet - move closer");
 
             panel.event("{\"ev\":\"record.take\",\"kind\":\"wake\",\"number\":22,"
                 + "\"level\":0.081,\"path\":\"voice/wake/wake-022.wav\",\"for\":\""
@@ -354,7 +354,7 @@ class VoicePanelTest {
             // Named against take 22. The quiet line for take 21 is still in the
             // block, so a bare contains("good") would pass on a panel that gave
             // every take the quiet verdict.
-            assertThat(text(panel.voice, "voice.wake.report")).contains("take 22 — good");
+            assertThat(text(panel.voice, "voice.wake.report")).contains("take 22 - good");
         });
     }
 
@@ -392,7 +392,7 @@ class VoicePanelTest {
 
     @Test
     void theListeningToggleShowsWhatTheSidecarAnsweredAndNotWhatWasClicked() {
-        // Breaks the moment somebody lets the click set the state — which a
+        // Breaks the moment somebody lets the click set the state - which a
         // JCheckBox does on its own, so this is not hypothetical. A toggle that
         // believes itself claims the microphone is off while it is still open.
         onEdt(() -> {
@@ -496,7 +496,7 @@ class VoicePanelTest {
          * The two presses recording takes: the one that asks, and the one that
          * agrees and starts the count-in. Runs on the event dispatch thread.
          *
-         * <p>The count is not skipped for tests — it is the path the owner
+         * <p>The count is not skipped for tests - it is the path the owner
          * walks, and a suite that jumped over it would be covering a panel
          * nobody has. It is only made fast, at a millisecond a tick.
          */
@@ -510,7 +510,7 @@ class VoicePanelTest {
          * Waits for the count-in to reach zero and send. Runs on JUnit's thread,
          * never the event dispatch thread: the count ticks <em>on</em> the EDT,
          * so a test still holding it would wait for something that cannot happen.
-         * Touches no component — only the list the stub sender appends to.
+         * Touches no component - only the list the stub sender appends to.
          */
         void awaitSend() {
             long deadline = System.currentTimeMillis() + 5000;

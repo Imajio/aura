@@ -43,7 +43,7 @@ public final class SessionSupervisor implements AutoCloseable {
     public AgentSession sessionFor(String key, SessionConfig config, Consumer<AgentEvent> sink) {
         // Entire decision happens inside compute: read, judge, replace. Split into
         // separate map calls, and two callers arriving together each create a session
-        // while the second overwrites the first — leaving a live agent process nobody owns.
+        // while the second overwrites the first - leaving a live agent process nobody owns.
         Entry entry = sessions.compute(key, (name, existing) -> {
             if (existing != null && existing.session().alive()) {
                 return new Entry(existing.session(), clock.instant());

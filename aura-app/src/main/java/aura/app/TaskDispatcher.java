@@ -61,8 +61,8 @@ public final class TaskDispatcher {
 
         Project project = target.get();
         // Fresh every time, and it has to be. Claude Code refuses to create a
-        // session with an id it has already seen — "Session ID ... is already in
-        // use" — and the process dies immediately. An id derived from the project
+        // session with an id it has already seen - "Session ID ... is already in
+        // use" - and the process dies immediately. An id derived from the project
         // name was therefore good for exactly one run in the whole life of that
         // project, and every dispatch after it failed.
         //
@@ -75,7 +75,7 @@ public final class TaskDispatcher {
         // The settings file is written before every launch, not once at install
         // time: the socket and jar paths change together with the configuration,
         // and an agent given --settings pointing at a file that doesn't exist
-        // simply ends up without a hook — silently, with no error at all.
+        // simply ends up without a hook - silently, with no error at all.
         SettingsFileWriter.write(settings, config.socketPath(),
             config.hookJar(), config.javaExe());
 

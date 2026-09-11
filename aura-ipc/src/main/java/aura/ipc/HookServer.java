@@ -148,7 +148,7 @@ public final class HookServer implements AutoCloseable {
                 response = HookResponse.deny("handler returned no response");
             }
         } catch (Exception e) {
-            log.warn("hook handler failed — answering with a refusal", e);
+            log.warn("hook handler failed - answering with a refusal", e);
             response = HookResponse.deny("internal Aura error");
         }
 
@@ -176,7 +176,7 @@ public final class HookServer implements AutoCloseable {
                 channel.close();
             }
         } catch (Exception ignored) {
-            // channel is already closed — nothing to worry about
+            // channel is already closed - nothing to worry about
         }
         workers.shutdownNow();
         deadlines.shutdownNow();

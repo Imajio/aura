@@ -46,7 +46,7 @@ def build_narrator(model: pathlib.Path, device: str, cache: pathlib.Path):
     """Returns `generate(prompt) -> str`, loading the model on the first call.
 
     Lazy on purpose. Compiling for the iGPU takes tens of seconds, and the
-    protocol's `ready` event has to reach Java before that — otherwise the tray
+    protocol's `ready` event has to reach Java before that - otherwise the tray
     cannot tell a sidecar that is warming up from one that died on startup.
     """
     state = {}
@@ -98,7 +98,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     # Pin both pipes to UTF-8. A piped child on Windows inherits the console code
-    # page, which here is cp1252 — a codec with no mapping for Cyrillic at all.
+    # page, which here is cp1252 - a codec with no mapping for Cyrillic at all.
     # Left alone, the first Russian narration line raises UnicodeEncodeError and
     # kills the sidecar, with the traceback going to a stderr stream the client
     # logs below its default level. The stub carries the same two lines and the
@@ -132,7 +132,7 @@ def main(argv=None) -> int:
                            "speech could never be acted on",
                  "fatal": False})
 
-    # Paths only — nothing here loads a model. record/enrol/train.wake each
+    # Paths only - nothing here loads a model. record/enrol/train.wake each
     # start a worker thread on request, and every model load stays on that
     # thread, so `ready` below still reaches Java before anything is compiled.
     voice_resources = VoiceResources(

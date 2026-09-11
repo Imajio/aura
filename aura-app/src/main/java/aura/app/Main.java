@@ -101,7 +101,7 @@ public final class Main {
             if (!Files.isRegularFile(config.hookJar())) {
                 throw new IllegalStateException(
                     "hook jar not found at " + config.hookJar()
-                        + " — build it with `mvn -q clean package` or set hookJar in "
+                        + " - build it with `mvn -q clean package` or set hookJar in "
                         + configFile);
             }
 
@@ -112,7 +112,7 @@ public final class Main {
             if (!Files.isRegularFile(config.javaExe())) {
                 throw new IllegalStateException(
                     "java executable not found at " + config.javaExe()
-                        + " — set javaExe in " + configFile);
+                        + " - set javaExe in " + configFile);
             }
 
             HookServer hookServer = new HookServer(
@@ -150,7 +150,7 @@ public final class Main {
                 new java.util.concurrent.atomic.AtomicBoolean();
 
             // The sidecar is optional on purpose. Without it the application still
-            // dispatches tasks, gates tool calls and shows progress in the tray —
+            // dispatches tasks, gates tool calls and shows progress in the tray -
             // it simply does not speak. Refusing to start because a voice is
             // missing would trade the whole product for one of its features.
             java.util.function.Consumer<String>[] spoken = new java.util.function.Consumer[1];
@@ -174,7 +174,7 @@ public final class Main {
                         spoken[0].accept(phrase);
                     }
                 }, eventsOut);
-            // Reachable now for whoever subscribes next — the desktop window, in a
+            // Reachable now for whoever subscribes next - the desktop window, in a
             // later task. Null only when there is no sidecar directory to read
             // from at all: unlike speech, this stays non-null even if the sidecar
             // process itself then fails to start, since the reader is built, and
@@ -301,7 +301,7 @@ public final class Main {
                 logDir,
                 configFile);
             windowRef[0] = window;
-            // Null when there is no sidecar directory at all — see where
+            // Null when there is no sidecar directory at all - see where
             // sidecarEvents is assigned. Nothing to listen to, and the window
             // says so on its Sidecar card rather than waiting forever.
             if (sidecarEvents != null) {
@@ -330,7 +330,7 @@ public final class Main {
                 narrationPolicy.verbosity(),
                 logDir);
 
-            // Drained the instant there is a tray to drain it onto — see heldAlert
+            // Drained the instant there is a tray to drain it onto - see heldAlert
             // where it is declared for why the alert can arrive before this line.
             String heldNotice = heldAlert.getAndSet(null);
             if (heldNotice != null) {
@@ -395,7 +395,7 @@ public final class Main {
                                              java.util.function.Consumer<String> onSpoken,
                                              SidecarEvents[] eventsOut) {
         if (!Files.isDirectory(config.sidecarDir())) {
-            log.warn("no sidecar at {} — running without a voice", config.sidecarDir());
+            log.warn("no sidecar at {} - running without a voice", config.sidecarDir());
             return null;
         }
         SidecarEvents events = new SidecarEvents();
@@ -413,7 +413,7 @@ public final class Main {
                     tray[0].status("listening");
                 }
             } else if ("rejected".equals(kind)) {
-                // Deliberately quiet. Somebody spoke and was not the owner —
+                // Deliberately quiet. Somebody spoke and was not the owner -
                 // which is the feature working, not a fault, and a balloon
                 // for every refusal would make the room's conversation the
                 // application's business.
@@ -438,7 +438,7 @@ public final class Main {
                     // Only the line that closes the task interrupts. Windows
                     // coalesces balloons that arrive close together, so raising
                     // one per step loses most of them and teaches the user to
-                    // dismiss the rest unread — the habit that must be absent
+                    // dismiss the rest unread - the habit that must be absent
                     // when a permission question finally arrives.
                     if (finished.compareAndSet(true, false)) {
                         tray[0].alert(text);
@@ -449,8 +449,8 @@ public final class Main {
             } else if ("error".equals(kind)) {
                 String code = event.text("code");
                 log.warn("sidecar error {}: {}", code, event.text("detail"));
-                // The state this reports — a trained wake word, no enrolled voice,
-                // so every voice in the room is accepted as the owner — is one the
+                // The state this reports - a trained wake word, no enrolled voice,
+                // so every voice in the room is accepted as the owner - is one the
                 // owner has to know they are in. A log file nobody is watching is
                 // not how this application tells somebody something that matters.
                 if ("NO_SPEAKER_REFERENCE".equals(code)) {
@@ -472,14 +472,14 @@ public final class Main {
         try {
             // SpeechClient already parses each line into a JsonNode before this
             // callback runs. SidecarEvents' contract takes the raw line instead, so
-            // every subscriber — Main today, the window later — shares one parse
+            // every subscriber - Main today, the window later - shares one parse
             // and one place where the protocol is understood; the node is
             // serialised back to text here rather than teaching SpeechClient a
             // second, competing notion of "line".
             return SpeechClient.start(config.sidecarCommand(), config.sidecarDir(),
                 parsed -> events.onLine(parsed.toString()));
         } catch (Exception e) {
-            log.warn("speech sidecar did not start — running without a voice", e);
+            log.warn("speech sidecar did not start - running without a voice", e);
             return null;
         }
     }

@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The menu is deliberately not where the application lives. Anything that has
  * to be read rather than glanced at belongs in the window, which {@code Open
- * Aura} — and a double-click on the icon — opens.
+ * Aura} - and a double-click on the icon - opens.
  */
 public final class TrayApp {
 
@@ -56,8 +56,8 @@ public final class TrayApp {
 
         // The way into the application proper, and so the first thing in the
         // menu. The tray is a glance and a shortcut; everything that needs
-        // reading — which models loaded, what voice setup is missing, why
-        // nothing is listening — lives in the window this opens.
+        // reading - which models loaded, what voice setup is missing, why
+        // nothing is listening - lives in the window this opens.
         MenuItem open = new MenuItem("Open Aura");
         open.addActionListener(e -> onOpen.run());
         menu.add(open);
@@ -70,7 +70,7 @@ public final class TrayApp {
         menu.add(statusItem);
 
         // The second line keeps the last thing worth reading. A balloon may never
-        // have been shown at all — Windows decides — so nothing may live only there.
+        // have been shown at all - Windows decides - so nothing may live only there.
         messageItem = new MenuItem(" ");
         messageItem.setEnabled(false);
         menu.add(messageItem);
@@ -80,7 +80,7 @@ public final class TrayApp {
         newTask.addActionListener(e -> SwingUtilities.invokeLater(() -> {
             String phrase = JOptionPane.showInputDialog(null,
                 "What should I do? Name the project in the first phrase.",
-                "Aura — new task", JOptionPane.QUESTION_MESSAGE);
+                "Aura - new task", JOptionPane.QUESTION_MESSAGE);
             if (phrase != null && !phrase.isBlank()) {
                 onTask.accept(phrase.trim());
             }
@@ -130,9 +130,9 @@ public final class TrayApp {
 
     private static String label(Verbosity level) {
         return switch (level) {
-            case QUIET -> "Quiet — permissions, errors, results";
+            case QUIET -> "Quiet - permissions, errors, results";
             case NORMAL -> "Normal";
-            case VERBOSE -> "Verbose — every step";
+            case VERBOSE -> "Verbose - every step";
         };
     }
 
@@ -160,7 +160,7 @@ public final class TrayApp {
     public void status(String text) {
         this.state = text;
         statusItem.setLabel(abbreviate(text));
-        icon.setToolTip("Aura — " + abbreviate(text));
+        icon.setToolTip("Aura - " + abbreviate(text));
     }
 
     /**
@@ -181,7 +181,7 @@ public final class TrayApp {
      *
      * <p>Balloons are spent sparingly and on purpose. Windows shows them at its
      * own discretion, and an application that raises one for every step teaches
-     * the user to dismiss them without reading — which is exactly the habit that
+     * the user to dismiss them without reading - which is exactly the habit that
      * has to be absent when a permission question finally arrives.
      */
     public void alert(String text) {
@@ -193,7 +193,7 @@ public final class TrayApp {
      * Shows what Aura is doing.
      *
      * <p>A tray icon that never changes is decoration. This one carries the single
-     * status worth reading at a glance — whether anything is expected of the user.
+     * status worth reading at a glance - whether anything is expected of the user.
      */
     public void state(TrayIconArt.State state) {
         icon.setImage(TrayIconArt.render(state, iconSize));

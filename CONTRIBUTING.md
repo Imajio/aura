@@ -19,12 +19,12 @@ a short-lived branch and comes back by merge.
 A branch name is the prefix plus a short subject, hyphen-separated:
 `feat/m1-skeleton`, `fix/hook-timeout-deny`.
 
-A branch lives days, not weeks. A long-lived branch is not thoroughness — it
+A branch lives days, not weeks. A long-lived branch is not thoroughness - it
 is a merge conflict deferred.
 
 ## Commits
 
-Format — [Conventional Commits](https://www.conventionalcommits.org/):
+Format - [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <what was done, imperative mood, under 72 characters>
@@ -55,7 +55,7 @@ Three rules that matter more than the format:
    history where half the commits don't compile.
 3. **The body answers "why," not "what."** What was done is visible in the diff.
 
-Messages are written in English — like everything else in the repository.
+Messages are written in English - like everything else in the repository.
 
 ## Language
 
@@ -113,9 +113,9 @@ adapter disagrees with one, the adapter is what gets fixed.
 
 ## What must not be in the repository
 
-- Model weights and compiled-blob caches — gigabytes, live in `models/` and
+- Model weights and compiled-blob caches - gigabytes, live in `models/` and
   `.ov_cache/`, both ignored.
-- Voice recordings and the speaker reference — `voice/`, `recordings/`.
+- Voice recordings and the speaker reference - `voice/`, `recordings/`.
   Personal data; it does not leave the machine.
 - Secrets, tokens, keys. Never, not even in test data.
 

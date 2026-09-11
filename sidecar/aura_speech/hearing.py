@@ -13,8 +13,8 @@ from .cascade import FRAME, RATE
 
 DEFAULT_CAPTURE_RATE = 48000
 
-# openWakeWord's own release assets — melspectrogram.onnx and embedding_model.onnx
-# — placed here by hand, not by pip: the openwakeword package pulls in scipy and
+# openWakeWord's own release assets - melspectrogram.onnx and embedding_model.onnx
+# - placed here by hand, not by pip: the openwakeword package pulls in scipy and
 # scikit-learn to train its own classifiers, about 150 MB, into a sidecar meant to
 # sit idle all day. `models/` is git-ignored like every other model in this
 # project, so this is a one-time manual step, not something cloning the repository
@@ -131,7 +131,7 @@ def to_16k(block: np.ndarray, rate: int, frame: int = FRAME) -> np.ndarray:
     An integer ratio is averaged, which is a decimating filter and both cheaper
     and less wrong than taking every nth sample. Anything else is interpolated:
     44.1 kHz is 2.75 times 16 kHz, and a microphone that reports it is common
-    enough that assuming 48 kHz would simply produce distorted audio — audio
+    enough that assuming 48 kHz would simply produce distorted audio - audio
     that a VAD would still answer about, confidently and wrongly.
     """
     if rate == RATE:
@@ -171,8 +171,8 @@ def trained_wake_word(model_path, threshold: float = 0.5):
     word would make the cascade look finished while listening for the wrong thing.
 
     The two feature models behind it are loaded straight through onnxruntime
-    rather than through the `openwakeword` package — see
-    `DEFAULT_WAKE_FEATURE_MODELS` for why — and `wake_features` in `wake.py` is
+    rather than through the `openwakeword` package - see
+    `DEFAULT_WAKE_FEATURE_MODELS` for why - and `wake_features` in `wake.py` is
     the same function `train-wake-word.py` calls, so the classifier is scored on
     exactly the numbers it was trained on.
     """
@@ -190,7 +190,7 @@ def trained_wake_word(model_path, threshold: float = 0.5):
             # frames for the rest of the session, naming neither the wake word nor
             # the file that was missing. Both sessions are built on the first
             # speech frame of live listening rather than at startup, so a
-            # transient failure lands exactly here — and leaving `state` empty is
+            # transient failure lands exactly here - and leaving `state` empty is
             # what lets the next frame retry instead.
             classifier = WakeClassifier.load(model_path)
             melspec = ort.InferenceSession(

@@ -16,7 +16,7 @@ import java.time.Duration;
 /**
  * The client used by the hook process.
  *
- * <p>Any trouble — no server, a dropped connection, garbage in the response — turns
+ * <p>Any trouble - no server, a dropped connection, garbage in the response - turns
  * into a refusal. A hook that got no answer has no right to permit the call.
  */
 public final class HookClient {
@@ -65,7 +65,7 @@ public final class HookClient {
             try {
                 watchdog.join(100);
             } catch (InterruptedException ignored) {
-                // the watchdog itself raced us here — fall through and clear the flag below
+                // the watchdog itself raced us here - fall through and clear the flag below
             }
             Thread.interrupted();
         }

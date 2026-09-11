@@ -4,12 +4,12 @@ Deliberately not a neural network of its own. The features come from the speech
 embedding model openWakeWord already ships; what is learned here is a single
 linear boundary over them, from twenty recordings of one person saying one
 phrase. That is the whole personalisation the design asks for, and a logistic
-regression is enough to hold it — with the advantage that it trains in a second
+regression is enough to hold it - with the advantage that it trains in a second
 on a laptop rather than in a notebook somebody else has to run.
 
 `wake_features` computes that embedding directly through openWakeWord's two
 ONNX files rather than through the `openwakeword` package: installing the
-package pulls in scipy and scikit-learn — about 150 MB — into a sidecar meant
+package pulls in scipy and scikit-learn - about 150 MB - into a sidecar meant
 to sit idle all day. Both the training script and the live detector call this
 one function, so a classifier is always scored on exactly the numbers it was
 trained on.
@@ -56,12 +56,12 @@ def wake_features(samples, melspec_session, embedding_session):
     The parameters are openWakeWord's own, read from its source: the
     melspectrogram is scaled by x/10 + 2, and the embedding model consumes
     windows of 76 frames taken every 8. Training and detection must compute
-    this identically — a classifier scored on features it was not trained on
+    this identically - a classifier scored on features it was not trained on
     fails silently, by never firing or by firing on everything.
 
     `samples` is expected at int16 magnitude (roughly -32768..32767) rather
     than the -1..1 range the rest of this codebase captures and stores audio
-    in — confirmed by running both scales through this project's own
+    in - confirmed by running both scales through this project's own
     `melspectrogram.onnx`: int16 magnitude produces the small positive range
     the x/10 + 2 scaling above is evidently calibrated for (about 1 to 9 on a
     real recording), while -1..1 floats produce mostly negative values well

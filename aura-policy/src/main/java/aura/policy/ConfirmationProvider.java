@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Asks the user whether a dangerous call may proceed.
  *
- * <p>In M1 there is a single implementation — a modal dialog from the tray. In
+ * <p>In M1 there is a single implementation - a modal dialog from the tray. In
  * M4 a voice implementation will connect to the same interface, and the dialog
  * will remain the fallback path.
  */
@@ -57,7 +57,7 @@ public interface ConfirmationProvider {
                     return Decision.ALLOW;
                 }
                 if (answer != Decision.DENY) {
-                    log.warn("confirmation returned {} for {} — treating it as a refusal",
+                    log.warn("confirmation returned {} for {} - treating it as a refusal",
                         answer, request.toolName());
                 }
                 return Decision.DENY;
@@ -65,10 +65,10 @@ public interface ConfirmationProvider {
                 // Restore the flag before returning. Swallowing it would leave a caller
                 // that is itself being cancelled unable to see its own shutdown.
                 Thread.currentThread().interrupt();
-                log.info("confirmation interrupted for {} — denying", request.toolName());
+                log.info("confirmation interrupted for {} - denying", request.toolName());
                 return Decision.DENY;
             } catch (Exception e) {
-                log.info("no confirmation obtained for {} ({}) — denying",
+                log.info("no confirmation obtained for {} ({}) - denying",
                     request.toolName(), e.getClass().getSimpleName());
                 return Decision.DENY;
             } finally {

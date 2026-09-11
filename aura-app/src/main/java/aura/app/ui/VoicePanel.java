@@ -33,8 +33,8 @@ import org.slf4j.LoggerFactory;
  * <p>Everything this section does was already possible from a terminal, with the
  * repository checked out, a virtual environment activated and two scripts run in
  * the right order. That is not a thing anybody does twice. The whole point of the
- * window is that the owner can improve the model whenever they feel like it —
- * record four more takes on a Tuesday, train again, see the two numbers — and
+ * window is that the owner can improve the model whenever they feel like it -
+ * record four more takes on a Tuesday, train again, see the two numbers - and
  * something done on a whim has to be reachable in one click.
  *
  * <h2>What is on screen</h2>
@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * it.</b> Not live and then failing: the sidecar knows perfectly well that
  * enrolment needs takes and that training needs five of them, and a panel that
  * lets a person press a button in order to be told so has chosen an error message
- * over an answer. The same applies while a command runs — the sidecar answers a
+ * over an answer. The same applies while a command runs - the sidecar answers a
  * second one with {@code BUSY}, and a disabled button explains itself better than
  * an error does.
  *
@@ -67,7 +67,7 @@ import org.slf4j.LoggerFactory;
  * change happens when an event arrives from the sidecar's reader thread, which
  * {@link AuraWindow} has already put on the event dispatch thread. The panel's
  * own idea of the world comes from the last {@code voice.status} and from nowhere
- * else — pressing the listening toggle does not make it show "on", because a
+ * else - pressing the listening toggle does not make it show "on", because a
  * toggle that believes its own click is a toggle that lies the first time the
  * sidecar disagrees.
  *
@@ -81,7 +81,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     /** Below this a take is too quiet to train on. record-voice-samples.py's number. */
     private static final double QUIET = 0.005;
 
-    /** Under this many wake takes, training refuses outright — training.py's number. */
+    /** Under this many wake takes, training refuses outright - training.py's number. */
     private static final int WAKE_MINIMUM = 5;
 
     /** And this many is what it takes to be any good. */
@@ -106,7 +106,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         "recorded", 3, 6,
         "Enrolment averages a few seconds of your ordinary speech into one reference, and "
             + "that reference is what tells you from whoever else is in the room. Speak a real "
-            + "sentence in your normal voice — not the wake word, and not a careful recitation.",
+            + "sentence in your normal voice - not the wake word, and not a careful recitation.",
         "Enrol from all takes", "enrol");
 
     private final Section wake = new Section("wake", "Your wake word", "Wake-word model",
@@ -235,7 +235,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 if (section != null) {
                     // Provisional on purpose. protocol.py emits record.started
                     // from the loop thread, before the worker that will pause
-                    // listening and open the device has even been started — and
+                    // listening and open the device has even been started - and
                     // if that pause fails the device never opens for this take
                     // at all. The panel says it is open only when a take proves
                     // it, on the first record.take below.
@@ -290,7 +290,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
      * <p>The correlation id is what makes this safe. A narration that failed
      * halfway through a training run also arrives as an {@code error}, and a
      * panel that treated every error as the end of its own command would set its
-     * buttons live while the sidecar was still busy — straight into {@code BUSY}
+     * buttons live while the sidecar was still busy - straight into {@code BUSY}
      * on the next press. An error carrying no id at all is the exception: nothing
      * else will arrive to end the command, so it ends it.
      */
@@ -306,7 +306,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         }
         Section section = pendingSection;
         String detail = event.text("detail");
-        String sentence = code + " — " + (detail.isEmpty() ? "the sidecar refused" : detail);
+        String sentence = code + " - " + (detail.isEmpty() ? "the sidecar refused" : detail);
         if (section != null) {
             section.report(sentence, UiTheme.BAD);
         } else {
@@ -342,7 +342,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     /**
      * Sends one command and marks it in flight.
      *
-     * <p>A send that throws — a sidecar that died since the last event — ends the
+     * <p>A send that throws - a sidecar that died since the last event - ends the
      * command here rather than leaving the section waiting for an answer no
      * process is left to give.
      */
@@ -591,15 +591,15 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             if (tooQuiet) {
                 quiet++;
             }
-            lines.add(String.format(Locale.ROOT, "take %d — %s (%.3f)", number,
-                tooQuiet ? "too quiet — move closer" : "good", level));
+            lines.add(String.format(Locale.ROOT, "take %d - %s (%.3f)", number,
+                tooQuiet ? "too quiet - move closer" : "good", level));
             // Muted while the takes arrive, whatever their level. The verdict is
             // in the words on the line it belongs to; colouring the whole block
             // amber for one quiet take prints "good" in amber as well.
             report(lines, UiTheme.MUTED);
             progress.setValue(Math.min(progress.getValue() + 1, progress.getMaximum()));
             // The first take is the proof that the device really did open.
-            progress.setString("recording — " + progress.getValue() + " of "
+            progress.setString("recording - " + progress.getValue() + " of "
                 + progress.getMaximum() + " done");
         }
 
@@ -607,7 +607,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             lines.add(count(written, "take") + " recorded.");
             if (quiet > 0) {
                 lines.add(quiet + " of them came out too quiet to train on. Move closer and "
-                    + "record that many again — the quiet ones stay on disk, so delete them "
+                    + "record that many again - the quiet ones stay on disk, so delete them "
                     + "from the voice folder if you would rather not train on them.");
             }
             report(lines, quiet > 0 ? UiTheme.WARN : UiTheme.MUTED);
@@ -629,7 +629,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 result.add(count((int) event.number("takes"), "take")
                     + " averaged into the reference.");
                 for (JsonNode row : event.body().path("similarities")) {
-                    result.add(String.format(Locale.ROOT, "%s — %.3f", row.path(0).asText(),
+                    result.add(String.format(Locale.ROOT, "%s - %.3f", row.path(0).asText(),
                         row.path(1).asDouble()));
                 }
                 result.add("Those numbers are how closely each take matches the average of "
@@ -759,12 +759,12 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             return waiting;
         }
         if (referenceTakes == 0) {
-            return "no takes yet — record some first";
+            return "no takes yet - record some first";
         }
         if (!hasSpeakerModel) {
             // The one precondition that is not a recording: enrolment runs the
             // takes through models/speaker.onnx, which is downloaded by hand.
-            return "the speaker model is missing — see models\\speaker.onnx";
+            return "the speaker model is missing - see models\\speaker.onnx";
         }
         return "";
     }
@@ -781,13 +781,13 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         }
         // Takes are not training's only precondition, any more than they are
         // enrolment's. Without these two the sidecar answers NO_FEATURE_MODELS
-        // or refuses for want of anything to train against — both of which the
+        // or refuses for want of anything to train against - both of which the
         // panel can see coming in voice.status.
         if (!featureModels) {
-            return "openWakeWord's models are missing — see models\\openwakeword";
+            return "openWakeWord's models are missing - see models\\openwakeword";
         }
         if (negatives == 0) {
-            return "nothing to train against — no audio that is not the wake word";
+            return "nothing to train against - no audio that is not the wake word";
         }
         if (wakeTakes < WAKE_RECOMMENDED) {
             return recommendation;

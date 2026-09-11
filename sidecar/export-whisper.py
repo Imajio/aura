@@ -1,6 +1,6 @@
 """Exports a Whisper checkpoint to OpenVINO IR with INT8 weights.
 
-Run once per model, on a workstation — never by the running sidecar. The result
+Run once per model, on a workstation - never by the running sidecar. The result
 lands in `models/`, which is ignored: gigabytes, and reproducible from here.
 
 INT8 and not INT4: the NPU on this machine reports FP16 and INT8 only (see
@@ -23,7 +23,7 @@ def write_preprocessor_config(out: pathlib.Path) -> None:
 
     transformers 5 writes the feature extractor nested inside `processor_config.json`.
     `WhisperPipeline` still reads a flat `preprocessor_config.json`, and when it finds
-    none it assumes 80 mel bins — the large-v2 geometry. large-v3 and turbo use 128,
+    none it assumes 80 mel bins - the large-v2 geometry. large-v3 and turbo use 128,
     so the encoder is then handed `[1, 80, 3000]` while its first convolution expects
     128 input channels, and compilation dies with a channel-count mismatch.
 
@@ -49,7 +49,7 @@ def write_openvino_tokenizer(checkpoint: str, out: pathlib.Path) -> None:
     `save_pretrained` leaves a `tokenizer.json`, which `WhisperPipeline` cannot use:
     it wants `openvino_tokenizer.xml` and `openvino_detokenizer.xml`. Without the
     detokenizer the pipeline compiles, runs the model, and then fails at the last
-    step with "Detokenizer model has not been provided" — the whole inference
+    step with "Detokenizer model has not been provided" - the whole inference
     completed and there is simply no way to turn the tokens back into words.
     """
     import openvino as ov

@@ -77,7 +77,7 @@ public final class PermissionPolicy {
         try {
             input = MAPPER.readTree(request.toolInputJson());
         } catch (Exception e) {
-            log.debug("could not parse arguments for {} — escalating to confirmation",
+            log.debug("could not parse arguments for {} - escalating to confirmation",
                 request.toolName());
             return PathCheck.UNREADABLE;
         }
@@ -124,7 +124,7 @@ public final class PermissionPolicy {
      *
      * <p>A lexical check alone is not containment: a symlink planted inside the
      * project can point anywhere on disk and still look contained. The target of a
-     * write often does not exist yet, so resolving the whole path is not an option —
+     * write often does not exist yet, so resolving the whole path is not an option -
      * the nearest existing ancestor is.
      */
     private static Path realOrNearest(Path path) {

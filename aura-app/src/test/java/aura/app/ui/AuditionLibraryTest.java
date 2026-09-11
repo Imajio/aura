@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link AuditionLibrary} turns {@code <release>/<voice>/<line>.wav} on disk into the
  * list the panel shows. Every test below runs against a {@code @TempDir} tree built by
- * hand — never against {@code C:\Aura\tts-audition}, which is a fixture nobody is to
+ * hand - never against {@code C:\Aura\tts-audition}, which is a fixture nobody is to
  * depend on the shape of.
  */
 class AuditionLibraryTest {
@@ -53,7 +53,7 @@ class AuditionLibraryTest {
 
     /**
      * Breaks if an empty voice directory turns into an {@code AuditionVoice} with an
-     * empty {@code lines} map — which would put a nameless, unplayable row in the
+     * empty {@code lines} map - which would put a nameless, unplayable row in the
      * panel instead of simply not listing that voice.
      */
     @Test
@@ -70,7 +70,7 @@ class AuditionLibraryTest {
 
     /**
      * Breaks if {@code scan} lets {@code Files.newDirectoryStream} throw
-     * {@code NoSuchFileException} straight out of the method — the audition folder is
+     * {@code NoSuchFileException} straight out of the method - the audition folder is
      * optional, and a window that fails to open because it is absent is worse than one
      * that opens and says there is nothing to audition.
      */
@@ -87,7 +87,7 @@ class AuditionLibraryTest {
      * order requires the same seed to always reorder the same list the same way), or
      * if it always returned the input order regardless of seed (which would make
      * "shuffled per session" a lie and leave the panel's row order equal to disk order,
-     * defeating blind listening on the one axis it protects — folder order tends to
+     * defeating blind listening on the one axis it protects - folder order tends to
      * put the current default first).
      */
     @Test
@@ -105,7 +105,7 @@ class AuditionLibraryTest {
             .containsExactlyElementsOf(secondWithSeed1.stream().map(AuditionVoice::name).toList());
         assertThat(firstWithSeed1).extracting(AuditionVoice::name)
             .isNotEqualTo(withSeed2.stream().map(AuditionVoice::name).toList());
-        // The input itself is untouched — a caller that scans once and shuffles twice,
+        // The input itself is untouched - a caller that scans once and shuffles twice,
         // for two different sessions, must not have the second shuffle see the first
         // shuffle's order as its starting point.
         assertThat(voices).extracting(AuditionVoice::name)

@@ -46,13 +46,13 @@ public record AuraConfig(
     }
 
     /**
-     * The same settings with a different voice and profile — the pair {@code
+     * The same settings with a different voice and profile - the pair {@code
      * VoiceChoicePanel}'s "Use this voice" changes together, since every candidate in
      * the audition is a Russian voice and picking one is picking the Russian profile.
      *
      * <p>A copy, not a mutation: {@code AuraConfig} is a record, and the caller saves
      * the result with {@link #save}. Every field besides the two named is carried over
-     * from the receiver — never re-derived from {@link #defaults()}, which would reset
+     * from the receiver - never re-derived from {@link #defaults()}, which would reset
      * the owner's own paths and timeouts to the factory ones the moment a voice was
      * chosen from the window.
      */
@@ -80,7 +80,7 @@ public record AuraConfig(
             Path.of("sidecar", ".venv", "Scripts", "python.exe").toAbsolutePath(),
             // No voice until one has been chosen by ear (RISK-4). Empty means the
             // narrator writes its line to the log and the tray and says nothing
-            // aloud — an application that starts talking before anyone picked how
+            // aloud - an application that starts talking before anyone picked how
             // it sounds is a worse first impression than one that stays quiet.
             "",
             // English is the base language; Russian is a profile the owner turns
@@ -92,7 +92,7 @@ public record AuraConfig(
             // recordings by train-wake-word.py and enrol-speaker.py; the WeSpeaker
             // embedding model between them is a download, and sidecar/README.md
             // carries the command. Whether the sidecar is asked to listen is a
-            // separate matter — see the `listen` default just below.
+            // separate matter - see the `listen` default just below.
             Path.of("voice", "wake-word.npz").toAbsolutePath(),
             Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx").toAbsolutePath(),
             Path.of("voice", "reference.npy").toAbsolutePath(),
@@ -134,13 +134,13 @@ public record AuraConfig(
             // without naming what is wrong in it sends the owner back to a config they
             // have already read through once.
             throw new IllegalStateException(
-                "failed to read configuration: " + yamlFile + " — " + e.getMessage(), e);
+                "failed to read configuration: " + yamlFile + " - " + e.getMessage(), e);
         }
     }
 
     /**
-     * Writes {@code voice}, {@code profile} and {@code listen} into {@code yamlFile} —
-     * the three settings the window can change — and leaves every other line exactly
+     * Writes {@code voice}, {@code profile} and {@code listen} into {@code yamlFile} -
+     * the three settings the window can change - and leaves every other line exactly
      * as it was, key or comment alike.
      *
      * <p>This is a targeted rewrite of the file's lines, not a parse into a map and a
@@ -149,12 +149,12 @@ public record AuraConfig(
      * typed by hand. A config file the application improves by quietly discarding a
      * key or a comment the owner put there is a worse bug than one that cannot save at
      * all, so each of the three keys below is updated in place if a line already sets
-     * it, or appended if none does — and nothing else in the file is touched.
+     * it, or appended if none does - and nothing else in the file is touched.
      *
      * <p>"Nothing else" includes the file's own line terminator and whether it ends in
      * one. {@code Files.readAllLines} discards both, and {@code Files.write(Path,
      * Iterable)} puts {@link System#lineSeparator()} back after every line including
-     * the last — on Windows that turns a plain {@code \n} file with no trailing newline
+     * the last - on Windows that turns a plain {@code \n} file with no trailing newline
      * (the owner's real file is exactly this) into {@code \r\n} throughout, rewriting
      * every line's bytes rather than the three this method owns. Reading and writing
      * the whole file as one string, and detecting both the terminator and the trailing
@@ -176,7 +176,7 @@ public record AuraConfig(
 
     /**
      * The line terminator {@code text} already uses, so a file the owner wrote with
-     * plain {@code \n} is written back with plain {@code \n} — never the JVM's platform
+     * plain {@code \n} is written back with plain {@code \n} - never the JVM's platform
      * default. {@code \r\n} is checked first because the pattern for a lone {@code \n}
      * also matches inside it. Text with no terminator at all (new, or a single line)
      * has nothing to detect, so plain {@code \n} is used, matching every other text
@@ -203,7 +203,7 @@ public record AuraConfig(
         }
         List<String> lines = new ArrayList<>(Arrays.asList(text.split("\r\n|\r|\n", -1)));
         if (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
-            // The empty element String.split leaves after the final terminator — not a
+            // The empty element String.split leaves after the final terminator - not a
             // blank line the owner wrote. endsWithNewline() is what remembers whether
             // to put a terminator back after the real last line.
             lines.remove(lines.size() - 1);
@@ -229,7 +229,7 @@ public record AuraConfig(
      * Replaces the line that already sets {@code key}, if there is one, or appends a
      * new line. Matched on the key followed by optional whitespace and a colon, so
      * that {@code voice} can update {@code voice: aidar} without also matching {@code
-     * voiceSomethingElse: x} — a longer key that merely starts the same way — and a
+     * voiceSomethingElse: x} - a longer key that merely starts the same way - and a
      * commented-out {@code # voice: x}, which has something other than whitespace
      * before the key, is left alone rather than mistaken for the active setting.
      */
@@ -297,7 +297,7 @@ public record AuraConfig(
      *
      * <p>{@code Boolean.parseBoolean} answers {@code false} to everything it does not
      * recognise, so {@code listen: 1} and a typo such as {@code listen: ture} would
-     * both leave the microphone shut without a word — the same silent failure the
+     * both leave the microphone shut without a word - the same silent failure the
      * {@code listen} key was added to remove, moved onto a different input. SnakeYAML
      * already hands back a real {@link Boolean} for the YAML spellings, so anything
      * that is neither that nor a quoted {@code "true"}/{@code "false"} is a mistake,

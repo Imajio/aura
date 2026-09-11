@@ -7,7 +7,7 @@ import java.util.Objects;
  * A window of events the narrator should say something about.
  *
  * @param events  everything that happened since the last thing said, in order
- * @param urgent  true when the user is being waited on — a permission request
+ * @param urgent  true when the user is being waited on - a permission request
  *                jumps whatever queue exists, because the agent is blocked until
  *                they answer and they cannot answer what they were not told
  */

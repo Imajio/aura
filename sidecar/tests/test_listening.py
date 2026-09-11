@@ -1,7 +1,7 @@
 """The listening thread: starting, letting go of the microphone, taking it back.
 
 A fake microphone stands in for the real one. What is being tested is the
-handover — the sidecar has to be able to release the capture device so a
+handover - the sidecar has to be able to release the capture device so a
 recording can use it, and to be sure it has been released before it says so.
 """
 
@@ -148,7 +148,7 @@ def test_pausing_after_a_retry_still_waits_for_the_device_to_close():
     # A retry after a device error loops back to the top of _run with _wanted
     # already set, so it never goes through start() again. If idle were only
     # re-armed in start(), it would still read True here from the failed first
-    # attempt's own finally, for the whole life of the retry's live session —
+    # attempt's own finally, for the whole life of the retry's live session -
     # not a narrow window, but true for as long as that session runs.
     open_now = {"n": 0}
     attempts = []

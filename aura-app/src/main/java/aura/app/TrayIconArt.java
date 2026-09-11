@@ -12,7 +12,7 @@ import java.awt.image.BufferedImage;
  * Draws Aura's mark: an open ring with a point at its centre.
  *
  * <p>The ring is the aura, the point is the thing being watched. It is drawn rather
- * than shipped as a bitmap so it renders at whatever size the taskbar asks for —
+ * than shipped as a bitmap so it renders at whatever size the taskbar asks for -
  * 16 at 100%, 20 at 125%, 24 at 150%, 32 at 200%. A 16-pixel image stretched to 24
  * is what makes a tray icon look like a smudge.
  *
@@ -21,7 +21,7 @@ import java.awt.image.BufferedImage;
  *
  * <p><b>The icon carries the one status worth reading at a distance:</b> whether
  * anything is expected of the user. Only {@link State#WAITING} is meant to catch
- * the eye — everything else is information they can look at when they choose to.
+ * the eye - everything else is information they can look at when they choose to.
  */
 public final class TrayIconArt {
 

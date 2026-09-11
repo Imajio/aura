@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Turns go out as a line on the same process's stdin, so a follow-up
  * refinement does not pay for a cold start. In exchange the process sits in
- * memory — {@link SessionSupervisor} watches over its termination.
+ * memory - {@link SessionSupervisor} watches over its termination.
  */
 public final class ClaudeSession implements AgentSession {
 
@@ -111,8 +111,8 @@ public final class ClaudeSession implements AgentSession {
      *
      * <p>Aura runs the agent as its owner, on the subscription they are already
      * signed in with. The CLI prefers {@code ANTHROPIC_API_KEY} over that login, so
-     * a key left in the environment for something else entirely — a script, a hook,
-     * a shell that was open before it was unset — quietly re-bills every task to
+     * a key left in the environment for something else entirely - a script, a hook,
+     * a shell that was open before it was unset - quietly re-bills every task to
      * another account, and when that account has no credit the agent answers
      * "Credit balance is too low" in under a second. Whoever set the variable did
      * not set it for this, and the whole environment is inherited, so it is removed
@@ -171,7 +171,7 @@ public final class ClaudeSession implements AgentSession {
         process.destroyForcibly();
         // What actually releases the pump threads is destroyForcibly() above: closing the
         // child's end of the pipes surfaces as EOF on the next read. A blocking read on a
-        // process pipe does not answer an interrupt — these calls are belt-and-braces, not
+        // process pipe does not answer an interrupt - these calls are belt-and-braces, not
         // the mechanism.
         stdoutReader.interrupt();
         stderrReader.interrupt();

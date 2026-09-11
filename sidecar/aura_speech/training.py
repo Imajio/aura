@@ -1,7 +1,7 @@
 """Enrolment and wake-word training, as functions a button can call.
 
 Both used to live inside a script's `main()`, which made them unreachable from
-anywhere but a terminal — and the owner's request is precisely to reach them from
+anywhere but a terminal - and the owner's request is precisely to reach them from
 a window, as often as they like. So the work moves here and both scripts become
 front ends, exactly as `record-voice-samples.py` is a front end over
 `recording.py` and as the trainer and the detector already share `wake_features`.
@@ -42,14 +42,14 @@ def enrol(takes_dir, model_path, out_path, progress, embed_factory=None) -> dict
     """Averages the reference takes into the one embedding every voice is judged against.
 
     `embed_factory(model_path) -> embed(audio) -> vector` exists so the decisions
-    here — is there anything to enrol, does the model exist, which take could not
-    be read — are testable without loading 26 MB of ONNX.
+    here - is there anything to enrol, does the model exist, which take could not
+    be read - are testable without loading 26 MB of ONNX.
     """
     from .speaker import Enrolment
 
     takes = _takes(takes_dir)
     if not takes:
-        raise ValueError(f"no recordings in {takes_dir} — record a few first")
+        raise ValueError(f"no recordings in {takes_dir} - record a few first")
     model_path = pathlib.Path(model_path)
     if not model_path.is_file():
         raise ValueError(f"no speaker model at {model_path}")
@@ -78,7 +78,7 @@ def enrol(takes_dir, model_path, out_path, progress, embed_factory=None) -> dict
                          for p, e in zip(takes, embeddings)],
         # One take cannot disagree with anything, so its similarity is 1.000 and
         # says nothing at all. Saying so is the only honest thing to report.
-        "warning": ("one recording cannot be checked for consistency — record two "
+        "warning": ("one recording cannot be checked for consistency - record two "
                     "or three for a better reference") if len(takes) == 1 else "",
     }
 

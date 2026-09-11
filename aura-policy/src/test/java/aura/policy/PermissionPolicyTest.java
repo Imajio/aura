@@ -69,7 +69,7 @@ class PermissionPolicyTest {
 
     @Test
     void malformedInputJsonEscalatesToConfirm() {
-        // Could not parse input — we cannot tell where writes are going. We ask.
+        // Could not parse input - we cannot tell where writes are going. We ask.
         assertThat(policy.decide(req("Edit", "{это не json"))).isEqualTo(Decision.CONFIRM);
     }
 

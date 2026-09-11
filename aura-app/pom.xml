@@ -47,7 +47,7 @@
             module that actually runs. The parent POM also adds slf4j-nop to every
             module's test scope so modules without a provider stay quiet; here that
             collides with logback-classic and SLF4J prints a "multiple providers"
-            warning. Drop the nop provider from this module's test classpath only —
+            warning. Drop the nop provider from this module's test classpath only -
             logback-classic already keeps tests quiet on its own.
           -->
           <classpathDependencyExcludes>

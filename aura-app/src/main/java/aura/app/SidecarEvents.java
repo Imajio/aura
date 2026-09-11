@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
  * field that names the kind of event. Parsing every line used to happen once,
  * inline in {@code Main.startSidecar}'s {@code if}-chain; now it happens once
  * here, and {@code Main} is the first of possibly several subscribers. A later
- * reader — the desktop window — can listen to the same lines by subscribing
+ * reader - the desktop window - can listen to the same lines by subscribing
  * too, instead of copying the chain (which drifts from this one) or holding a
  * reference to {@code Main} (which makes the tray and the window each other's
  * dependency).

@@ -32,28 +32,28 @@ import org.slf4j.LoggerFactory;
 /**
  * The desktop window: the application proper, as opposed to the tray icon.
  *
- * <p>The tray stays what it has always been — somewhere to glance at, and a place
+ * <p>The tray stays what it has always been - somewhere to glance at, and a place
  * to type a task from. It cannot answer the questions a person actually has when
  * something is not working: which models loaded, whether the wake word was ever
  * trained, why nothing is listening. Those need room, and room is a window.
  *
  * <p>Sections live in a list down the left rather than in tabs across the top.
  * Tabs would do for two short words; there will be four sections and their names
- * are phrases — "Voice setup", not "Voice" — which a tab strip either truncates
+ * are phrases - "Voice setup", not "Voice" - which a tab strip either truncates
  * or scrolls.
  *
  * <h2>Threads</h2>
  *
  * <p>Sidecar events arrive on the reader thread of another process. Swing has
  * exactly one thread that may touch a realised component, and touching one from
- * anywhere else fails rarely, unreproducibly and usually somewhere unrelated —
+ * anywhere else fails rarely, unreproducibly and usually somewhere unrelated -
  * the worst way to learn about a bug. Every method here that touches a component
  * therefore either runs on the event dispatch thread already or puts itself on
  * it, and every subscriber registered through {@link #subscribe} is called on
  * that thread as a consequence. Sections do not need to hop again.
  *
- * <p>The two methods that touch no component — {@link #subscribe} and {@link
- * #hasSection} — are safe from any thread instead, because they are held in
+ * <p>The two methods that touch no component - {@link #subscribe} and {@link
+ * #hasSection} - are safe from any thread instead, because they are held in
  * concurrent collections. Hopping them to the EDT would be the other answer, but
  * it would make {@code hasSection} unable to return anything.
  *
@@ -61,7 +61,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Closing the window disposes it and leaves the process running: Aura lives in
  * the tray, and closing a window is not a request to quit. {@link #show} is
- * idempotent — there is one frame for the lifetime of this object, so a second
+ * idempotent - there is one frame for the lifetime of this object, so a second
  * call raises the one that exists instead of opening another.
  */
 public final class AuraWindow implements Consumer<SidecarEvent> {
@@ -87,7 +87,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     static {
         // Once, before the first component exists: a look and feel set after a
         // component is built leaves that component styled the old way. Failing
-        // to set it is not worth refusing to open a window over — the fallback
+        // to set it is not worth refusing to open a window over - the fallback
         // is ugly, not broken.
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -104,7 +104,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     // Concurrent, not plain. Both are public API: a later section could subscribe
     // or ask hasSection from a thread that is not the EDT, and the reader here is
     // accept(), iterating listeners on the EDT while that happened. Same choice
-    // SidecarEvents made for the same reason — subscriptions are a handful at
+    // SidecarEvents made for the same reason - subscriptions are a handful at
     // startup, reads are on every sidecar line, and iteration must never throw
     // ConcurrentModificationException. The map is unordered because nothing reads
     // it in order: the rail's order lives in sectionNames.
@@ -178,7 +178,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
         voice = new VoicePanel(toSidecar);
         // Reads and writes config.yaml directly; it never talks to the sidecar, so it
-        // is added but not subscribed — there is no sidecar event this section acts on.
+        // is added but not subscribed - there is no sidecar event this section acts on.
         voiceChoice = new VoiceChoicePanel(VoiceChoicePanel.DEFAULT_AUDITION_ROOT, configFile);
         tasks = new TasksPanel(dispatch, onStopAgent, registry);
 

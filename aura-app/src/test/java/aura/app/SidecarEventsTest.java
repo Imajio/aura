@@ -10,7 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * The one place that reads the sidecar's JSON lines — what every subscriber gets,
+ * The one place that reads the sidecar's JSON lines - what every subscriber gets,
  * and what happens when a line or a listener misbehaves.
  */
 class SidecarEventsTest {
@@ -34,7 +34,7 @@ class SidecarEventsTest {
 
     @Test
     void aRussianUtteranceSurvivesTheJsonRoundTrip() throws Exception {
-        // Russian test data standing in for the owner's recognised speech — the
+        // Russian test data standing in for the owner's recognised speech - the
         // one carve-out this project's language rule names for non-English
         // content: not prose for a human, but the input and expected result of
         // a check.
@@ -105,8 +105,8 @@ class SidecarEventsTest {
         // Distinct from aLineWithNoEvFieldIsDropped: here the "ev" key is
         // present, its value is JSON null. hasNonNull("ev") drops this the
         // same way as a missing key; a later edit that swaps it for the
-        // weaker has("ev") — true here, since the key exists even though its
-        // value is null — would let this line through, and this test would
+        // weaker has("ev") - true here, since the key exists even though its
+        // value is null - would let this line through, and this test would
         // catch it.
         List<SidecarEvent> heard = new ArrayList<>();
         events.subscribe(heard::add);
@@ -119,7 +119,7 @@ class SidecarEventsTest {
     @Test
     void subscribersAreCalledInTheOrderTheySubscribed() {
         // Production change this guards against: a subscriber structure or
-        // iteration that does not preserve insertion order — e.g. iterating
+        // iteration that does not preserve insertion order - e.g. iterating
         // the listener list back-to-front, or holding listeners in a Set.
         List<String> callOrder = new ArrayList<>();
         events.subscribe(event -> callOrder.add("first"));

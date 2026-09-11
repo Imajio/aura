@@ -6,7 +6,7 @@ directory, embeds each, averages them, and writes `voice/reference.npy`.
     .venv/Scripts/python.exe enrol-speaker.py
 
 The average of several takes is deliberately not one take: a single recording
-carries whatever that moment sounded like — a cold, a close microphone — and the
+carries whatever that moment sounded like - a cold, a close microphone - and the
 threshold then measures the moment rather than the person.
 """
 
