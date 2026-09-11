@@ -79,7 +79,7 @@ What ships is code covered by 210 tests on the Java side and 102 on the sidecar.
 *None of the window has been exercised end to end either: every section above
 was verified by its own tests and by rendering its states to an image, never
 by running Aura itself against a live sidecar. What ships is code covered by
-277 tests on the Java side and 144 on the sidecar.*
+282 tests on the Java side and 144 on the sidecar.*
 
 ### Changed
 
