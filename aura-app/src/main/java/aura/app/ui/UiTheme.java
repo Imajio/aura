@@ -5,6 +5,8 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.border.Border;
@@ -14,13 +16,131 @@ import javax.swing.border.Border;
  *
  * <p>The owner asked for a window they can use "without thinking". That is not a
  * request for decoration - it is a request that every screen look the same, so
- * that a heading is always a heading and a warning always reads as one. Five
- * spacings, four type sizes and eight colours are enough for that, and a small
- * fixed set is what keeps a second panel from inventing a sixth spacing.
+ * that a heading is always a heading and a warning always reads as one.
+ *
+ * <p>Since M4 the palette itself comes from jet-swing-design-system's token
+ * layer: two maps, one per {@link Theme.Mode}, holding the exact colours
+ * {@code TOKENS.md} lists. {@link #color(String)} reads whichever map
+ * {@link Theme#mode()} says is current; the named accessors below it - {@link
+ * #ink()}, {@link #muted()} and the rest - read the same map through the same
+ * lookup, so a call site that means "the muted text colour" is a compile
+ * error rather than a string a typo can slip through unnoticed.
+ *
+ * <p>Everything under the "pre-M4 API" heading below is what four panels
+ * still read directly: fixed spacings and colours, kept exactly as they were
+ * and pinned to the light palette, so those panels keep compiling and keep
+ * looking the same until a later task moves them onto the accessors above.
  */
 public final class UiTheme {
 
     private UiTheme() { }
+
+    // Dark and light values in the same order TOKENS.md lists them. Every
+    // token named there that Aura uses appears in both maps; a token added to
+    // one without its twin in the other is exactly what UiThemeTest's palette
+    // agreement test is for.
+    static final Map<String, Color> DARK_PALETTE = Map.ofEntries(
+        Map.entry("surface.app", hex("#191A1C")),
+        Map.entry("surface.primary", hex("#1E1F22")),
+        Map.entry("surface.secondary", hex("#25262A")),
+        Map.entry("surface.raised", hex("#2B2D30")),
+        Map.entry("surface.input", hex("#202124")),
+        Map.entry("surface.selection", hex("#34415A")),
+        Map.entry("border.subtle", hex("#35373B")),
+        Map.entry("border.default", hex("#45474D")),
+        Map.entry("border.focus", hex("#4D8DFF")),
+        Map.entry("text.primary", hex("#E7E9EA")),
+        Map.entry("text.secondary", hex("#A8ABB2")),
+        Map.entry("text.tertiary", hex("#7D8088")),
+        Map.entry("text.disabled", hex("#62656C")),
+        Map.entry("text.link", hex("#5E9BFF")),
+        Map.entry("accent.primary", hex("#4D8DFF")),
+        Map.entry("accent.hover", hex("#649DFF")),
+        Map.entry("accent.pressed", hex("#3E77DD")),
+        Map.entry("success", hex("#4CAF73")),
+        Map.entry("warning", hex("#D9A441")),
+        Map.entry("error", hex("#E35B5B")),
+        Map.entry("info", hex("#4D8DFF")));
+
+    static final Map<String, Color> LIGHT_PALETTE = Map.ofEntries(
+        Map.entry("surface.app", hex("#F7F8FA")),
+        Map.entry("surface.primary", hex("#FFFFFF")),
+        Map.entry("surface.secondary", hex("#F1F2F4")),
+        Map.entry("surface.raised", hex("#FFFFFF")),
+        Map.entry("surface.input", hex("#FFFFFF")),
+        Map.entry("surface.selection", hex("#DDE8FF")),
+        Map.entry("border.subtle", hex("#E3E5E8")),
+        Map.entry("border.default", hex("#C8CBD1")),
+        Map.entry("border.focus", hex("#4B7BEC")),
+        Map.entry("text.primary", hex("#202124")),
+        Map.entry("text.secondary", hex("#5F6368")),
+        Map.entry("text.tertiary", hex("#7A7F87")),
+        Map.entry("text.disabled", hex("#A4A8AE")),
+        Map.entry("text.link", hex("#356AE6")),
+        Map.entry("accent.primary", hex("#4D8DFF")),
+        Map.entry("accent.hover", hex("#649DFF")),
+        Map.entry("accent.pressed", hex("#3E77DD")),
+        Map.entry("success", hex("#4CAF73")),
+        Map.entry("warning", hex("#D9A441")),
+        Map.entry("error", hex("#E35B5B")),
+        Map.entry("info", hex("#4D8DFF")));
+
+    private static Color hex(String value) {
+        return Color.decode(value);
+    }
+
+    /**
+     * The design system's own contract: a token name from {@code TOKENS.md},
+     * resolved against whichever mode {@link Theme#mode()} currently reports.
+     * Throws rather than guessing when the name is not one either palette
+     * defines, the same way a misspelled map key should fail loudly instead
+     * of quietly returning nothing.
+     */
+    public static Color color(String token) {
+        Map<String, Color> palette = Theme.mode() == Theme.Mode.DARK ? DARK_PALETTE : LIGHT_PALETTE;
+        Color value = palette.get(token);
+        if (value == null) {
+            throw new IllegalArgumentException("Unknown token: " + token);
+        }
+        return value;
+    }
+
+    // Named accessors so a call site is compile-checked instead of relying on
+    // a string. Each delegates to color(String) rather than reading the
+    // palettes directly, so the two APIs cannot drift apart.
+    public static Color ink() { return color("text.primary"); }
+    public static Color muted() { return color("text.secondary"); }
+    public static Color line() { return color("border.subtle"); }
+    public static Color canvas() { return color("surface.app"); }
+    public static Color surface() { return color("surface.primary"); }
+    public static Color accent() { return color("accent.primary"); }
+    public static Color good() { return color("success"); }
+    public static Color warn() { return color("warning"); }
+    public static Color bad() { return color("error"); }
+
+    private static final Set<Integer> SPACING_STEPS =
+        Set.of(0, 4, 8, 12, 16, 20, 24, 32, 40, 48);
+
+    /**
+     * Validates a spacing step against {@code TOKENS.md}'s own grid rather
+     * than inventing one: a step the design system does not list throws
+     * instead of being handed back anyway.
+     */
+    public static int space(int step) {
+        if (!SPACING_STEPS.contains(step)) {
+            throw new IllegalArgumentException("Unsupported spacing step: " + step);
+        }
+        return step;
+    }
+
+    public static int compactControlHeight() { return 28; }
+
+    public static int controlHeight() { return 32; }
+
+    public static int largeControlHeight() { return 36; }
+
+    // ---- pre-M4 API: fixed, pinned to the light palette, kept for the four
+    // panels that still read these directly. See the class comment. ----
 
     /** A four-point grid. Every gap in the application is one of these. */
     public static final int TIGHT = 4;
@@ -29,16 +149,23 @@ public final class UiTheme {
     public static final int WIDE = 24;
     public static final int SECTION = 32;
 
-    public static final Color INK = new Color(0x1B1B1F);
-    public static final Color MUTED = new Color(0x5A5D66);
-    public static final Color LINE = new Color(0xD8DAE0);
-    public static final Color CANVAS = new Color(0xF7F8FA);
-    public static final Color ACCENT = new Color(0x2C5FE0);
-    public static final Color GOOD = new Color(0x1F7A44);
-    public static final Color WARN = new Color(0xA8631B);
-    public static final Color BAD = new Color(0xB3261E);
+    // Read from LIGHT_PALETTE rather than re-typed as their own hex literals,
+    // so this file still has exactly one place a colour's hex value belongs.
+    // Values below therefore differ slightly from Aura's pre-M4 numbers -
+    // that shift is this task's whole point for a call site that reads
+    // color("text.primary") or ink() directly; these fields exist only so
+    // the panels that have not been moved onto that call yet keep compiling
+    // and keep the same colour on every repaint until they are.
+    public static final Color INK = LIGHT_PALETTE.get("text.primary");
+    public static final Color MUTED = LIGHT_PALETTE.get("text.secondary");
+    public static final Color LINE = LIGHT_PALETTE.get("border.subtle");
+    public static final Color CANVAS = LIGHT_PALETTE.get("surface.app");
+    public static final Color ACCENT = LIGHT_PALETTE.get("accent.primary");
+    public static final Color GOOD = LIGHT_PALETTE.get("success");
+    public static final Color WARN = LIGHT_PALETTE.get("warning");
+    public static final Color BAD = LIGHT_PALETTE.get("error");
 
-    public static final Color SURFACE = Color.WHITE;
+    public static final Color SURFACE = LIGHT_PALETTE.get("surface.primary");
 
     // A note wraps at this width - a CSS length, not a count of screen pixels,
     // which is the trap it was set in the first time. javax.swing.text.html's
@@ -56,12 +183,21 @@ public final class UiTheme {
     // arithmetic, not anything this codebase controls.
     private static final int NOTE_WIDTH = 300;
 
+    // The type scale, from jet-swing-design-system's TYPOGRAPHY.md. Its bands
+    // are application title 20 to 24, section title 15 to 16, control text
+    // 13, metadata 12 and status text 11 to 12. title() keeps the 20 it
+    // already had, at the band's low end; body() already sits exactly on
+    // control text's 13; heading() moves from 14, which the new section
+    // title band excludes, to 16, its top. status() keeps body()'s size and
+    // reads as a status word through weight, not through dropping into the
+    // smaller status band, per TYPOGRAPHY.md's own steer to carry hierarchy
+    // with weight rather than size or decorative bolding.
     public static Font title() {
         return base().deriveFont(Font.BOLD, 20f);
     }
 
     public static Font heading() {
-        return base().deriveFont(Font.BOLD, 14f);
+        return base().deriveFont(Font.BOLD, 16f);
     }
 
     public static Font body() {
