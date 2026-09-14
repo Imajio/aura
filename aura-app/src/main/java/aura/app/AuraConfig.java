@@ -1,5 +1,6 @@
 package aura.app;
 
+import aura.app.ui.Theme;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.yaml.snakeyaml.Yaml;
@@ -33,7 +35,8 @@ public record AuraConfig(
     Path wakeModel,
     Path speakerModel,
     Path speakerReference,
-    boolean listen
+    boolean listen,
+    Theme.Mode theme
 ) {
 
     /**
@@ -59,7 +62,20 @@ public record AuraConfig(
     public AuraConfig withVoice(String voice, String profile) {
         return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
             idleTimeout, confirmTimeout, sidecarDir, pythonExe, voice, profile, wakeModel,
-            speakerModel, speakerReference, listen);
+            speakerModel, speakerReference, listen, theme);
+    }
+
+    /**
+     * The same settings with a different theme - the one field the window's theme
+     * control changes. A copy, not a mutation, for the same reason {@link #withVoice}
+     * is: every other field is carried over from the receiver, never re-derived from
+     * {@link #defaults()}, which would reset the owner's own paths and timeouts to the
+     * factory ones the moment the theme was switched.
+     */
+    public AuraConfig withTheme(Theme.Mode theme) {
+        return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
+            idleTimeout, confirmTimeout, sidecarDir, pythonExe, voice, profile, wakeModel,
+            speakerModel, speakerReference, listen, theme);
     }
 
     public static AuraConfig defaults() {
@@ -98,7 +114,12 @@ public record AuraConfig(
             Path.of("voice", "reference.npy").toAbsolutePath(),
             // The microphone stays shut unless somebody asked for it, which is
             // what main.py's own --listen help text already says.
-            false);
+            false,
+            // Dark is jet-swing-design-system's own default - its reference Main
+            // installs dark before building anything - so an owner who has never
+            // touched config.yaml gets the theme the design system ships with,
+            // not a choice this project invented on top of it.
+            Theme.Mode.DARK);
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -127,7 +148,8 @@ public record AuraConfig(
                 path(root, "wakeModel", defaults.wakeModel()).toAbsolutePath(),
                 path(root, "speakerModel", defaults.speakerModel()).toAbsolutePath(),
                 path(root, "speakerReference", defaults.speakerReference()).toAbsolutePath(),
-                flag(root, "listen", defaults.listen()));
+                flag(root, "listen", defaults.listen()),
+                theme(root, "theme", defaults.theme()));
         } catch (Exception e) {
             // The cause's own message is folded in rather than left to the log. The
             // startup dialog shows this message and nothing else, and naming the file
@@ -139,16 +161,16 @@ public record AuraConfig(
     }
 
     /**
-     * Writes {@code voice}, {@code profile} and {@code listen} into {@code yamlFile} -
-     * the three settings the window can change - and leaves every other line exactly
-     * as it was, key or comment alike.
+     * Writes {@code voice}, {@code profile}, {@code listen} and {@code theme} into
+     * {@code yamlFile} - the four settings the window can change - and leaves every
+     * other line exactly as it was, key or comment alike.
      *
      * <p>This is a targeted rewrite of the file's lines, not a parse into a map and a
      * re-dump through SnakeYAML: {@code new Yaml().dump(map)} would silently drop
      * every comment even if it kept every key, and could reformat a value the owner
      * typed by hand. A config file the application improves by quietly discarding a
      * key or a comment the owner put there is a worse bug than one that cannot save at
-     * all, so each of the three keys below is updated in place if a line already sets
+     * all, so each of the four keys below is updated in place if a line already sets
      * it, or appended if none does - and nothing else in the file is touched.
      *
      * <p>"Nothing else" includes the file's own line terminator and whether it ends in
@@ -156,7 +178,7 @@ public record AuraConfig(
      * Iterable)} puts {@link System#lineSeparator()} back after every line including
      * the last - on Windows that turns a plain {@code \n} file with no trailing newline
      * (the owner's real file is exactly this) into {@code \r\n} throughout, rewriting
-     * every line's bytes rather than the three this method owns. Reading and writing
+     * every line's bytes rather than the four this method owns. Reading and writing
      * the whole file as one string, and detecting both the terminator and the trailing
      * newline from it, is what keeps a file the application never rewrote look
      * unrewritten in every byte save() does not own.
@@ -170,6 +192,7 @@ public record AuraConfig(
         lines = upsert(lines, "voice", voice);
         lines = upsert(lines, "profile", profile);
         lines = upsert(lines, "listen", Boolean.toString(listen));
+        lines = upsert(lines, "theme", theme.name().toLowerCase(Locale.ROOT));
         Files.writeString(yamlFile, join(lines, terminator, endsWithNewline(original)),
             StandardCharsets.UTF_8);
     }
@@ -320,5 +343,27 @@ public record AuraConfig(
         }
         throw new IllegalArgumentException(
             key + ": expected true or false, got '" + literal + "'");
+    }
+
+    /**
+     * A theme that refuses to guess, the same shape as {@link #flag} and for the same
+     * reason: a value neither spelling recognises must be named rather than quietly
+     * treated as the fallback, which is the silent failure this project has already
+     * fixed twice on a different setting.
+     */
+    private static Theme.Mode theme(Map<String, Object> root, String key, Theme.Mode fallback) {
+        Object value = root.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        String literal = String.valueOf(value).trim();
+        if (literal.equalsIgnoreCase("dark")) {
+            return Theme.Mode.DARK;
+        }
+        if (literal.equalsIgnoreCase("light")) {
+            return Theme.Mode.LIGHT;
+        }
+        throw new IllegalArgumentException(
+            key + ": expected dark or light, got '" + literal + "'");
     }
 }

@@ -3,6 +3,7 @@ package aura.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import aura.app.ui.Theme;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -30,7 +31,7 @@ class AuraConfigTest {
             Duration.ofMinutes(15), Duration.ofSeconds(20),
             Path.of("sidecar"), PYTHON_EXE,
             "", "en",
-            wakeModel, speakerModel, speakerReference, listen);
+            wakeModel, speakerModel, speakerReference, listen, Theme.Mode.DARK);
     }
 
     @Test
@@ -176,6 +177,41 @@ class AuraConfigTest {
             .hasMessageContaining("got '1'");
     }
 
+    // theme joins voice, profile and listen: read the same way listen is, defaulting
+    // to dark - jet-swing-design-system's own default - rather than to whichever mode
+    // Theme happens to hold in memory when nothing in config.yaml says otherwise.
+
+    @Test
+    void loadReadsBothThemeSpellings(@TempDir Path tmp) throws Exception {
+        Path dark = Files.writeString(tmp.resolve("dark.yaml"), "theme: dark\n");
+        Path light = Files.writeString(tmp.resolve("light.yaml"), "theme: light\n");
+
+        assertThat(AuraConfig.load(dark).theme()).isEqualTo(Theme.Mode.DARK);
+        assertThat(AuraConfig.load(light).theme()).isEqualTo(Theme.Mode.LIGHT);
+    }
+
+    @Test
+    void loadDefaultsThemeToDarkWhenTheKeyIsAbsent(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "claudeExe: claude\n");
+
+        assertThat(AuraConfig.load(yaml).theme()).isEqualTo(Theme.Mode.DARK);
+    }
+
+    /**
+     * Breaks if theme() ever falls back to the default instead of throwing on a
+     * spelling it does not recognise - the same silent failure this project has
+     * already fixed twice on {@code listen}, moved onto a third input.
+     */
+    @Test
+    void loadRejectsAnUnrecognisedThemeValue(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "theme: purple\n");
+
+        assertThatThrownBy(() -> AuraConfig.load(yaml))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("theme")
+            .hasMessageContaining("got 'purple'");
+    }
+
     // The tests below cover save(), the other half of the round trip load() has had
     // since M1. VoiceChoicePanel is the one caller: it loads the file fresh, changes
     // voice and profile, and saves - so what matters most is not what save() writes,
@@ -230,6 +266,11 @@ class AuraConfigTest {
      * the file would grow a new "voice:" line on every save instead of updating the
      * one that is there, and a human reading the file (or a naive script re-reading
      * only the first match) would see the voice chosen on session one forever.
+     *
+     * <p>The fixture has no {@code theme:} line, so save() appends exactly one for
+     * it (there is no key to replace) alongside the three it is already exercising -
+     * that is why four lines, not three, is the right count once theme joins voice,
+     * profile and listen.
      */
     @Test
     void saveReplacesAnExistingLineRatherThanDuplicatingIt(@TempDir Path tmp) throws Exception {
@@ -241,7 +282,7 @@ class AuraConfigTest {
 
         List<String> lines = Files.readAllLines(yaml);
         assertThat(lines).filteredOn(line -> line.startsWith("voice:")).containsExactly("voice: baya");
-        assertThat(lines).hasSize(3);
+        assertThat(lines).hasSize(4);
     }
 
     /**
@@ -270,6 +311,13 @@ class AuraConfigTest {
      * bytes of every line, not just the three save() owns. The file is written with
      * Files.write(Path, byte[]) here rather than a text API, so the bytes on disk
      * before save() runs are exactly what this test asks for.
+     *
+     * <p>The fixture has no {@code theme:} line either, so - like the missing voice/
+     * profile/listen lines the other save() tests append - save() appends one, here
+     * defaulted to "dark", after the line it does own last. That append is the new
+     * behaviour theme joining the other three settings is expected to add; the
+     * property this test is actually about, line ending and trailing newline, holds
+     * for it exactly as it does for the other three.
      */
     @Test
     void savePreservesTheFilesLineEndingAndTrailingNewlineExactly(@TempDir Path tmp) throws Exception {
@@ -281,7 +329,7 @@ class AuraConfigTest {
 
         String saved = Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8);
         assertThat(saved).isEqualTo(
-            "hookJar: C:\\tools\\claude.exe\nvoice: xenia\nprofile: ru\nlisten: false");
+            "hookJar: C:\\tools\\claude.exe\nvoice: xenia\nprofile: ru\nlisten: false\ntheme: dark");
     }
 
     /** The other direction of the same guarantee: CRLF and a trailing newline survive too. */
@@ -294,7 +342,31 @@ class AuraConfigTest {
         AuraConfig.load(yaml).withVoice("xenia", "ru").save(yaml);
 
         String saved = Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(saved).isEqualTo("voice: xenia\r\nprofile: ru\r\nlisten: false\r\n");
+        assertThat(saved).isEqualTo("voice: xenia\r\nprofile: ru\r\nlisten: false\r\ntheme: dark\r\n");
+    }
+
+    /**
+     * The exact case Task 2's brief names: hookJar, voice, profile and listen - plus
+     * the file's own line ending and lack of a trailing newline - must all survive a
+     * save that changes only theme. hookJar and listen are given non-default values
+     * in the fixture for the same reason {@link #withVoiceChangesOnlyVoiceAndProfile}
+     * loads its fixture rather than building it from {@link AuraConfig#defaults()}: a
+     * withTheme() that re-derived every other field from defaults() instead of
+     * copying the receiver would revert both here, rather than agreeing with the
+     * correct copy by coincidence.
+     */
+    @Test
+    void saveAfterAThemeChangePreservesHookJarVoiceProfileAndListenExactly(@TempDir Path tmp)
+            throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, ("hookJar: C:\\custom\\aura-hook.jar\nvoice: aidar\nprofile: en\n"
+            + "listen: true\ntheme: light").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.load(yaml).withTheme(Theme.Mode.DARK).save(yaml);
+
+        String saved = Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(saved).isEqualTo("hookJar: C:\\custom\\aura-hook.jar\nvoice: aidar\nprofile: en\n"
+            + "listen: true\ntheme: dark");
     }
 
     /** Breaks if save() assumed the file already exists instead of creating it. */
@@ -330,6 +402,39 @@ class AuraConfigTest {
 
         assertThat(changed.voice()).isEqualTo("xenia");
         assertThat(changed.profile()).isEqualTo("ru");
+        assertThat(changed.claudeExe()).isEqualTo(original.claudeExe());
+        assertThat(changed.hookJar()).isEqualTo(original.hookJar());
+        assertThat(changed.idleTimeout()).isEqualTo(original.idleTimeout());
+        assertThat(changed.listen()).isEqualTo(original.listen());
+        assertThat(changed.theme()).isEqualTo(original.theme());
+    }
+
+    /**
+     * The same property as {@link #withVoiceChangesOnlyVoiceAndProfile}, for
+     * withTheme(): breaks if it re-derives every other field from defaults()
+     * instead of copying the receiver. hookJar and listen are non-default in the
+     * fixture so a re-derive would revert them rather than agree with the copy
+     * by coincidence.
+     */
+    @Test
+    void withThemeChangesOnlyTheme(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, String.join("\n",
+            "claudeExe: C:\\custom\\claude.exe",
+            "hookJar: C:\\custom\\aura-hook.jar",
+            "idleTimeoutSec: 999",
+            "listen: true",
+            "voice: aidar",
+            "profile: en",
+            "theme: light",
+            ""));
+        AuraConfig original = AuraConfig.load(yaml);
+
+        AuraConfig changed = original.withTheme(Theme.Mode.DARK);
+
+        assertThat(changed.theme()).isEqualTo(Theme.Mode.DARK);
+        assertThat(changed.voice()).isEqualTo(original.voice());
+        assertThat(changed.profile()).isEqualTo(original.profile());
         assertThat(changed.claudeExe()).isEqualTo(original.claudeExe());
         assertThat(changed.hookJar()).isEqualTo(original.hookJar());
         assertThat(changed.idleTimeout()).isEqualTo(original.idleTimeout());

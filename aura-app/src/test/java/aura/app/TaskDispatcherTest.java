@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import aura.agents.AgentSession;
 import aura.agents.SessionSupervisor;
+import aura.app.ui.Theme;
 import aura.core.Agent;
 import aura.core.Project;
 import aura.core.ProjectRegistry;
@@ -28,7 +29,7 @@ class TaskDispatcherTest {
         Path.of("sidecar"), Path.of("python"), "", "en",
         Path.of("voice", "wake-word.npz"),
         Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx"),
-        Path.of("voice", "reference.npy"), false);
+        Path.of("voice", "reference.npy"), false, Theme.Mode.DARK);
 
     /**
      * For dispatch checks: the dispatcher writes the settings file to disk, so
@@ -44,7 +45,7 @@ class TaskDispatcherTest {
             Path.of("sidecar"), Path.of("python"), "", "en",
             Path.of("voice", "wake-word.npz"),
             Path.of("models", "wespeaker-resnet34", "voxceleb_resnet34_LM.onnx"),
-            Path.of("voice", "reference.npy"), false);
+            Path.of("voice", "reference.npy"), false, Theme.Mode.DARK);
     }
 
     private static Project project(String name, Agent agent, String... aliases) {

@@ -338,6 +338,35 @@ class UiThemeTest {
         armed[0] = false;
     }
 
+    @Test
+    void aPanelRegisteredThroughOnChangeIsCalledAndReadsTheNewPaletteAfterASwitch() {
+        // This is the rule Task 2's brief states and every later task follows: a
+        // component reads a token when the theme changes, never once at
+        // construction. Breaks if a panel like this one - built while DARK is
+        // current, then registering an onChange listener that reads
+        // UiTheme.canvas() again - is written instead to cache the colour it saw
+        // at construction and never told to look again: the listener would still
+        // run (onChangeListenersRunOnASwitchAndSurviveAThrowingOne already
+        // covers that), but the panel's own background would stay dark, and
+        // "the colours afterwards come from the new palette" is exactly the
+        // half of the contract that test does not check.
+        Theme.install(Theme.Mode.DARK);
+        JPanel panel = new JPanel();
+        panel.setBackground(UiTheme.canvas());
+        boolean[] called = {false};
+        Theme.onChange(() -> {
+            called[0] = true;
+            panel.setBackground(UiTheme.canvas());
+        });
+
+        Theme.install(Theme.Mode.LIGHT);
+
+        assertThat(called[0]).as("the registered listener ran").isTrue();
+        assertThat(panel.getBackground())
+            .as("the panel's colour after the switch")
+            .isEqualTo(UiTheme.LIGHT_PALETTE.get("surface.app"));
+    }
+
     /**
      * Lays a tree out without a native window, so this runs anywhere the rest of
      * the suite does. {@code validate()} needs a peer; {@code doLayout} does not.
