@@ -36,15 +36,20 @@ public final class UiTheme {
     private UiTheme() { }
 
     // Dark and light values in the same order TOKENS.md lists them. Every
-    // token named there that Aura uses appears in both maps; a token added to
-    // one without its twin in the other is exactly what UiThemeTest's palette
-    // agreement test is for.
+    // token the document names appears in both maps, whether or not Aura
+    // reads it yet; a token added to one without its twin in the other is
+    // exactly what UiThemeTest's palette agreement test is for.
     static final Map<String, Color> DARK_PALETTE = Map.ofEntries(
         Map.entry("surface.app", hex("#191A1C")),
         Map.entry("surface.primary", hex("#1E1F22")),
         Map.entry("surface.secondary", hex("#25262A")),
         Map.entry("surface.raised", hex("#2B2D30")),
         Map.entry("surface.input", hex("#202124")),
+        // Aura has no editor surface - no component paints one - but
+        // TOKENS.md defines this token and the two palettes must agree on
+        // every token the document defines, not only the ones Aura happens
+        // to use yet. Kept on purpose; not dead.
+        Map.entry("surface.editor", hex("#1E1F22")),
         Map.entry("surface.selection", hex("#34415A")),
         Map.entry("border.subtle", hex("#35373B")),
         Map.entry("border.default", hex("#45474D")),
@@ -68,6 +73,9 @@ public final class UiTheme {
         Map.entry("surface.secondary", hex("#F1F2F4")),
         Map.entry("surface.raised", hex("#FFFFFF")),
         Map.entry("surface.input", hex("#FFFFFF")),
+        // See the matching comment in DARK_PALETTE: Aura has no editor
+        // surface, this token is kept because TOKENS.md defines it.
+        Map.entry("surface.editor", hex("#FFFFFF")),
         Map.entry("surface.selection", hex("#DDE8FF")),
         Map.entry("border.subtle", hex("#E3E5E8")),
         Map.entry("border.default", hex("#C8CBD1")),
@@ -139,6 +147,21 @@ public final class UiTheme {
 
     public static int largeControlHeight() { return 36; }
 
+    private static final Set<Integer> RADII = Set.of(0, 4, 6, 8);
+
+    /**
+     * Validates a corner radius against {@code TOKENS.md}'s own set rather
+     * than inventing one, the same shape as {@link #space(int)}: a radius
+     * the design system does not list throws instead of being handed back
+     * anyway.
+     */
+    public static int radius(int px) {
+        if (!RADII.contains(px)) {
+            throw new IllegalArgumentException("Unsupported radius: " + px);
+        }
+        return px;
+    }
+
     // ---- pre-M4 API: fixed, pinned to the light palette, kept for the four
     // panels that still read these directly. See the class comment. ----
 
@@ -188,10 +211,20 @@ public final class UiTheme {
     // 13, metadata 12 and status text 11 to 12. title() keeps the 20 it
     // already had, at the band's low end; body() already sits exactly on
     // control text's 13; heading() moves from 14, which the new section
-    // title band excludes, to 16, its top. status() keeps body()'s size and
-    // reads as a status word through weight, not through dropping into the
-    // smaller status band, per TYPOGRAPHY.md's own steer to carry hierarchy
-    // with weight rather than size or decorative bolding.
+    // title band excludes, to 16, its top.
+    //
+    // hint() and status() stay at body()'s 13 rather than dropping to
+    // metadata's 12 or status text's 11-12, and this is a read of the
+    // document rather than an oversight of it. hint() is what sits beside a
+    // disabled control explaining why - in the Voice section that sentence
+    // is the most important line on the card, and shrinking the most
+    // important line to look like a footnote works against the reason
+    // metadata exists, not for it. "Status text" in TYPOGRAPHY.md names a
+    // status bar's text, and this window has no status bar; status() marks
+    // a state word inline in a row of body text, where it needs to be read,
+    // not to recede. Both keep their hierarchy through weight and colour,
+    // per TYPOGRAPHY.md's own steer to carry hierarchy with weight rather
+    // than size or decorative bolding.
     public static Font title() {
         return base().deriveFont(Font.BOLD, 20f);
     }

@@ -181,6 +181,14 @@ class UiThemeTest {
         // the same way in both DARK_PALETTE and LIGHT_PALETTE - agreeing with
         // each other but not with the design system - still fails here.
         //
+        // This list held 21 names, not TOKENS.md's 22, until fix round 1:
+        // "surface.editor" was missing from the document's own seven-surface
+        // count (app, primary, secondary, raised, input, editor, selection),
+        // and a list this test's own equality check is driven from cannot
+        // catch its own omission - both counts simply agreed with each other
+        // at 21. What would have caught it is counting TOKENS.md's surfaces
+        // by hand against this list, which is what fix round 1 did.
+        //
         // Breaks if a token is missing from color()'s map for either mode
         // (that token throws in the loop below), or if a token is added to
         // one palette without its twin in the other - the key set comparison
@@ -189,7 +197,7 @@ class UiThemeTest {
         // differ.
         List<String> tokens = List.of(
             "surface.app", "surface.primary", "surface.secondary", "surface.raised",
-            "surface.input", "surface.selection",
+            "surface.input", "surface.editor", "surface.selection",
             "border.subtle", "border.default", "border.focus",
             "text.primary", "text.secondary", "text.tertiary", "text.disabled", "text.link",
             "accent.primary", "accent.hover", "accent.pressed",
@@ -267,6 +275,21 @@ class UiThemeTest {
 
         assertThatThrownBy(() -> UiTheme.space(1)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> UiTheme.space(28)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void radiusAnswersOnlyTheValuesTokensMdSupports() {
+        // Same shape as spaceAnswersOnlyTheStepsTokensMdSupports, for the same
+        // reason: Task 3 needs a 6px button radius and a 4-6px field radius
+        // to come from somewhere that cannot invent a fifth value nobody put
+        // in TOKENS.md. Breaks if radius(int) starts handing back whatever it
+        // is given instead of checking it against the documented set.
+        for (int px : List.of(0, 4, 6, 8)) {
+            assertThat(UiTheme.radius(px)).isEqualTo(px);
+        }
+
+        assertThatThrownBy(() -> UiTheme.radius(2)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> UiTheme.radius(10)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
