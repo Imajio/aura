@@ -266,10 +266,20 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     /**
      * Re-reads {@link UiTheme}'s live accessors into the chrome this class paints
      * directly - sectionList's background, foreground and selection colours, the
-     * rail's border, the body's background, and the theme control's own label -
-     * and repaints. Called once, right after the window is built, and again from
-     * every {@link Theme#onChange}, so construction and a later switch produce
-     * the chrome the same way instead of two code paths that could disagree.
+     * rail's border, and the body's background - plus the theme control's own
+     * label, and repaints. Called once, right after the window is built, and
+     * again from every {@link Theme#onChange}, so construction and a later
+     * switch produce the chrome the same way instead of two code paths that
+     * could disagree.
+     *
+     * <p>{@code themeToggle} gets a new label here but deliberately no explicit
+     * foreground: its face is never themed (no button in this codebase has an
+     * explicit background, {@code themeToggle} included), and forcing its text
+     * to track {@code ink()} would put dark mode's near-white text on that
+     * always-light native face - unreadable, the same shape as fix round 1's
+     * defect, self-inflicted this time rather than left over from {@link
+     * UIManager}. Left to the look and feel, its text stays whatever legible
+     * native colour a button's text always was, in either mode.
      */
     private void refreshChrome() {
         Color canvas = UiTheme.canvas();
@@ -277,13 +287,15 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         sectionList.setBackground(canvas);
         // Foreground and the two selection colours are set explicitly rather than
         // left to Theme.install's UIManager/updateComponentTreeUI mechanism: that
-        // mechanism only reached JList's own cached colours the first time it ran
-        // after sectionList was attached to a window, verified live by rendering a
-        // switch back to a mode already seen once - the rail's unselected items
-        // stayed at the first mode's colour on every switch after the first,
-        // reading as barely-visible text in light mode. Explicit here means every
-        // later switch sets the same four colours the same way, not three of the
-        // four plus whatever a Swing internal happened to do once.
+        // mechanism only reaches a component's own cached colour the first time
+        // its updateUI() runs after the UIManager key is already correct, not on
+        // every later switch - Theme.applyToLookAndFeel's own javadoc has the
+        // full account, found by rendering a switch back to a mode already seen
+        // once. sectionList's unselected items read that way before this fix:
+        // correct the first time, then frozen at that mode's colour regardless
+        // of what Theme.mode() said next. Explicit here means every later switch
+        // sets the same four colours the same way, not three of the four plus
+        // whatever a Swing internal happened to do once.
         sectionList.setForeground(ink);
         sectionList.setSelectionBackground(UiTheme.color("surface.selection"));
         sectionList.setSelectionForeground(ink);

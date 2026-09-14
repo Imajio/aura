@@ -15,14 +15,25 @@ import org.slf4j.LoggerFactory;
  * <p>{@link UiTheme} holds the two palettes and the lookup that reads them;
  * this class holds the one piece of state that says which of the two is live,
  * and the listeners a panel registers to repaint itself when that changes.
- * {@link #install(Mode)} is the single place that flips the mode, refreshes
- * the {@link UIManager} keys the already-installed look and feel reads its
- * defaults from, and then runs the listeners.
+ * {@link #install(Mode)} is the single place that flips the mode, points a
+ * small number of {@link UIManager} keys at it, refreshes every open
+ * window's component tree, and then runs the listeners.
  *
  * <p>A listener that throws is logged and skipped rather than allowed to stop
  * the walk, for the same reason {@code SidecarEvents} swallows a subscriber's
  * exception: one panel's bug must not be able to leave every other panel
  * unpainted.
+ *
+ * <p><b>The {@link UIManager} keys {@link #install(Mode)} sets are not a
+ * general repaint mechanism, and {@link #applyToLookAndFeel} says why in
+ * detail.</b> In short: {@code SwingUtilities.updateComponentTreeUI} only
+ * copies a UIManager-supplied colour into a component's own cached field the
+ * first time that component's {@code updateUI()} runs after the key is
+ * already correct - not on every later {@link #install(Mode)}. A panel that
+ * wants to track the theme across repeated switches has to read {@link
+ * UiTheme} explicitly inside a listener registered with {@link
+ * #onChange(Runnable)}, the way {@code AuraWindow} does for its own rail and
+ * theme control; the {@link UIManager} path alone will not do it.
  */
 public final class Theme {
 
@@ -78,38 +89,50 @@ public final class Theme {
     }
 
     /**
-     * The subset of Swing's default colours a plain, unstyled component
-     * reads, pointed at the current palette. Ported from
-     * jet-swing-design-system's {@code JetTheme.install}, trimmed to the
-     * component kinds this application actually builds; Aura installs no
-     * look and feel of its own, so this only overrides keys on whichever one
-     * the platform already installed.
+     * The handful of Swing defaults left here after Task 2's fix round found
+     * that most of what this method used to set does not survive a second
+     * {@link #install(Mode)}.
+     *
+     * <p>Ported from jet-swing-design-system's {@code JetTheme.install} and
+     * originally much longer - {@code Label}, {@code Button}, {@code
+     * CheckBox}, {@code TextField}, {@code List}, {@code Spinner} and {@code
+     * ProgressBar} foregrounds, selection colours and the text field's own
+     * background all went through {@link UIManager} the same way the five
+     * still here do. Rendering the window through a full switch and a switch
+     * back showed why that was wrong: {@code SwingUtilities.updateComponentTreeUI}
+     * copies a UIManager colour into a component's own cached field only the
+     * first time that component's {@code updateUI()} runs after the key is
+     * already correct, not on every later call. {@code AuraWindow}'s own
+     * {@code themeToggle} button and its rail's list stayed at whichever mode
+     * was current at that one moment, forever, which on this render read as
+     * near-white button text on a native, never-themed, always-light button
+     * face - unreadable in both themes, on every button in the window, not
+     * only the two the owner happened to look at. {@code sectionList} and
+     * {@code themeToggle} in {@code AuraWindow} fixed this by setting their
+     * own colours explicitly inside a {@link #onChange(Runnable) Theme.onChange}
+     * listener instead of leaning on this method; every other panel's
+     * buttons, checkboxes, text field, list, spinner and progress bar simply
+     * stopped being reached by it, which is the only reset that undoes a
+     * once-only miscolouring for a component nothing in this task's scope
+     * repaints on a switch.
+     *
+     * <p>What remains are container backgrounds that no panel in this
+     * codebase leaves to the look and feel - every scroll pane, viewport and
+     * card already sets its own background explicitly, pinned or live - so
+     * removing these two would be a no-op, not a fix, and the two {@code
+     * Component.*} keys, which address a FlatLaf-shaped surface this
+     * project's plain look and feel does not read; both are kept as the
+     * harmless remainder of the original port rather than churned for no
+     * behavioural change.
      */
     private static void applyToLookAndFeel() {
         Color primary = UiTheme.surface();
-        Color input = UiTheme.color("surface.input");
-        Color selection = UiTheme.color("surface.selection");
-        Color text = UiTheme.ink();
         Color border = UiTheme.line();
         Color accent = UiTheme.accent();
 
         UIManager.put("Panel.background", primary);
         UIManager.put("Viewport.background", primary);
         UIManager.put("ScrollPane.background", primary);
-        UIManager.put("Label.foreground", text);
-        UIManager.put("Button.foreground", text);
-        UIManager.put("CheckBox.foreground", text);
-        UIManager.put("TextField.foreground", text);
-        UIManager.put("TextField.background", input);
-        UIManager.put("TextField.caretForeground", accent);
-        UIManager.put("List.background", primary);
-        UIManager.put("List.foreground", text);
-        UIManager.put("List.selectionBackground", selection);
-        UIManager.put("List.selectionForeground", text);
-        UIManager.put("ProgressBar.background", input);
-        UIManager.put("ProgressBar.foreground", accent);
-        UIManager.put("Spinner.background", input);
-        UIManager.put("Spinner.foreground", text);
         UIManager.put("Component.borderColor", border);
         UIManager.put("Component.focusColor", accent);
     }

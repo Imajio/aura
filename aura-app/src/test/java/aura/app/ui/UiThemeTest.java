@@ -8,13 +8,16 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.UIManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -365,6 +368,47 @@ class UiThemeTest {
         assertThat(panel.getBackground())
             .as("the panel's colour after the switch")
             .isEqualTo(UiTheme.LIGHT_PALETTE.get("surface.app"));
+    }
+
+    @Test
+    void installNoLongerMakesPerComponentDefaultsModeDependent() {
+        // Fix round 1 on Task 2: rendering a real AuraWindow through
+        // install(DARK), install(LIGHT) and install(DARK) again found every
+        // button in the window washed out to near-illegibility in both
+        // modes. The cause was this method's own applyToLookAndFeel pushing
+        // Button.foreground (and, the same shape, CheckBox/TextField/List/
+        // Spinner/ProgressBar/Label's foreground and a few backgrounds) into
+        // UIManager: SwingUtilities.updateComponentTreeUI only copies a
+        // UIManager colour into a component's own cached field the first
+        // time its updateUI() runs after the key is already correct, not on
+        // every later install, so a button attached during the first (dark)
+        // install kept dark's near-white text forever, unreadable against
+        // its own native, never-themed, always-light face in either mode.
+        //
+        // Breaks if any of these keys is ever again made to track the
+        // palette through UIManager: the value captured after install(DARK)
+        // would then differ from the value after install(LIGHT), which is
+        // exactly the state fix round 1's render caught.
+        List<String> keys = List.of(
+            "Label.foreground",
+            "Button.foreground",
+            "CheckBox.foreground",
+            "TextField.foreground", "TextField.background", "TextField.caretForeground",
+            "List.foreground", "List.background",
+            "List.selectionForeground", "List.selectionBackground",
+            "Spinner.foreground", "Spinner.background",
+            "ProgressBar.foreground", "ProgressBar.background");
+
+        Theme.install(Theme.Mode.DARK);
+        Map<String, Object> afterDark = new LinkedHashMap<>();
+        for (String key : keys) {
+            afterDark.put(key, UIManager.get(key));
+        }
+
+        Theme.install(Theme.Mode.LIGHT);
+        for (String key : keys) {
+            assertThat(UIManager.get(key)).as(key).isEqualTo(afterDark.get(key));
+        }
     }
 
     /**
