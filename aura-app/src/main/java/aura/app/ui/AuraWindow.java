@@ -301,6 +301,14 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         sectionList.setSelectionForeground(ink);
         body.setBackground(canvas);
         rail.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.line()));
+        // sectionList already covers the whole viewport (it stretches to fill it,
+        // and its own background above is correct on every switch), so this is
+        // not fixing an observed defect the way TasksPanel's own activity scroll
+        // needed fixing in fix round 2 - it matches the convention every other
+        // scroll pane in this codebase already follows now that Theme.install no
+        // longer sets Viewport.background itself, so rail does not become the
+        // one exception if sectionList's coverage of it ever stops being total.
+        rail.getViewport().setBackground(canvas);
         themeToggle.setText(Theme.mode() == Theme.Mode.DARK
             ? "Switch to light theme" : "Switch to dark theme");
         frame.repaint();

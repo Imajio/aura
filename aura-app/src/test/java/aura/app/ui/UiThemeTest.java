@@ -389,6 +389,15 @@ class UiThemeTest {
         // palette through UIManager: the value captured after install(DARK)
         // would then differ from the value after install(LIGHT), which is
         // exactly the state fix round 1's render caught.
+        //
+        // Panel/Viewport/ScrollPane.background joined this list in fix round
+        // 2: kept in round 1 on the reasoning that every panel and scroll
+        // pane already sets its own background, which missed
+        // TasksPanel.activityCard()'s inner scroll - an empty top border
+        // whose gap the wrapped list's own background does not reach, so an
+        // opaque JScrollPane painted that gap from whichever mode installed
+        // first and never again. Rendered as a solid bar under "Activity"
+        // that survived a switch to light and a switch back.
         List<String> keys = List.of(
             "Label.foreground",
             "Button.foreground",
@@ -397,7 +406,8 @@ class UiThemeTest {
             "List.foreground", "List.background",
             "List.selectionForeground", "List.selectionBackground",
             "Spinner.foreground", "Spinner.background",
-            "ProgressBar.foreground", "ProgressBar.background");
+            "ProgressBar.foreground", "ProgressBar.background",
+            "Panel.background", "Viewport.background", "ScrollPane.background");
 
         Theme.install(Theme.Mode.DARK);
         Map<String, Object> afterDark = new LinkedHashMap<>();

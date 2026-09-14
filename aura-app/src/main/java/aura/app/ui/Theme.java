@@ -89,50 +89,54 @@ public final class Theme {
     }
 
     /**
-     * The handful of Swing defaults left here after Task 2's fix round found
-     * that most of what this method used to set does not survive a second
-     * {@link #install(Mode)}.
+     * The two Swing defaults left here after Task 2's second fix round found
+     * that the other three container-background keys do not survive a second
+     * {@link #install(Mode)} either.
      *
      * <p>Ported from jet-swing-design-system's {@code JetTheme.install} and
      * originally much longer - {@code Label}, {@code Button}, {@code
      * CheckBox}, {@code TextField}, {@code List}, {@code Spinner} and {@code
      * ProgressBar} foregrounds, selection colours and the text field's own
-     * background all went through {@link UIManager} the same way the five
-     * still here do. Rendering the window through a full switch and a switch
-     * back showed why that was wrong: {@code SwingUtilities.updateComponentTreeUI}
-     * copies a UIManager colour into a component's own cached field only the
-     * first time that component's {@code updateUI()} runs after the key is
-     * already correct, not on every later call. {@code AuraWindow}'s own
-     * {@code themeToggle} button and its rail's list stayed at whichever mode
-     * was current at that one moment, forever, which on this render read as
-     * near-white button text on a native, never-themed, always-light button
-     * face - unreadable in both themes, on every button in the window, not
-     * only the two the owner happened to look at. {@code sectionList} and
-     * {@code themeToggle} in {@code AuraWindow} fixed this by setting their
-     * own colours explicitly inside a {@link #onChange(Runnable) Theme.onChange}
-     * listener instead of leaning on this method; every other panel's
-     * buttons, checkboxes, text field, list, spinner and progress bar simply
-     * stopped being reached by it, which is the only reset that undoes a
-     * once-only miscolouring for a component nothing in this task's scope
-     * repaints on a switch.
+     * background were the first thirteen keys found to not survive a second
+     * {@link #install(Mode)} (fix round 1); {@code Panel}, {@code Viewport}
+     * and {@code ScrollPane}'s {@code background} were kept at the time,
+     * reasoned to be unreachable because every panel and scroll pane in this
+     * codebase already sets its own background. That reasoning checked every
+     * panel and missed a scroll pane: {@code TasksPanel.activityCard()}'s
+     * inner scroll wraps an empty-when-there-are-no-tasks-yet list in a
+     * border with a non-zero top inset (the gap under the "Activity"
+     * heading), and a {@code JScrollPane}, if opaque, paints its own
+     * background across that inset before the border and the viewport paint
+     * over the rest - the one area the list's own explicit, correctly
+     * updating background does not reach, since the list otherwise stretches
+     * to cover the whole viewport. Rendered with dark installed first: a
+     * solid bar the width of the card, gone when light installs first
+     * instead - the same once-only propagation this class's own javadoc
+     * describes, on a key this method used to set unconditionally.
      *
-     * <p>What remains are container backgrounds that no panel in this
-     * codebase leaves to the look and feel - every scroll pane, viewport and
-     * card already sets its own background explicitly, pinned or live - so
-     * removing these two would be a no-op, not a fix, and the two {@code
-     * Component.*} keys, which address a FlatLaf-shaped surface this
-     * project's plain look and feel does not read; both are kept as the
-     * harmless remainder of the original port rather than churned for no
-     * behavioural change.
+     * <p>{@code TasksPanel} fixed its one exposed scroll pane by setting its
+     * background explicitly, the same way {@code AuraWindow} already did for
+     * its own rail. Grepped every {@code JPanel} and {@code JScrollPane}
+     * construction in this codebase this time, not just the first hit for
+     * each background call: no other one is exposed the same way - the four
+     * other "whole column" scroll panes already set their viewport's
+     * background explicitly and carry no border gap, {@code VoiceChoicePanel}'s
+     * voice list is never empty (ten fixed entries, always more than fit),
+     * and every {@code JPanel} either sets its own background or is
+     * non-opaque. {@code Panel.background} and {@code Viewport.background}
+     * are therefore removed alongside {@code ScrollPane.background}: not
+     * because a second exposure was found for either, but because "not
+     * currently reachable" is exactly the claim that was wrong about the
+     * third, and this method is not the place to keep re-deriving it. What
+     * remains are the two {@code Component.*} keys, which address a
+     * FlatLaf-shaped surface this project's plain look and feel does not
+     * read - kept as the harmless remainder of the original port rather than
+     * removed on an unverified guess, the same distinction fix round 1 drew.
      */
     private static void applyToLookAndFeel() {
-        Color primary = UiTheme.surface();
         Color border = UiTheme.line();
         Color accent = UiTheme.accent();
 
-        UIManager.put("Panel.background", primary);
-        UIManager.put("Viewport.background", primary);
-        UIManager.put("ScrollPane.background", primary);
         UIManager.put("Component.borderColor", border);
         UIManager.put("Component.focusColor", accent);
     }

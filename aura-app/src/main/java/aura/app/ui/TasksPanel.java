@@ -229,6 +229,17 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         JScrollPane scroll = new JScrollPane(activity,
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
+        // The border above has a non-zero top inset - the gap under the "Activity"
+        // heading - which activity's own background cannot reach: activity
+        // stretches to cover the viewport, not the scroll pane's border area, so
+        // an opaque JScrollPane paints that inset in its own background. Pinned
+        // to the same SURFACE every other piece of this card already uses, the
+        // same as the viewport it wraps, rather than left to the look and feel:
+        // that inset painted through with a colour frozen from whichever theme
+        // installed first, rendered as a solid bar that survived a switch to
+        // light and a switch back to dark, before this fix.
+        scroll.setBackground(UiTheme.SURFACE);
+        scroll.getViewport().setBackground(UiTheme.SURFACE);
         // A handful of rows, always, whatever sits above this card on the page.
         // Rendering the window at its minimum with only one project registered
         // found the alternative: the page's own scroll left this card a single

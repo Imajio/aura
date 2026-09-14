@@ -10,6 +10,7 @@ import aura.core.Project;
 import aura.core.ProjectRegistry;
 import aura.core.ToolClass;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.lang.reflect.InvocationTargetException;
@@ -22,7 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.AbstractButton;
 import javax.swing.DefaultListModel;
 import javax.swing.JList;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +44,44 @@ import org.junit.jupiter.api.Test;
 class TasksPanelTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void activityScrollPaneBackgroundStaysPinnedAcrossASwitch() {
+        // Fix round 2 on Task 2: activityCard()'s inner scroll pane has an
+        // empty top border (the gap under the "Activity" heading) that
+        // activity's own background does not reach, since the list stretches
+        // to cover the viewport rather than the scroll pane's border area.
+        // Before this fix that gap came from Theme.applyToLookAndFeel's
+        // ScrollPane.background key, frozen at whichever mode installed
+        // first - rendered as a solid bar that survived a switch to light
+        // and a switch back to dark, with an empty registry and no rows.
+        //
+        // Breaks if the explicit setBackground(UiTheme.SURFACE) calls in
+        // activityCard() are ever removed: the background would then differ
+        // between install(DARK) and install(LIGHT), the same failure shape
+        // UiThemeTest's own installNoLongerMakesPerComponentDefaultsModeDependent
+        // catches for the thirteen-then-sixteen keys no longer pushed
+        // through UIManager.
+        Theme.Mode before = Theme.mode();
+        try {
+            Panel panel = panel();
+            onEdt(() -> {
+                JList<?> activity = (JList<?>) find(panel.tasks, "tasks.log");
+                JViewport viewport = (JViewport) activity.getParent();
+                JScrollPane scroll = (JScrollPane) viewport.getParent();
+
+                Theme.install(Theme.Mode.DARK);
+                Color afterDark = scroll.getBackground();
+                Theme.install(Theme.Mode.LIGHT);
+                Color afterLight = scroll.getBackground();
+
+                assertThat(afterDark).isEqualTo(UiTheme.SURFACE);
+                assertThat(afterLight).isEqualTo(afterDark);
+            });
+        } finally {
+            Theme.install(before);
+        }
+    }
 
     @Test
     void sendingATaskCallsTheSharedDispatchConsumerAndClearsTheField() {
