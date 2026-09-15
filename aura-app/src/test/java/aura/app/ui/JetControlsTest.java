@@ -1,0 +1,415 @@
+package aura.app.ui;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.Component;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JList;
+import javax.swing.JTextField;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.border.MatteBorder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+/**
+ * What the ported controls promise beyond "it compiles": the geometry {@code
+ * COMPONENTS.md} gives each one, and the three interaction rules the task this
+ * class was written for calls out by name. Each test's comment names the
+ * production change that would turn it red, the same convention {@code
+ * UiThemeTest} uses and for the same reason - a test that only restates the
+ * implementation catches nothing a typo could not also produce by accident.
+ *
+ * <p>Focus is asserted through a synthetic {@link FocusEvent} dispatched
+ * straight at the component rather than through {@code requestFocusInWindow()}:
+ * none of these components are ever realized in a window here, so the real
+ * {@code KeyboardFocusManager} never grants them anything to query back with
+ * {@code isFocusOwner()}. {@link JetControls} does not call {@code
+ * isFocusOwner()} either, for the same reason its own render harness could
+ * never show a focused control if it did - both read a private flag their own
+ * focus listener sets, and {@code dispatchEvent} reaches that listener whether
+ * or not a real window is behind the component.
+ */
+class JetControlsTest {
+
+    private Theme.Mode modeBeforeThisTest;
+
+    @BeforeEach
+    void rememberTheCurrentMode() {
+        modeBeforeThisTest = Theme.mode();
+    }
+
+    @AfterEach
+    void restoreTheCurrentMode() {
+        Theme.install(modeBeforeThisTest);
+    }
+
+    @Test
+    void buttonsAreThirtyTwoPixelsHighWithTwelvePixelHorizontalPadding() {
+        // Breaks if Button.getPreferredSize stops overriding the height, or if
+        // the constructor's border padding is changed from UiTheme.space(12).
+        JButton button = JetControls.button("Cancel");
+
+        assertThat(button.getPreferredSize().height).isEqualTo(32);
+        Insets insets = button.getInsets();
+        assertThat(insets.left).isEqualTo(12);
+        assertThat(insets.right).isEqualTo(12);
+    }
+
+    @Test
+    void aWiderLabelMakesAWiderButtonAtTheSameHeight() {
+        // Breaks if getPreferredSize is changed to a fixed Dimension instead of
+        // widening super's own text-driven width - every button in the window
+        // would then be the same width regardless of its label.
+        JButton narrow = JetControls.button("Go");
+        JButton wide = JetControls.button("Enrol from all takes");
+
+        assertThat(wide.getPreferredSize().width).isGreaterThan(narrow.getPreferredSize().width);
+        assertThat(wide.getPreferredSize().height).isEqualTo(narrow.getPreferredSize().height);
+    }
+
+    @Test
+    void primaryButtonFillsWithAccentAndSecondaryDoesNot() {
+        // Breaks if primaryButton and button stop being told apart - say, both
+        // built with primary=false - collapsing "the major action" back into
+        // visual sameness with every neutral button beside it.
+        JButton primary = JetControls.primaryButton("Use this voice");
+        JButton secondary = JetControls.button("Cancel");
+
+        assertThat(primary.getBackground()).isEqualTo(UiTheme.accent());
+        assertThat(secondary.getBackground()).isNotEqualTo(UiTheme.accent());
+    }
+
+    @Test
+    void primaryButtonInkStaysTheSameAcrossBothThemesBecauseAccentDoesToo() {
+        // Breaks if the primary button's foreground is changed to UiTheme.ink()
+        // or UiTheme.color("text.primary") - either would flip to dark theme's
+        // near-white text the moment Theme.install(DARK) runs, at 2.62:1 against
+        // the (mode-invariant) accent fill: under the 3:1 floor WCAG allows even
+        // for large or bold UI text. See the class javadoc's "primary button's
+        // ink" section for the full measurement.
+        Theme.install(Theme.Mode.DARK);
+        Color darkInk = JetControls.primaryButton("Train the wake word").getForeground();
+
+        Theme.install(Theme.Mode.LIGHT);
+        Color lightInk = JetControls.primaryButton("Train the wake word").getForeground();
+
+        assertThat(darkInk).isEqualTo(lightInk);
+        assertThat(darkInk).isEqualTo(UiTheme.LIGHT_PALETTE.get("text.primary"));
+    }
+
+    @Test
+    void primaryButtonHoverAndPressedUseTheDedicatedAccentTokensAndDifferFromRest() {
+        // Breaks if hover/pressed on the primary button are collapsed onto the
+        // resting accent.primary fill, or onto each other - either would make
+        // INTERACTIONS.md's "pressed states should feel immediate" untrue,
+        // since nothing would visibly change between renderes.
+        JButton button = JetControls.primaryButton("Train the wake word");
+        Color resting = button.getBackground();
+
+        button.getModel().setRollover(true);
+        Color hover = button.getBackground();
+        button.getModel().setRollover(false);
+
+        button.getModel().setArmed(true);
+        button.getModel().setPressed(true);
+        Color pressed = button.getBackground();
+
+        assertThat(hover).isEqualTo(UiTheme.color("accent.hover")).isNotEqualTo(resting);
+        assertThat(pressed).isEqualTo(UiTheme.color("accent.pressed")).isNotEqualTo(resting).isNotEqualTo(hover);
+    }
+
+    @Test
+    void aFocusedButtonShowsABorderColourNothingElseUses() {
+        // Breaks if the FocusListener is removed, or if focusColorFor stops
+        // special-casing "focused" and just falls through to the resting
+        // border - INTERACTIONS.md's "every keyboard-focusable component needs
+        // a visible focus state" would then be silently false for buttons.
+        JButton button = JetControls.button("Cancel");
+        Color resting = strokeOf(button);
+
+        fireFocus(button, true);
+        Color focused = strokeOf(button);
+
+        fireFocus(button, false);
+        Color afterBlur = strokeOf(button);
+
+        assertThat(focused).isEqualTo(UiTheme.color("border.focus")).isNotEqualTo(resting);
+        assertThat(afterBlur).isEqualTo(resting);
+    }
+
+    @Test
+    void disabledButtonFadesItsOwnLabelWithoutMakingItInvisible() {
+        // Breaks if the disabled branch is deleted (foreground would stay
+        // text.primary, no reduction at all) or if it is set equal to the
+        // background (reduced to nothing, not merely reduced). The hint label
+        // beside a disabled button - VoicePanel's recordReason, useReason and
+        // the rest - is a separate UiTheme.hint() label this class does not
+        // build and does not dim; confirmed by reading VoicePanel, where
+        // record.setEnabled(...) and recordReason.setText(...) never touch each
+        // other's colour. This test pins only the button's own label.
+        JButton button = JetControls.button("Record takes…");
+        Color enabledForeground = button.getForeground();
+
+        button.setEnabled(false);
+
+        assertThat(button.getForeground())
+            .isEqualTo(UiTheme.color("text.disabled"))
+            .isNotEqualTo(enabledForeground)
+            .isNotEqualTo(button.getBackground());
+    }
+
+    @Test
+    void textFieldsAreThirtyTwoPixelsHighWithAOnePixelBorder() {
+        // Breaks if PlaceholderField stops setting the fixed 32px preferred
+        // size, or if the LineBorder's thickness is changed from the
+        // BorderFactory.createLineBorder(Color) default of one pixel.
+        JTextField field = JetControls.textField("Type a phrase");
+
+        assertThat(field.getPreferredSize().height).isEqualTo(32);
+        LineBorder line = (LineBorder) ((CompoundBorder) field.getBorder()).getOutsideBorder();
+        assertThat(line.getThickness()).isEqualTo(1);
+    }
+
+    @Test
+    void aFocusedFieldBorderTurnsBorderFocusAndAnUnfocusedOneDoesNot() {
+        // Breaks the same way the button's focus test breaks: remove the
+        // FocusListener, or stop branching on the flag it sets, and this field
+        // keeps border.default forever, failing INTERACTIONS.md's focus rule.
+        JTextField field = JetControls.textField("");
+        Color resting = strokeOf(field);
+
+        fireFocus(field, true);
+        Color focused = strokeOf(field);
+
+        fireFocus(field, false);
+        Color afterBlur = strokeOf(field);
+
+        assertThat(resting).isEqualTo(UiTheme.color("border.default"));
+        assertThat(focused).isEqualTo(UiTheme.color("border.focus")).isNotEqualTo(resting);
+        assertThat(afterBlur).isEqualTo(resting);
+    }
+
+    @Test
+    void disabledFieldFadesTextAndBorderWithoutMakingItInvisible() {
+        // Breaks if setEnabled(false) is left un-overridden - refresh() would
+        // then never run, and a disabled field would still show
+        // enabled-looking text.primary and border.default.
+        JTextField field = JetControls.textField("");
+        Color enabledForeground = field.getForeground();
+
+        field.setEnabled(false);
+
+        assertThat(field.getForeground())
+            .isEqualTo(UiTheme.color("text.disabled")).isNotEqualTo(enabledForeground);
+        assertThat(readLineOrMatteColor(field.getBorder())).isEqualTo(UiTheme.color("border.subtle"));
+    }
+
+    @Test
+    void aRegisteredButtonReadsTheNewPaletteAfterAThemeSwitchRatherThanTheOneItWasBuiltUnder() {
+        // This is the rule the task's own brief states: a control reads a token
+        // when the theme changes, never once at construction. Breaks if
+        // Theme.onChange(this::refresh) is deleted from Button's constructor -
+        // the button would keep the colour it had when built, exactly the
+        // defect Task 2 found and fixed for AuraWindow's own controls.
+        Theme.install(Theme.Mode.DARK);
+        JButton button = JetControls.button("Cancel");
+        Color darkBackground = button.getBackground();
+
+        Theme.install(Theme.Mode.LIGHT);
+
+        assertThat(button.getBackground()).isNotEqualTo(darkBackground);
+        assertThat(button.getBackground()).isEqualTo(UiTheme.color("surface.raised"));
+    }
+
+    @Test
+    void hoverIsMeasurablyDifferentFromBaseAndCloserToBaseThanSelectionInBothThemes() {
+        // Breaks two ways: raising ROW_HOVER_MIX to 1.0 (or beyond) collapses
+        // hover onto selection - the first assertion catches that by requiring
+        // hover to still differ from selection; dropping ROW_HOVER_MIX to 0
+        // (or deleting the hover branch) makes hover indistinguishable from no
+        // hover at all - the second assertion catches that by requiring hover
+        // to differ from the base surface. Together they pin the "subtler, not
+        // absent" reading of INTERACTIONS.md's "hover is lighter than
+        // selection" that the class javadoc explains cannot be a literal
+        // luminance comparison in both themes at once.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            Color base = UiTheme.surface();
+            Color hover = JetControls.rowBackground(false, true);
+            Color selected = JetControls.rowBackground(true, false);
+
+            assertThat(hover).as(mode + " hover vs base").isNotEqualTo(base);
+            assertThat(hover).as(mode + " hover vs selected").isNotEqualTo(selected);
+            assertThat(distance(hover, base))
+                .as(mode + ": hover is a subtler move off the base surface than selection is")
+                .isLessThan(distance(selected, base));
+        }
+    }
+
+    @Test
+    void selectedRowCarriesAnAccentStripeAndAnUnselectedRowDoesNotJitterForIt() {
+        // Breaks if the stripe is painted only as a background colour (no
+        // Border change at all - a colour-blind reviewer would then see
+        // nothing but the tint DESIGN_RULES.md says not to rely on alone), or
+        // if the unselected row's compensating empty border is removed - the
+        // second assertion would then catch a row's label jumping sideways by
+        // ROW_STRIPE pixels the moment it becomes selected.
+        JetControls.RowRenderer<String> renderer = new JetControls.RowRenderer<>() {
+            @Override
+            protected String text(String value) {
+                return value;
+            }
+        };
+        JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
+
+        renderer.getListCellRendererComponent(list, "a", 0, true, false);
+        Border selectedBorder = renderer.getBorder();
+        renderer.getListCellRendererComponent(list, "a", 0, false, false);
+        Border unselectedBorder = renderer.getBorder();
+
+        Border selectedLeading = ((CompoundBorder) selectedBorder).getOutsideBorder();
+        Border unselectedLeading = ((CompoundBorder) unselectedBorder).getOutsideBorder();
+        assertThat(selectedLeading).isInstanceOf(MatteBorder.class);
+        assertThat(((MatteBorder) selectedLeading).getMatteColor()).isEqualTo(UiTheme.accent());
+        assertThat(unselectedLeading).isInstanceOf(EmptyBorder.class);
+
+        assertThat(selectedBorder.getBorderInsets(renderer))
+            .as("selecting a row must not change its total inset")
+            .isEqualTo(unselectedBorder.getBorderInsets(renderer));
+    }
+
+    @Test
+    void hoveredRowIsNotRepaintedAsSelected() {
+        // Breaks if rowBackground's hover branch is reordered above the
+        // selected branch, or if RowRenderer stops passing isSelected through
+        // to suppress "hovered" on the row that is already selected - either
+        // would let a merely-hovered row read as persistently selected.
+        assertThat(JetControls.rowBackground(true, true))
+            .isEqualTo(JetControls.rowBackground(true, false))
+            .as("a selected row ignores hover entirely, it does not add to it")
+            .isEqualTo(UiTheme.color("surface.selection"));
+    }
+
+    @Test
+    void aListWithNoRendererIsStillLegibleInBothThemes() {
+        // Breaks if refreshListChrome stops setting the foreground. RowRenderer
+        // is opt-in and every caller has to install one; a caller who has not
+        // must not be left with the look and feel's own near-black rows on the
+        // dark palette's near-black surface.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
+
+            assertThat(list.getForeground())
+                .describedAs("row foreground in %s", mode)
+                .isEqualTo(UiTheme.color("text.primary"))
+                .isNotEqualTo(list.getBackground());
+        }
+    }
+
+    @Test
+    void listRowsAreThirtyTwoPixelsHigh() {
+        // Breaks if list() stops calling setFixedCellHeight, or is changed to
+        // compactControlHeight() (28) - still inside COMPONENTS.md's
+        // documented 28-32 range, but a change worth a reddened test rather
+        // than a silent one, since ROW_HEIGHT's own javadoc gives a reason for
+        // 32 specifically.
+        JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
+
+        assertThat(list.getFixedCellHeight()).isEqualTo(32);
+    }
+
+    @Test
+    void aFocusedListBorderTurnsBorderFocusEvenWithNothingSelected() {
+        // Breaks the same way the button and field focus tests do. Asserted
+        // here specifically with an empty model and no selection, because a
+        // focus signal carried only by the selected row's stripe would have
+        // nothing to show in exactly this case.
+        JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
+        Color resting = strokeOf(list);
+
+        fireFocus(list, true);
+
+        assertThat(resting).isEqualTo(UiTheme.color("border.subtle"));
+        assertThat(strokeOf(list)).isEqualTo(UiTheme.color("border.focus"));
+    }
+
+    @Test
+    void listRowForegroundFollowsTheListsOwnEnabledStateNotTheRows() {
+        // Breaks if RowRenderer reads something other than list.isEnabled() -
+        // say, always text.primary - which would stop a disabled list (this
+        // application has none yet, but COMPONENTS.md's disabled rule is
+        // general, not button-specific) from ever looking disabled at all.
+        JetControls.RowRenderer<String> renderer = new JetControls.RowRenderer<>() {
+            @Override
+            protected String text(String value) {
+                return value;
+            }
+        };
+        JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
+
+        list.setEnabled(false);
+        renderer.getListCellRendererComponent(list, "a", 0, false, false);
+        assertThat(renderer.getForeground()).isEqualTo(UiTheme.color("text.disabled"));
+
+        list.setEnabled(true);
+        renderer.getListCellRendererComponent(list, "a", 0, false, false);
+        assertThat(renderer.getForeground()).isEqualTo(UiTheme.color("text.primary"));
+    }
+
+    /** Euclidean distance in RGB space - "how far a colour moved," not which way. */
+    private static double distance(Color a, Color b) {
+        double dr = a.getRed() - b.getRed();
+        double dg = a.getGreen() - b.getGreen();
+        double db = a.getBlue() - b.getBlue();
+        return Math.sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    /** The stroke colour out of either a plain {@link LineBorder} or a compound one. */
+    private static Color readLineOrMatteColor(Border border) {
+        Border target = border instanceof CompoundBorder compound ? compound.getOutsideBorder() : border;
+        return ((LineBorder) target).getLineColor();
+    }
+
+    /**
+     * The stroke colour of any control here, whether it sets a border or paints
+     * one. A button at TOKENS.md's 6 px radius has to paint its own, so its
+     * getBorder() carries only the padding.
+     */
+    private static Color strokeOf(JComponent control) {
+        Object painted = control.getClientProperty(JetControls.BORDER_COLOUR_PROPERTY);
+        return painted instanceof Color colour ? colour : readLineOrMatteColor(control.getBorder());
+    }
+
+    /**
+     * Fires the focus listeners the control installed on itself.
+     *
+     * <p>Dispatching a FocusEvent at a component that is not showing does not
+     * reach it: the keyboard focus manager filters the synthetic event before
+     * processFocusEvent runs. Calling the installed listeners is what actually
+     * exercises the wiring these controls put in place.
+     */
+    private static void fireFocus(Component control, boolean gained) {
+        FocusEvent event = new FocusEvent(control,
+            gained ? FocusEvent.FOCUS_GAINED : FocusEvent.FOCUS_LOST);
+        for (FocusListener listener : control.getFocusListeners()) {
+            if (gained) {
+                listener.focusGained(event);
+            } else {
+                listener.focusLost(event);
+            }
+        }
+    }
+}
