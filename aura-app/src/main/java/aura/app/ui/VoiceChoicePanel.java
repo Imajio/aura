@@ -159,12 +159,25 @@ public final class VoiceChoicePanel extends JPanel {
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(UiTheme.CANVAS);
         scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
 
         setLayout(new BorderLayout());
-        setBackground(UiTheme.CANVAS);
         add(scroll, BorderLayout.CENTER);
+
+        // A plain JPanel's and a JViewport's background both hold whatever colour
+        // they were given, the same as a Border - neither has a paintComponent this
+        // class can read a token from, so both are re-applied from this listener
+        // instead, the way AuraWindow's own chrome is. playbackStatus is folded in
+        // for the same reason: text.secondary is the one token here that actually
+        // differs between the two palettes, and it is only ever showing while a
+        // clip plays.
+        Theme.onChange(() -> {
+            setBackground(UiTheme.canvas());
+            scroll.getViewport().setBackground(UiTheme.canvas());
+            if (playing) {
+                playbackStatus.setForeground(UiTheme.muted());
+            }
+        });
 
         for (AuditionVoice voice : voices) {
             voiceListModel.addElement(voice);
@@ -176,7 +189,7 @@ public final class VoiceChoicePanel extends JPanel {
         Card card = new Card("Candidate voices");
         if (voices.isEmpty()) {
             card.note(UiTheme.wrapped("No audition samples found at " + auditionRoot
-                + ". Run sidecar/audition-russian-tts.py to render them.", UiTheme.WARN));
+                + ". Run sidecar/audition-russian-tts.py to render them.", "warning"));
         } else {
             card.note("Ten voices - two Silero releases, five voices each. Names stay "
                 + "hidden until you ask for them.");
@@ -199,9 +212,11 @@ public final class VoiceChoicePanel extends JPanel {
                 applyEnablement();
             }
         });
+        JetControls.list(voiceList);
         JScrollPane voiceScroll = new JScrollPane(voiceList,
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        voiceScroll.setBorder(null);
         card.row(voiceScroll);
 
         useButton.setName("voice.choice.use");
@@ -255,11 +270,11 @@ public final class VoiceChoicePanel extends JPanel {
                 ? "Saved \"" + selected.name() + "\" and profile \"ru\"."
                 : "Saved your choice.";
             useReport.setText(UiTheme.html(saved + " Takes effect the next time Aura starts."));
-            useReport.setForeground(UiTheme.GOOD);
+            useReport.setForeground(UiTheme.good());
         } catch (Exception e) {
             log.warn("could not save the chosen voice to {}", configFile, e);
             useReport.setText(UiTheme.html("Could not save " + configFile + ": " + e.getMessage()));
-            useReport.setForeground(UiTheme.BAD);
+            useReport.setForeground(UiTheme.bad());
         }
     }
 
@@ -274,7 +289,7 @@ public final class VoiceChoicePanel extends JPanel {
         }
         playing = true;
         playbackStatus.setText(UiTheme.html("Playing \u201c" + humanize(lineId) + "\u201d…"));
-        playbackStatus.setForeground(UiTheme.MUTED);
+        playbackStatus.setForeground(UiTheme.muted());
         applyEnablement();
 
         Thread worker = new Thread(() -> {
@@ -335,7 +350,7 @@ public final class VoiceChoicePanel extends JPanel {
         String reason = e.getMessage() == null || e.getMessage().isBlank()
             ? e.getClass().getSimpleName() : e.getMessage();
         playbackStatus.setText(UiTheme.html("Could not play \"" + humanize(lineId) + "\" - " + reason));
-        playbackStatus.setForeground(UiTheme.BAD);
+        playbackStatus.setForeground(UiTheme.bad());
         applyEnablement();
     }
 
