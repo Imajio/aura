@@ -246,32 +246,88 @@ public final class UiTheme {
     }
 
     public static JLabel title(String text) {
-        return styled(text, title(), INK);
+        return styled(text, title(), "text.primary");
     }
 
     public static JLabel heading(String text) {
-        return styled(text, heading(), INK);
+        return styled(text, heading(), "text.primary");
     }
 
     public static JLabel body(String text) {
-        return styled(text, body(), INK);
+        return styled(text, body(), "text.primary");
     }
 
     /** For the sentence under a control that says what it will do. */
     public static JLabel hint(String text) {
-        return styled(text, body(), MUTED);
+        return styled(text, body(), "text.secondary");
     }
 
+    /** A state word inline in a row, in whichever token names that state. */
+    public static JLabel status(String text, String token) {
+        return styled(text, body().deriveFont(Font.BOLD), token);
+    }
+
+    /**
+     * The same, in a colour the caller already holds.
+     *
+     * <p>This is the unconverted path: a label built here keeps the colour it
+     * was given and does not follow a theme switch. It exists so a panel can be
+     * moved onto tokens one file at a time rather than all at once, and it goes
+     * when the last caller does.
+     */
     public static JLabel status(String text, Color colour) {
-        return styled(text, body().deriveFont(Font.BOLD), colour);
-    }
-
-    private static JLabel styled(String text, Font font, Color colour) {
         JLabel label = new JLabel(text);
-        label.setFont(font);
+        label.setFont(body().deriveFont(Font.BOLD));
         label.setForeground(colour);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
+    }
+
+    private static JLabel styled(String text, Font font, String token) {
+        JLabel label = new TokenLabel(text, token);
+        label.setFont(font);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return label;
+    }
+
+    /**
+     * A label that resolves its colour when it paints rather than when it is
+     * built.
+     *
+     * <p>A colour read once at construction is right until the theme changes and
+     * wrong forever after, and this application learned that twice over: the
+     * look and feel's own propagation reaches a component only the first time
+     * its {@code updateUI} runs after attachment, so nothing corrects a cached
+     * value on a later switch. Resolving in {@link #getForeground()} needs no
+     * registry of every label ever made and no bookkeeping in the panels; a
+     * repaint is enough.
+     *
+     * <p>An explicit colour from a caller still wins, and stops the tracking:
+     * a renderer that paints one row red means that row red. A {@code
+     * UIResource} does not, because that is the look and feel talking, not a
+     * caller.
+     */
+    private static final class TokenLabel extends JLabel {
+
+        private String token;
+
+        TokenLabel(String text, String token) {
+            super(text);
+            this.token = token;
+        }
+
+        @Override
+        public Color getForeground() {
+            return token == null ? super.getForeground() : color(token);
+        }
+
+        @Override
+        public void setForeground(Color colour) {
+            if (colour != null && !(colour instanceof javax.swing.plaf.UIResource)) {
+                token = null;
+            }
+            super.setForeground(colour);
+        }
     }
 
     /**
@@ -291,10 +347,17 @@ public final class UiTheme {
         return hint(html(text));
     }
 
-    /** The same wrapping, in a colour the caller chooses - a warning, usually. */
+    /** The same wrapping, in whichever token the caller names - a warning, usually. */
+    public static JLabel wrapped(String text, String token) {
+        return styled(html(text), body(), token);
+    }
+
+    /** The unconverted path, as {@link #status(String, Color)} is. */
     public static JLabel wrapped(String text, Color colour) {
-        JLabel label = wrapped(text);
+        JLabel label = new JLabel(html(text));
+        label.setFont(body());
         label.setForeground(colour);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
     }
 

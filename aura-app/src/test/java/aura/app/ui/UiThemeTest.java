@@ -438,4 +438,38 @@ class UiThemeTest {
     private static double brightness(Color colour) {
         return 0.299 * colour.getRed() + 0.587 * colour.getGreen() + 0.114 * colour.getBlue();
     }
+
+    @Test
+    void aFactoryLabelFollowsAThemeSwitchRatherThanTheModeItWasBuiltUnder() {
+        // Breaks if styled() goes back to setForeground at construction. A
+        // colour read once is right until the theme changes and wrong forever
+        // after, and the look and feel's own propagation does not correct it:
+        // it reaches a component only the first time updateUI runs after
+        // attachment.
+        Theme.install(Theme.Mode.LIGHT);
+        JLabel label = UiTheme.body("Speaker model");
+        Color underLight = label.getForeground();
+
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(underLight).isEqualTo(UiTheme.LIGHT_PALETTE.get("text.primary"));
+        assertThat(label.getForeground()).isEqualTo(UiTheme.DARK_PALETTE.get("text.primary"))
+            .isNotEqualTo(underLight);
+    }
+
+    @Test
+    void aColourTheCallerSetsWinsAndStopsTracking() {
+        // Breaks if setForeground stops clearing the token. A renderer that
+        // paints one row in the error colour means that row, and a label that
+        // silently went back to text.primary on the next switch would lose it.
+        Theme.install(Theme.Mode.LIGHT);
+        JLabel label = UiTheme.body("failed");
+        label.setForeground(UiTheme.color("error"));
+        Color chosen = label.getForeground();
+
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(chosen).isEqualTo(UiTheme.LIGHT_PALETTE.get("error"));
+        assertThat(label.getForeground()).isEqualTo(chosen);
+    }
 }

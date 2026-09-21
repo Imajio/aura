@@ -3,6 +3,8 @@ package aura.app.ui;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import javax.swing.JComponent;
@@ -42,11 +44,34 @@ final class Card extends JPanel {
 
     Card(String heading) {
         setLayout(new GridBagLayout());
-        setBackground(UiTheme.SURFACE);
-        setBorder(UiTheme.card());
+        setOpaque(false);
+        setBorder(UiTheme.pad(UiTheme.SPACE));
         setAlignmentX(Component.LEFT_ALIGNMENT);
         add(UiTheme.heading(heading), 0, 3, false);
         row++;
+    }
+
+    /**
+     * Paints the card's own surface and its one separating line.
+     *
+     * <p>A {@code Border} and a background set once hold the colours they were
+     * given, and a theme switch has no way to reach either. Painting here reads
+     * the tokens every time instead, so a repaint is all a switch needs. It also
+     * puts the surface and the line in one place, where a card that gained a
+     * radius would want them.
+     */
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D canvas = (Graphics2D) g.create();
+        try {
+            canvas.setColor(UiTheme.surface());
+            canvas.fillRect(0, 0, getWidth(), getHeight());
+            canvas.setColor(UiTheme.color("border.subtle"));
+            canvas.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+        } finally {
+            canvas.dispose();
+        }
+        super.paintComponent(g);
     }
 
     @Override
