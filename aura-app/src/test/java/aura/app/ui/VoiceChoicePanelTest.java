@@ -155,6 +155,23 @@ class VoiceChoicePanelTest {
         assertThat(textOnEdt(panel.panel, "voice.choice.useReport")).contains("secretvoicename");
     }
 
+    /**
+     * Breaks if the panel goes back to only registering Theme.onChange without
+     * calling it once immediately - built while dark is already the active mode,
+     * exactly the path AuraWindow's own construction order happens to hide.
+     */
+    @Test
+    void backgroundMatchesTheModeAlreadyActiveWhenThePanelIsBuilt(@TempDir Path tmp) throws Exception {
+        Theme.Mode before = Theme.mode();
+        try {
+            Theme.install(Theme.Mode.DARK);
+            Panel panel = panel(tmp, tmp.resolve("config.yaml"), 1L);
+            onEdt(() -> assertThat(panel.panel.getBackground()).isEqualTo(UiTheme.color("surface.app")));
+        } finally {
+            Theme.install(before);
+        }
+    }
+
     private static final class Panel {
         final VoiceChoicePanel panel;
 

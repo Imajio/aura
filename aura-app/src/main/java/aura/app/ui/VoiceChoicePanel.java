@@ -170,14 +170,21 @@ public final class VoiceChoicePanel extends JPanel {
         // instead, the way AuraWindow's own chrome is. playbackStatus is folded in
         // for the same reason: text.secondary is the one token here that actually
         // differs between the two palettes, and it is only ever showing while a
-        // clip plays.
-        Theme.onChange(() -> {
+        // clip plays. Called once right here as well as registered, the way
+        // JetControls.list, Button and PlaceholderField all do - without the
+        // immediate call this panel keeps the look and feel's cached background
+        // until the next switch, which happens to be harmless in production only
+        // because AuraWindow always calls Theme.install after building this panel,
+        // an ordering this class has no business depending on.
+        Runnable refreshCanvas = () -> {
             setBackground(UiTheme.canvas());
             scroll.getViewport().setBackground(UiTheme.canvas());
             if (playing) {
                 playbackStatus.setForeground(UiTheme.muted());
             }
-        });
+        };
+        Theme.onChange(refreshCanvas);
+        refreshCanvas.run();
 
         for (AuditionVoice voice : voices) {
             voiceListModel.addElement(voice);
@@ -407,7 +414,12 @@ public final class VoiceChoicePanel extends JPanel {
                 : blindLabelFor(index);
             Component cell = super.getListCellRendererComponent(
                 list, text, index, isSelected, cellHasFocus);
-            setBorder(UiTheme.pad(UiTheme.GAP));
+            boolean hovered = !isSelected && index == JetControls.hoveredIndex(list);
+            setOpaque(true);
+            setBackground(JetControls.rowBackground(isSelected, hovered));
+            setForeground(list.isEnabled()
+                ? UiTheme.color("text.primary") : UiTheme.color("text.disabled"));
+            setBorder(JetControls.rowBorder(isSelected));
             return cell;
         }
     }
