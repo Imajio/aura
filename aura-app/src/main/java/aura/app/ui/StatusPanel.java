@@ -3,7 +3,6 @@ package aura.app.ui;
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
@@ -88,12 +87,25 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(UiTheme.CANVAS);
         scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
 
         setLayout(new BorderLayout());
-        setBackground(UiTheme.CANVAS);
         add(scroll, BorderLayout.CENTER);
+
+        // A plain JPanel's and a JViewport's background both hold whatever colour
+        // they were given, the same as a Border - neither has a paintComponent this
+        // class can read a token from, so both are re-applied from this listener
+        // instead, the way VoiceChoicePanel's own canvas is. Called once right here
+        // as well as registered, the way JetControls.list, Button and
+        // PlaceholderField all do: AuraWindow builds this panel before it calls
+        // Theme.install, so without the immediate call this panel would keep the
+        // look and feel's cached background until the first switch.
+        Runnable refreshCanvas = () -> {
+            setBackground(UiTheme.canvas());
+            scroll.getViewport().setBackground(UiTheme.canvas());
+        };
+        Theme.onChange(refreshCanvas);
+        refreshCanvas.run();
 
         rebuild();
     }
@@ -208,14 +220,14 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private JComponent sidecarCard() {
         Card card = new Card("Sidecar");
         if (sidecarReady) {
-            card.line("Process", UiTheme.status("running", UiTheme.GOOD), null);
+            card.line("Process", UiTheme.status("running", "success"), null);
             card.line("Devices", UiTheme.body(device("NPU", npu) + "   " + device("GPU", gpu)),
                 null);
             // One row, not three. "What can it do" is a single question, and
             // three rows of one word each turn a glance into a read.
             card.line("Models", models(), null);
         } else {
-            card.line("Process", UiTheme.status("not running", UiTheme.WARN), null);
+            card.line("Process", UiTheme.status("not running", "warning"), null);
             card.note("Aura still dispatches typed tasks and gates tool calls without it. "
                 + "What it cannot do is hear or speak.");
         }
@@ -225,12 +237,12 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private JComponent voiceCard() {
         Card card = new Card("Voice");
         if (voiceUnavailable) {
-            card.line("Voice support", UiTheme.status("not in this build", UiTheme.WARN), null);
+            card.line("Voice support", UiTheme.status("not in this build", "warning"), null);
             card.note("The sidecar that is running has no voice support compiled in.");
             return card;
         }
         if (!voiceAnswered) {
-            card.line("Voice setup", UiTheme.status("not known yet", UiTheme.MUTED), null);
+            card.line("Voice setup", UiTheme.status("not known yet", "text.secondary"), null);
             card.note(sidecarReady
                 ? "Waiting for the sidecar to answer."
                 : "Nothing to ask until the sidecar is running.");
@@ -253,7 +265,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      */
     private void artefact(Card card, String name, boolean present, String yes, int count) {
         card.line(name,
-            present ? UiTheme.status(yes, UiTheme.GOOD) : UiTheme.status("missing", UiTheme.WARN),
+            present ? UiTheme.status(yes, "success") : UiTheme.status("missing", "warning"),
             present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setUpButton());
         if (!present && count > 0) {
             card.note(takes(count) + " so far - not enough to train on.");
@@ -263,8 +275,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private JComponent listeningCard() {
         Card card = new Card("Listening");
         card.line("Microphone",
-            listening ? UiTheme.status("on", UiTheme.GOOD)
-                      : UiTheme.status("off", UiTheme.MUTED),
+            listening ? UiTheme.status("on", "success")
+                      : UiTheme.status("off", "text.secondary"),
             null);
         if (listening) {
             card.note("Aura is waiting for the wake word. Nothing leaves this machine.");
@@ -320,7 +332,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
 
     /** Goes to the section that fixes voice setup, or stays disabled until it exists. */
     private JButton setUpButton() {
-        JButton button = button("Set this up");
+        JButton button = JetControls.button("Set this up");
         boolean available = hasSection.test(AuraWindow.VOICE_SECTION);
         button.setEnabled(available);
         button.setToolTipText(available ? null
@@ -330,7 +342,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     }
 
     private JButton openLogButton() {
-        JButton button = button("Open log folder");
+        JButton button = JetControls.button("Open log folder");
         button.addActionListener(e -> {
             // Same best-effort open as the tray's menu item, for the same reason:
             // failing to open a folder does not deserve a dialog, but a silent
@@ -345,22 +357,15 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         return button;
     }
 
-    private static JButton button(String text) {
-        JButton button = new JButton(text);
-        button.setFont(UiTheme.body());
-        button.setFocusPainted(false);
-        return button;
-    }
-
     private static JLabel modelState(String state) {
         String value = state == null || state.isBlank() ? "unknown" : state;
-        Color colour = switch (value.toLowerCase(Locale.ROOT)) {
-            case "loaded" -> UiTheme.GOOD;
-            case "lazy" -> UiTheme.ACCENT;
-            case "absent" -> UiTheme.WARN;
-            default -> UiTheme.MUTED;
+        String token = switch (value.toLowerCase(Locale.ROOT)) {
+            case "loaded" -> "success";
+            case "lazy" -> "accent.primary";
+            case "absent" -> "warning";
+            default -> "text.secondary";
         };
-        return UiTheme.status(value, colour);
+        return UiTheme.status(value, token);
     }
 
     private static String device(String name, boolean present) {
