@@ -60,9 +60,28 @@ public final class Theme {
      * Registers a listener to run after every {@link #install(Mode)}, in the
      * order registered. Meant for a panel that caches a colour rather than
      * reading {@link UiTheme} fresh on every paint.
+     *
+     * <p>Returns a handle whose {@code run()} unregisters this exact
+     * listener - a plain {@link Runnable} rather than a new public type,
+     * since removing a listener is itself just an action with no result. A
+     * caller that never means to unregister, which is most of the callers
+     * this class had before this handle existed, keeps compiling unchanged:
+     * a method call is a valid statement whatever it returns, so the result
+     * can simply be dropped. {@link JetControls} is the one that uses it,
+     * from {@link java.awt.Component#removeNotify()}.
      */
-    public static void onChange(Runnable listener) {
+    public static Runnable onChange(Runnable listener) {
         listeners.add(listener);
+        return () -> listeners.remove(listener);
+    }
+
+    /**
+     * How many listeners are currently registered. Package-private and only
+     * for a caller measuring the shape of this list, not for anything the
+     * running application needs to know about itself.
+     */
+    static int listenerCount() {
+        return listeners.size();
     }
 
     /**

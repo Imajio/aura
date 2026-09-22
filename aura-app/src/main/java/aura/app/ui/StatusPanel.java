@@ -54,6 +54,23 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
 
     private final JPanel column = new JPanel();
 
+    // Built once here and only reparented by rebuild(), never recreated: a
+    // button JetControls builds registers its own Theme.onChange listener,
+    // and a factory method called fresh on every sidecar event leaked one
+    // per rebuild with nothing to release it - measured at +150 over thirty
+    // voice.status events before this fix. JetControls's own removeNotify
+    // and addNotify hooks do not save this panel by themselves: they only
+    // fire once a control has been part of a displayable hierarchy, and
+    // rebuild()'s column.removeAll() runs long before AuraWindow ever shows
+    // its frame, as well as on every event afterwards. Caching sidesteps
+    // displayability entirely - a button that is never recreated has no new
+    // listener to leak, shown or not.
+    private final JButton speakerModelSetupButton;
+    private final JButton referenceSetupButton;
+    private final JButton wakeModelSetupButton;
+    private final JButton listeningSetupButton;
+    private final JButton logFolderButton;
+
     // What the sidecar has told us so far. Every field starts at the value that
     // means "it has not said yet", so the first paint is honest about knowing
     // nothing rather than guessing at zeroes.
@@ -78,6 +95,12 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         this.logDir = logDir;
         this.hasSection = hasSection;
         this.goToSection = goToSection;
+
+        speakerModelSetupButton = newSetupButton();
+        referenceSetupButton = newSetupButton();
+        wakeModelSetupButton = newSetupButton();
+        listeningSetupButton = newSetupButton();
+        logFolderButton = newLogFolderButton();
 
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setOpaque(false);
@@ -172,8 +195,13 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * cost nothing to recreate, and a panel that edits itself in place needs a
      * handle on every label it might later have to change - which is how a card
      * ends up showing two states at once because one of the handles was missed.
+     * The five buttons are the deliberate exception: {@link #speakerModelSetupButton}
+     * and its four siblings are built once by the constructor and only placed into
+     * whichever new card wants them here, never recreated - see the field comment
+     * for why.
      */
     private void rebuild() {
+        refreshSetupButtons();
         column.removeAll();
         column.add(header());
         column.add(Box.createVerticalStrut(UiTheme.TIGHT));
@@ -248,9 +276,9 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
                 : "Nothing to ask until the sidecar is running.");
             return card;
         }
-        artefact(card, "Speaker model", speakerModel, "trained", -1);
-        artefact(card, "Voice reference", reference, "recorded", referenceTakes);
-        artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes);
+        artefact(card, "Speaker model", speakerModel, "trained", -1, speakerModelSetupButton);
+        artefact(card, "Voice reference", reference, "recorded", referenceTakes, referenceSetupButton);
+        artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes, wakeModelSetupButton);
         return card;
     }
 
@@ -261,12 +289,14 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * <p>The take count rides in the third column when the artefact exists, and
      * drops to a line of its own only when it does not - where it stops being
      * trivia and starts being the answer to "how far off am I?". Pass a negative
-     * count for an artefact that has no recordings behind it.
+     * count for an artefact that has no recordings behind it. {@code setupButton}
+     * is one of this panel's own cached buttons, placed into this row rather than
+     * built for it.
      */
-    private void artefact(Card card, String name, boolean present, String yes, int count) {
+    private void artefact(Card card, String name, boolean present, String yes, int count, JButton setupButton) {
         card.line(name,
             present ? UiTheme.status(yes, "success") : UiTheme.status("missing", "warning"),
-            present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setUpButton());
+            present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setupButton);
         if (!present && count > 0) {
             card.note(takes(count) + " so far - not enough to train on.");
         }
@@ -282,14 +312,14 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             card.note("Aura is waiting for the wake word. Nothing leaves this machine.");
         } else if (voiceAnswered && !wakeModel) {
             card.line("Why not", UiTheme.body("there is no wake-word model to listen for"),
-                setUpButton());
+                listeningSetupButton);
         } else {
             // The switch itself lives in the Voice section, beside the model it
             // listens for, and this card sends people there instead of growing a
             // second copy of it. Until protocol.py's `configure` learned to read
             // `listen` there was no switch to send anyone to, and this card
             // could only name a line of config.yaml.
-            card.line("Why not", UiTheme.body("it has not been switched on"), setUpButton());
+            card.line("Why not", UiTheme.body("it has not been switched on"), listeningSetupButton);
             card.note("Switching it on in the Voice section takes effect at once. "
                 + "listen: true in %APPDATA%\\Aura\\config.yaml is what starts it with "
                 + "Aura, for a machine that is left running.");
@@ -301,7 +331,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         Card card = new Card("Log");
         JLabel path = UiTheme.body(logDir.toString());
         path.setFont(UiTheme.mono());
-        card.line("Folder", UiTheme.elastic(path), openLogButton());
+        card.line("Folder", UiTheme.elastic(path), logFolderButton);
         card.note("Everything Aura did, including what it refused and why.");
         return card;
     }
@@ -330,18 +360,42 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         row.add(UiTheme.elastic(modelState(state)));
     }
 
-    /** Goes to the section that fixes voice setup, or stays disabled until it exists. */
-    private JButton setUpButton() {
+    /**
+     * Builds one of the four cached buttons that go to the section which fixes
+     * voice setup. Its enabled state is not decided here: {@code AuraWindow} adds
+     * this panel before it adds the Voice section, so {@link #hasSection} would
+     * always answer false the one time a constructor could ask it. {@link
+     * #refreshSetupButtons()} asks instead, once per {@link #rebuild()}, by which
+     * time the answer is settled.
+     */
+    private JButton newSetupButton() {
         JButton button = JetControls.button("Set this up");
-        boolean available = hasSection.test(AuraWindow.VOICE_SECTION);
-        button.setEnabled(available);
-        button.setToolTipText(available ? null
-            : "The " + AuraWindow.VOICE_SECTION + " section is not in this build yet.");
         button.addActionListener(e -> goToSection.accept(AuraWindow.VOICE_SECTION));
         return button;
     }
 
-    private JButton openLogButton() {
+    /**
+     * Brings every cached "Set this up" button's enabled state and tooltip up to
+     * date. Run once per {@link #rebuild()} rather than once per button use - all
+     * four ask {@link #hasSection} the same question, and the answer cannot
+     * differ between them.
+     */
+    private void refreshSetupButtons() {
+        boolean available = hasSection.test(AuraWindow.VOICE_SECTION);
+        String unavailableReason =
+            "The " + AuraWindow.VOICE_SECTION + " section is not in this build yet.";
+        refreshSetupButton(speakerModelSetupButton, available, unavailableReason);
+        refreshSetupButton(referenceSetupButton, available, unavailableReason);
+        refreshSetupButton(wakeModelSetupButton, available, unavailableReason);
+        refreshSetupButton(listeningSetupButton, available, unavailableReason);
+    }
+
+    private static void refreshSetupButton(JButton button, boolean available, String unavailableReason) {
+        button.setEnabled(available);
+        button.setToolTipText(available ? null : unavailableReason);
+    }
+
+    private JButton newLogFolderButton() {
         JButton button = JetControls.button("Open log folder");
         button.addActionListener(e -> {
             // Same best-effort open as the tray's menu item, for the same reason:

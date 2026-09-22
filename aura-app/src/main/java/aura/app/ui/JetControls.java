@@ -11,6 +11,8 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.HierarchyEvent;
+import java.awt.event.HierarchyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Objects;
@@ -59,16 +61,23 @@ import javax.swing.border.Border;
  * change), and {@link Theme#onChange}, registered once per control, for when the
  * palette itself changes under it.
  *
- * <p>{@link Theme#onChange} has no matching removal. A factory that registers a
- * listener per control leaks one every time a caller rebuilds rather than
- * mutates - the dead control stays reachable from {@code Theme}'s listener list
- * and its listener keeps running on every later switch. {@code VoicePanel}'s own
- * javadoc already distinguishes "built once and written to" from a panel that
- * rebuilds; a future caller that puts a {@link #button} or {@link #textField}
- * inside a rebuild loop - the shape {@code StatusPanel} and {@code TasksPanel}
- * already use for their own plain buttons - adds one leaked listener per
- * rebuild. Not fixed here: a removal API belongs to {@code Theme}, which this
- * task does not touch.
+ * <p>{@link Theme#onChange} returns a handle for exactly this reason: a factory
+ * that registers a listener per control would otherwise leak one every time a
+ * caller rebuilds rather than mutates - the dead control would stay reachable
+ * from {@code Theme}'s listener list and its listener would keep running on
+ * every later switch, holding the discarded control in memory to do it.
+ * {@link #button}, {@link #primaryButton}, {@link #textField} and {@link #list}
+ * all keep the handle and run it the moment the control they built leaves a
+ * displayable hierarchy - {@link Component#removeNotify()} for the three this
+ * class defines, and the equivalent {@link HierarchyListener} for {@link
+ * #list}, since a caller supplies the {@link JList} itself and this class has
+ * no subclass of it to override {@code removeNotify} on. Each also
+ * re-subscribes if the same control is shown again by way of {@link
+ * Component#addNotify()} - {@code AuraWindow}
+ * disposes its frame on close and realises the same component tree again on
+ * reopen, and a control that stayed unsubscribed through that would silently
+ * stop tracking the palette for the rest of the run rather than merely for the
+ * time it was hidden.
  *
  * <h2>The primary button's ink is deliberately not white</h2>
  *
@@ -225,9 +234,47 @@ public final class JetControls {
                 refreshListChrome(target);
             }
         });
-        Theme.onChange(() -> refreshListChrome(target));
+        target.addHierarchyListener(new ThemeTracker(target));
         refreshListChrome(target);
         return target;
+    }
+
+    /**
+     * Keeps a {@link JList} passed through {@link #list} subscribed to {@link
+     * Theme#onChange} only while it is displayable. {@link
+     * Component#removeNotify()} is not an option here - {@code target} is
+     * the caller's own instance, not a class this file defines - so this
+     * reacts to the same underlying transition {@code removeNotify}
+     * and {@code addNotify} are built on, {@link
+     * HierarchyEvent#DISPLAYABILITY_CHANGED}, which fires in exactly the same
+     * cases: never for a list that is only ever constructed and not shown,
+     * and on both directions of a real show/hide.
+     */
+    private static final class ThemeTracker implements HierarchyListener {
+
+        private final JList<?> target;
+        private Runnable unsubscribe;
+
+        ThemeTracker(JList<?> target) {
+            this.target = target;
+            this.unsubscribe = Theme.onChange(() -> refreshListChrome(target));
+        }
+
+        @Override
+        public void hierarchyChanged(HierarchyEvent e) {
+            if ((e.getChangeFlags() & HierarchyEvent.DISPLAYABILITY_CHANGED) == 0) {
+                return;
+            }
+            if (target.isDisplayable()) {
+                if (unsubscribe == null) {
+                    unsubscribe = Theme.onChange(() -> refreshListChrome(target));
+                    refreshListChrome(target);
+                }
+            } else if (unsubscribe != null) {
+                unsubscribe.run();
+                unsubscribe = null;
+            }
+        }
     }
 
     private static void refreshListChrome(JList<?> list) {
@@ -366,6 +413,7 @@ public final class JetControls {
         private final boolean primary;
         private boolean focused;
         private Color borderColor;
+        private Runnable unsubscribeTheme;
 
         Button(String text, boolean primary) {
             super(text);
@@ -389,8 +437,26 @@ public final class JetControls {
                     refresh();
                 }
             });
-            Theme.onChange(this::refresh);
+            unsubscribeTheme = Theme.onChange(this::refresh);
             refresh();
+        }
+
+        @Override
+        public void addNotify() {
+            super.addNotify();
+            if (unsubscribeTheme == null) {
+                unsubscribeTheme = Theme.onChange(this::refresh);
+                refresh();
+            }
+        }
+
+        @Override
+        public void removeNotify() {
+            super.removeNotify();
+            if (unsubscribeTheme != null) {
+                unsubscribeTheme.run();
+                unsubscribeTheme = null;
+            }
         }
 
         private void refresh() {
@@ -466,6 +532,7 @@ public final class JetControls {
 
         private final String placeholder;
         private boolean focused;
+        private Runnable unsubscribeTheme;
 
         PlaceholderField(String placeholder) {
             this.placeholder = Objects.requireNonNull(placeholder, "placeholder");
@@ -484,12 +551,30 @@ public final class JetControls {
                     refresh();
                 }
             });
-            Theme.onChange(this::refresh);
+            unsubscribeTheme = Theme.onChange(this::refresh);
             refresh();
         }
 
         String placeholder() {
             return placeholder;
+        }
+
+        @Override
+        public void addNotify() {
+            super.addNotify();
+            if (unsubscribeTheme == null) {
+                unsubscribeTheme = Theme.onChange(this::refresh);
+                refresh();
+            }
+        }
+
+        @Override
+        public void removeNotify() {
+            super.removeNotify();
+            if (unsubscribeTheme != null) {
+                unsubscribeTheme.run();
+                unsubscribeTheme = null;
+            }
         }
 
         @Override

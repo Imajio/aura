@@ -234,6 +234,47 @@ class JetControlsTest {
     }
 
     @Test
+    void aButtonRemovedFromItsHierarchyStopsTrackingTheTheme() {
+        // Breaks if Button stops overriding removeNotify to run the handle
+        // Theme.onChange returned - the background would then keep tracking
+        // the switch below even after removal, the leak the class javadoc's
+        // "returns a handle" paragraph describes fixing. removeNotify is
+        // called directly rather than through a real container removal, for
+        // the same reason fireFocus below bypasses the real focus manager:
+        // none of these components are ever realized in a window in this
+        // file, so a container's own remove() would never reach it here
+        // whether or not Button overrides removeNotify.
+        Theme.install(Theme.Mode.LIGHT);
+        JButton button = JetControls.button("Cancel");
+        Color lightBackground = button.getBackground();
+
+        button.removeNotify();
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(button.getBackground()).isEqualTo(lightBackground);
+    }
+
+    @Test
+    void aButtonShownAgainAfterRemovalResumesTrackingTheTheme() {
+        // Breaks if addNotify does not re-subscribe after a removeNotify -
+        // AuraWindow disposes its frame on close and realises the same tree
+        // again on reopen, and a control stuck deaf from that point on would
+        // fail silently, in a way no render harness screenshot would catch
+        // since nothing throws.
+        Theme.install(Theme.Mode.LIGHT);
+        JButton button = JetControls.button("Cancel");
+        button.removeNotify();
+        Theme.install(Theme.Mode.DARK);
+        Color whileRemoved = button.getBackground();
+
+        button.addNotify();
+
+        assertThat(button.getBackground())
+            .isNotEqualTo(whileRemoved)
+            .isEqualTo(UiTheme.color("surface.raised"));
+    }
+
+    @Test
     void hoverIsMeasurablyDifferentFromBaseAndCloserToBaseThanSelectionInBothThemes() {
         // Breaks two ways: raising ROW_HOVER_MIX to 1.0 (or beyond) collapses
         // hover onto selection - the first assertion catches that by requiring

@@ -320,25 +320,44 @@ class UiThemeTest {
         // is the same property SidecarEventsTest checks for a subscriber that
         // throws, and for the same reason: a broken panel must not be able to
         // freeze the window for every other panel.
-        // Theme.onChange has no matching "remove": armed disarms the throw
-        // after this test reads its result, so this listener - which stays
-        // registered for the rest of the suite, same as a real panel's would
-        // for the rest of the app's run - does not log a warning on every
-        // later test's mode switch.
-        boolean[] armed = {true};
+        // All three are unregistered through the handle Theme.onChange
+        // returns once this test has its answer, rather than left registered
+        // for the rest of the suite - the broken one would otherwise log a
+        // warning on every later test's mode switch.
         List<String> calls = new ArrayList<>();
-        Theme.onChange(() -> calls.add("first"));
-        Theme.onChange(() -> {
-            if (armed[0]) {
-                throw new RuntimeException("a broken listener");
-            }
+        Runnable first = Theme.onChange(() -> calls.add("first"));
+        Runnable broken = Theme.onChange(() -> {
+            throw new RuntimeException("a broken listener");
         });
-        Theme.onChange(() -> calls.add("third"));
+        Runnable third = Theme.onChange(() -> calls.add("third"));
 
-        Theme.install(Theme.Mode.DARK);
+        try {
+            Theme.install(Theme.Mode.DARK);
+            assertThat(calls).containsExactly("first", "third");
+        } finally {
+            first.run();
+            broken.run();
+            third.run();
+        }
+    }
 
-        assertThat(calls).containsExactly("first", "third");
-        armed[0] = false;
+    @Test
+    void aRemovedListenerIsNotCalledAndRemovingOneDoesNotDisturbTheOthers() {
+        // Pins the handle Theme.onChange returns: breaks if its run() is a
+        // no-op (calls would then contain "removed" too), or if removing one
+        // listener also drops an unrelated one from the same list (calls
+        // would then be missing "kept").
+        List<String> calls = new ArrayList<>();
+        Runnable kept = Theme.onChange(() -> calls.add("kept"));
+        Runnable removed = Theme.onChange(() -> calls.add("removed"));
+
+        removed.run();
+        try {
+            Theme.install(Theme.Mode.DARK);
+            assertThat(calls).containsExactly("kept");
+        } finally {
+            kept.run();
+        }
     }
 
     @Test

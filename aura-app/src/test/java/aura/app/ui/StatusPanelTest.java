@@ -2,6 +2,8 @@ package aura.app.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import aura.app.SidecarEvents.SidecarEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import javax.swing.SwingUtilities;
@@ -18,6 +20,42 @@ import org.junit.jupiter.api.io.TempDir;
  * VoiceChoicePanel} after fa96b77 found it missing there.
  */
 class StatusPanelTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * Pins the property the measured leak was: rebuild() runs on every
+     * voice.status event for as long as the window stays open, so a listener
+     * nothing ever released grew without bound over the life of the process
+     * - +150 over thirty events, measured before this fix, 5 per event with
+     * a floor of 1 because logCard's button is unconditional. Breaks if
+     * StatusPanel goes back to building a fresh JButton per rebuild instead
+     * of writing to its five cached ones.
+     */
+    @Test
+    void rebuildingManyTimesDoesNotAccumulateThemeListenersWithoutBound(@TempDir Path tmp) {
+        StatusPanel[] panel = new StatusPanel[1];
+        onEdt(() -> panel[0] = new StatusPanel(
+            command -> { }, tmp, section -> false, section -> { }));
+        int afterConstruction = Theme.listenerCount();
+
+        String worstCase = "{\"ev\":\"voice.status\",\"speakerModel\":false,\"reference\":false,"
+            + "\"wakeModel\":false,\"referenceTakes\":0,\"wakeTakes\":0,\"listening\":false}";
+        for (int i = 0; i < 30; i++) {
+            onEdt(() -> panel[0].accept(event(worstCase)));
+        }
+
+        assertThat(Theme.listenerCount() - afterConstruction).isZero();
+    }
+
+    private static SidecarEvent event(String json) {
+        try {
+            var node = MAPPER.readTree(json);
+            return new SidecarEvent(node.path("ev").asText(), node);
+        } catch (Exception e) {
+            throw new AssertionError("bad test fixture: " + json, e);
+        }
+    }
 
     /**
      * Breaks if the panel goes back to only registering Theme.onChange without
