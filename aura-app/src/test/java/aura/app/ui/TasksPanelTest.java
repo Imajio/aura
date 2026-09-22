@@ -46,7 +46,7 @@ class TasksPanelTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    void activityScrollPaneBackgroundStaysPinnedAcrossASwitch() {
+    void activityScrollPaneBackgroundTracksTheInstalledThemeAcrossASwitch() {
         // Fix round 2 on Task 2: activityCard()'s inner scroll pane has an
         // empty top border (the gap under the "Activity" heading) that
         // activity's own background does not reach, since the list stretches
@@ -56,12 +56,14 @@ class TasksPanelTest {
         // first - rendered as a solid bar that survived a switch to light
         // and a switch back to dark, with an empty registry and no rows.
         //
-        // Breaks if the explicit setBackground(UiTheme.SURFACE) calls in
-        // activityCard() are ever removed: the background would then differ
-        // between install(DARK) and install(LIGHT), the same failure shape
-        // UiThemeTest's own installNoLongerMakesPerComponentDefaultsModeDependent
-        // catches for the thirteen-then-sixteen keys no longer pushed
-        // through UIManager.
+        // Task 4c changed what this test is a guarantee of: the scroll pane's
+        // background used to be pinned to the light palette's SURFACE
+        // regardless of mode (painting a light bar in dark mode, a defect of
+        // its own), so afterDark and afterLight were asserted equal. It now
+        // overrides getBackground() to read UiTheme.surface() live, so the
+        // two modes must render two different colours - afterDark the dark
+        // palette's surface and afterLight the light palette's - and the
+        // assertions below were changed to require exactly that.
         Theme.Mode before = Theme.mode();
         try {
             Panel panel = panel();
@@ -75,8 +77,8 @@ class TasksPanelTest {
                 Theme.install(Theme.Mode.LIGHT);
                 Color afterLight = scroll.getBackground();
 
-                assertThat(afterDark).isEqualTo(UiTheme.SURFACE);
-                assertThat(afterLight).isEqualTo(afterDark);
+                assertThat(afterDark).isEqualTo(UiTheme.DARK_PALETTE.get("surface.primary"));
+                assertThat(afterLight).isEqualTo(UiTheme.LIGHT_PALETTE.get("surface.primary"));
             });
         } finally {
             Theme.install(before);
@@ -216,7 +218,7 @@ class TasksPanelTest {
         List<TasksPanel.Row> rows = rows(panel.tasks);
         assertThat(rows).hasSize(2);
         assertThat(rows.get(1).text()).contains("Could not tell which project");
-        assertThat(rows.get(1).colour()).isEqualTo(UiTheme.BAD);
+        assertThat(rows.get(1).token()).isEqualTo("error");
     }
 
     @Test
@@ -250,9 +252,9 @@ class TasksPanelTest {
         List<TasksPanel.Row> rows = rows(panel.tasks);
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).text()).isEqualTo("Finished");
-        assertThat(rows.get(0).colour()).isEqualTo(UiTheme.GOOD);
+        assertThat(rows.get(0).token()).isEqualTo("success");
         assertThat(rows.get(1).text()).contains("Failed").contains("Credit balance is too low");
-        assertThat(rows.get(1).colour()).isEqualTo(UiTheme.BAD);
+        assertThat(rows.get(1).token()).isEqualTo("error");
         assertThat(rows.get(1).text()).isNotEqualTo(rows.get(0).text());
     }
 

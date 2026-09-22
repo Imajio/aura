@@ -108,7 +108,7 @@ final class Card extends JPanel {
 
     /** The same, for a note whose text and colour the caller means to change later. */
     JLabel note(JLabel prepared) {
-        add(prepared, 0, 3, false);
+        add(prepared, 0, 3, true);
         row++;
         return prepared;
     }

@@ -22,6 +22,7 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.JViewport;
 import javax.swing.ListCellRenderer;
 import javax.swing.SwingUtilities;
 
@@ -91,10 +92,19 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     private final Runnable onStopAgent;
 
     private final DefaultListModel<Row> rows = new DefaultListModel<>();
-    private final JList<Row> activity = new JList<>(rows);
+    // Overrides getBackground() rather than being set once, so the list keeps
+    // pace with a theme switch the same as every other surface in the
+    // Activity card - see activityCard() for the rest of them and for why
+    // this shape was chosen over painting the fill by hand.
+    private final JList<Row> activity = new JList<Row>(rows) {
+        @Override
+        public Color getBackground() {
+            return UiTheme.surface();
+        }
+    };
     private boolean scrollPending;
     private final JTextField phraseField = new JTextField();
-    private final JButton sendButton = button("Send");
+    private final JButton sendButton = JetControls.button("Send");
     // dispatch.accept(phrase) now hands the work to Main's own background
     // executor and returns before anything has happened, so returning is no
     // longer proof of anything - taskRouted/taskNotStarted are what actually
@@ -131,12 +141,27 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         JScrollPane scroll = new JScrollPane(new ContentPane(column),
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(UiTheme.CANVAS);
         scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
 
         setLayout(new BorderLayout());
-        setBackground(UiTheme.CANVAS);
         add(scroll, BorderLayout.CENTER);
+
+        // A plain JPanel's and a JViewport's background both hold whatever
+        // colour they were given, the same as a Border - neither has a
+        // paintComponent this class can read a token from, so both are
+        // re-applied from this listener instead, the way StatusPanel's and
+        // VoiceChoicePanel's own canvas already are. Called once right here
+        // as well as registered, the way JetControls.list, Button and
+        // PlaceholderField all do: AuraWindow builds this panel before it
+        // calls Theme.install, so without the immediate call this panel
+        // would keep the look and feel's cached background until the first
+        // switch.
+        Runnable refreshCanvas = () -> {
+            setBackground(UiTheme.canvas());
+            scroll.getViewport().setBackground(UiTheme.canvas());
+        };
+        Theme.onChange(refreshCanvas);
+        refreshCanvas.run();
     }
 
     private JComponent inputCard() {
@@ -154,7 +179,7 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         buttons.setOpaque(false);
         sendButton.setName("tasks.send");
         sendButton.addActionListener(e -> submit());
-        JButton stop = button("Stop agent");
+        JButton stop = JetControls.button("Stop agent");
         stop.setName("tasks.stop");
         stop.setToolTipText("Closes the running agent session. The tray has the same button.");
         stop.addActionListener(e -> onStopAgent.run());
@@ -203,20 +228,34 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     }
 
     private JComponent activityCard() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(UiTheme.SURFACE);
+        // Every surface below overrides getBackground() so it reads the theme
+        // live, the same override-the-read-path shape UiTheme.TokenLabel uses
+        // for foreground and Card uses for its own fill and border: a colour
+        // handed to setBackground is captured at that moment and keeps that
+        // value through a later Theme.install. This card has five such
+        // surfaces (this panel, activity, the cell renderer, the scroll pane
+        // and its viewport), and every one of them needs accounting for, not
+        // just the one a quick look happens to catch.
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override
+            public Color getBackground() {
+                return UiTheme.surface();
+            }
+        };
         card.setBorder(UiTheme.card());
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(UiTheme.heading("Activity"), BorderLayout.NORTH);
 
         activity.setName("tasks.log");
         activity.setFont(UiTheme.body());
-        activity.setBackground(UiTheme.SURFACE);
         ListCellRenderer<Row> renderer = (list, value, index, selected, focused) -> {
             JLabel cell = UiTheme.body(value.text());
-            cell.setForeground(value.colour());
+            cell.setForeground(UiTheme.color(value.token()));
             cell.setOpaque(true);
-            cell.setBackground(UiTheme.SURFACE);
+            // Rebuilt by the list on every paint, unlike the four surfaces
+            // above and below - a plain accessor call is already live here
+            // and needs no override to stay that way.
+            cell.setBackground(UiTheme.surface());
             cell.setBorder(UiTheme.pad(UiTheme.TIGHT));
             return cell;
         };
@@ -226,20 +265,39 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // the cards above make. A card wraps a note at a known width; a row here
         // carries a path or a phrase of a length nobody bounded, and a horizontal
         // scrollbar loses nothing, where clipping it silently would.
-        JScrollPane scroll = new JScrollPane(activity,
-            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
-        // The border above has a non-zero top inset - the gap under the "Activity"
+        //
+        // The border below has a non-zero top inset - the gap under the "Activity"
         // heading - which activity's own background cannot reach: activity
         // stretches to cover the viewport, not the scroll pane's border area, so
-        // an opaque JScrollPane paints that inset in its own background. Pinned
-        // to the same SURFACE every other piece of this card already uses, the
-        // same as the viewport it wraps, rather than left to the look and feel:
-        // that inset painted through with a colour frozen from whichever theme
-        // installed first, rendered as a solid bar that survived a switch to
-        // light and a switch back to dark, before this fix.
-        scroll.setBackground(UiTheme.SURFACE);
-        scroll.getViewport().setBackground(UiTheme.SURFACE);
+        // an opaque JScrollPane paints that inset in its own background. Before
+        // Task 2's fix that background was the look and feel's own
+        // ScrollPane.background, frozen at whichever mode installed first and
+        // rendered as a solid bar that survived a switch to light and a switch
+        // back to dark. Task 2's own fix pinned it to SURFACE instead, which
+        // held across a switch only because it was always the light value
+        // regardless of mode - the same light-in-both-themes defect this task
+        // fixes. getBackground() below reads the installed theme's surface
+        // every time the scroll pane paints, the same as the viewport it
+        // wraps, so the inset tracks a real switch instead of merely
+        // surviving one.
+        JScrollPane scroll = new JScrollPane(activity,
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED) {
+            @Override
+            public Color getBackground() {
+                return UiTheme.surface();
+            }
+
+            @Override
+            protected JViewport createViewport() {
+                return new JViewport() {
+                    @Override
+                    public Color getBackground() {
+                        return UiTheme.surface();
+                    }
+                };
+            }
+        };
+        scroll.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
         // A handful of rows, always, whatever sits above this card on the page.
         // Rendering the window at its minimum with only one project registered
         // found the alternative: the page's own scroll left this card a single
@@ -260,15 +318,15 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
      * the tray, or spoken.
      */
     void taskRouted(String phrase, String projectName) {
-        addRow("Task: " + phrase, UiTheme.INK);
-        addRow("Routed to project " + projectName, UiTheme.GOOD);
+        addRow("Task: " + phrase, "text.primary");
+        addRow("Routed to project " + projectName, "success");
         endDispatch();
     }
 
     /** The counterpart to {@link #taskRouted}: the phrase went nowhere, and why. */
     void taskNotStarted(String phrase, String reason) {
-        addRow("Task: " + phrase, UiTheme.INK);
-        addRow(reason, UiTheme.BAD);
+        addRow("Task: " + phrase, "text.primary");
+        addRow(reason, "error");
         endDispatch();
     }
 
@@ -296,13 +354,13 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
             if (Boolean.FALSE.equals(event.ok())) {
                 String why = event.summaryHint().isBlank()
                     ? "the agent gave no reason" : event.summaryHint();
-                addRow("Failed: " + why, UiTheme.BAD);
+                addRow("Failed: " + why, "error");
             } else {
-                addRow("Finished", UiTheme.GOOD);
+                addRow("Finished", "success");
             }
             return;
         }
-        addRow(rowText(event), UiTheme.INK);
+        addRow(rowText(event), "text.primary");
     }
 
     private static String rowText(AgentEvent event) {
@@ -319,12 +377,12 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     @Override
     public void accept(SidecarEvent event) {
         if ("narration".equals(event.kind())) {
-            addRow("Narration: " + event.text("text"), UiTheme.MUTED);
+            addRow("Narration: " + event.text("text"), "text.secondary");
         }
     }
 
-    private void addRow(String text, Color colour) {
-        rows.addElement(new Row(text, colour));
+    private void addRow(String text, String token) {
+        rows.addElement(new Row(text, token));
         while (rows.getSize() > MAX_ROWS) {
             rows.remove(0);
         }
@@ -347,15 +405,8 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         }
     }
 
-    /** One line of the transcript: what it says, and what colour says how it went. */
-    record Row(String text, Color colour) { }
-
-    private static JButton button(String text) {
-        JButton button = new JButton(text);
-        button.setFont(UiTheme.body());
-        button.setFocusPainted(false);
-        return button;
-    }
+    /** One line of the transcript: what it says, and which token says how it went. */
+    record Row(String text, String token) { }
 
     private static JComponent leftAligned(JComponent component) {
         component.setAlignmentX(Component.LEFT_ALIGNMENT);
