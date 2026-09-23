@@ -46,7 +46,7 @@ class TasksPanelTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    void activityScrollPaneBackgroundTracksTheInstalledThemeAcrossASwitch() {
+    void allFourActivitySurfacesTrackTheInstalledThemeAcrossASwitch() {
         // Fix round 2 on Task 2: activityCard()'s inner scroll pane has an
         // empty top border (the gap under the "Activity" heading) that
         // activity's own background does not reach, since the list stretches
@@ -56,14 +56,19 @@ class TasksPanelTest {
         // first - rendered as a solid bar that survived a switch to light
         // and a switch back to dark, with an empty registry and no rows.
         //
-        // Task 4c changed what this test is a guarantee of: the scroll pane's
-        // background used to be pinned to the light palette's SURFACE
-        // regardless of mode (painting a light bar in dark mode, a defect of
-        // its own), so afterDark and afterLight were asserted equal. It now
-        // overrides getBackground() to read UiTheme.surface() live, so the
-        // two modes must render two different colours - afterDark the dark
-        // palette's surface and afterLight the light palette's - and the
-        // assertions below were changed to require exactly that.
+        // Task 4c changed what this test is a guarantee of, and widened it.
+        // The scroll pane's background used to be pinned to the light
+        // palette's SURFACE regardless of mode (painting a light bar in dark
+        // mode, a defect of its own), so afterDark and afterLight were
+        // asserted equal to each other. Every one of the four surfaces below
+        // now overrides getBackground() to read UiTheme.surface() live, so
+        // each must render two different colours across a switch - the dark
+        // palette's surface.primary, then the light palette's - and the
+        // assertions require exactly that, for the card panel and the list
+        // as well as the scroll pane and its viewport: the brief's own
+        // caution is that a fix checked one surface per file and missed a
+        // second one in the very same file, so this test reads all four
+        // rather than standing in for them with one.
         Theme.Mode before = Theme.mode();
         try {
             Panel panel = panel();
@@ -71,15 +76,43 @@ class TasksPanelTest {
                 JList<?> activity = (JList<?>) find(panel.tasks, "tasks.log");
                 JViewport viewport = (JViewport) activity.getParent();
                 JScrollPane scroll = (JScrollPane) viewport.getParent();
+                Component card = scroll.getParent();
 
                 Theme.install(Theme.Mode.DARK);
-                Color afterDark = scroll.getBackground();
-                Theme.install(Theme.Mode.LIGHT);
-                Color afterLight = scroll.getBackground();
+                Color dark = UiTheme.DARK_PALETTE.get("surface.primary");
+                assertThat(card.getBackground()).isEqualTo(dark);
+                assertThat(activity.getBackground()).isEqualTo(dark);
+                assertThat(viewport.getBackground()).isEqualTo(dark);
+                assertThat(scroll.getBackground()).isEqualTo(dark);
 
-                assertThat(afterDark).isEqualTo(UiTheme.DARK_PALETTE.get("surface.primary"));
-                assertThat(afterLight).isEqualTo(UiTheme.LIGHT_PALETTE.get("surface.primary"));
+                Theme.install(Theme.Mode.LIGHT);
+                Color light = UiTheme.LIGHT_PALETTE.get("surface.primary");
+                assertThat(card.getBackground()).isEqualTo(light);
+                assertThat(activity.getBackground()).isEqualTo(light);
+                assertThat(viewport.getBackground()).isEqualTo(light);
+                assertThat(scroll.getBackground()).isEqualTo(light);
             });
+        } finally {
+            Theme.install(before);
+        }
+    }
+
+    @Test
+    void backgroundMatchesTheModeAlreadyActiveWhenThePanelIsBuilt() {
+        // Breaks if TasksPanel goes back to only registering Theme.onChange
+        // without calling it once immediately - built while dark is already
+        // the active mode, exactly the order AuraWindow's own constructor
+        // uses: every section panel first, Theme.install last. StatusPanel
+        // and VoiceChoicePanel each needed this same guarantee for the same
+        // refreshCanvas shape (fa96b77, then da9444e); nothing before this
+        // task pinned it for TasksPanel's own canvas.
+        Theme.Mode before = Theme.mode();
+        try {
+            Theme.install(Theme.Mode.DARK);
+            TasksPanel[] built = new TasksPanel[1];
+            onEdt(() -> built[0] = new TasksPanel(
+                phrase -> { }, () -> { }, new ProjectRegistry(List.of())));
+            onEdt(() -> assertThat(built[0].getBackground()).isEqualTo(UiTheme.color("surface.app")));
         } finally {
             Theme.install(before);
         }
