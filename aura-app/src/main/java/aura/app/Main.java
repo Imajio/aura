@@ -95,8 +95,8 @@ public final class Main {
                 }
             }, sweepSeconds, sweepSeconds, TimeUnit.SECONDS);
 
-            ConfirmationProvider confirmation =
-                ConfirmationProvider.guarded(new TrayConfirmationProvider());
+            ConfirmationProvider confirmation = ConfirmationProvider.guarded(
+                new TrayConfirmationProvider(TrayIconArt.windowIcons()));
 
             // A hook jar that is not there does not fail loudly: the generated command
             // simply never answers, and tool calls stop being gated while everything
@@ -559,6 +559,17 @@ public final class Main {
             JOptionPane pane = new JOptionPane(
                 "Aura could not start:\n\n" + message, JOptionPane.ERROR_MESSAGE);
             JDialog dialog = pane.createDialog("Aura");
+            try {
+                // This dialog is what tells an unattended launch it failed at all,
+                // including when the failure is the logo resource itself being
+                // missing from the jar. A second, packaging level failure here must
+                // not silence the first: the dialog still has to appear, with
+                // whatever icon Swing falls back to, and the logo failure is logged
+                // rather than swallowed with the rest of this method's own guard.
+                dialog.setIconImages(TrayIconArt.windowIcons());
+            } catch (RuntimeException iconFailure) {
+                log.warn("could not set the startup dialog's icon", iconFailure);
+            }
             Timer timeout = new Timer(STARTUP_DIALOG_TIMEOUT_MS, e -> dialog.dispose());
             timeout.setRepeats(false);
             timeout.start();

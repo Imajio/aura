@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import org.slf4j.Logger;
@@ -78,9 +79,7 @@ public final class TrayApp {
 
         MenuItem newTask = new MenuItem("New task…");
         newTask.addActionListener(e -> SwingUtilities.invokeLater(() -> {
-            String phrase = JOptionPane.showInputDialog(null,
-                "What should I do? Name the project in the first phrase.",
-                "Aura - new task", JOptionPane.QUESTION_MESSAGE);
+            String phrase = askForNewTask();
             if (phrase != null && !phrase.isBlank()) {
                 onTask.accept(phrase.trim());
             }
@@ -139,6 +138,28 @@ public final class TrayApp {
     /** AWT has no radio group, so exclusivity is kept by hand. */
     private void select(Verbosity chosen) {
         verbosityItems.forEach((level, item) -> item.setState(level == chosen));
+    }
+
+    /**
+     * Asks for a phrase, built from a JOptionPane instance and createDialog
+     * rather than the static JOptionPane.showInputDialog helper, which
+     * returns no dialog to set the application's icon images on. Mirrors
+     * that helper's own steps otherwise, including the identity check
+     * against UNINITIALIZED_VALUE that tells a typed empty answer apart
+     * from a cancelled one.
+     */
+    private static String askForNewTask() {
+        JOptionPane pane = new JOptionPane(
+            "What should I do? Name the project in the first phrase.",
+            JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
+        pane.setWantsInput(true);
+        JDialog dialog = pane.createDialog(null, "Aura - new task");
+        dialog.setIconImages(TrayIconArt.windowIcons());
+        pane.selectInitialValue();
+        dialog.setVisible(true);
+        dialog.dispose();
+        Object value = pane.getInputValue();
+        return value == JOptionPane.UNINITIALIZED_VALUE ? null : (String) value;
     }
 
     private static MenuItem openLogItem(Path logDir) {

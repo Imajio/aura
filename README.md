@@ -1,3 +1,5 @@
+<img src="aura-app/src/main/resources/aura/app/aura-logo.png" width="96" alt="Aura">
+
 # Aura
 
 Aura is a Windows tray application and desktop window for Claude Code and

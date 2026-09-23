@@ -3,9 +3,12 @@ package aura.policy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.awt.GraphicsEnvironment;
+import java.awt.Image;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -21,6 +24,18 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private final List<Image> iconImages;
+
+    /**
+     * The icon images come from the caller rather than being loaded here:
+     * this module has no dependency on aura-app, where the application's
+     * logo actually lives, so {@code Main} builds the list once with {@code
+     * TrayIconArt.windowIcons()} and hands it down.
+     */
+    public TrayConfirmationProvider(List<? extends Image> iconImages) {
+        this.iconImages = List.copyOf(Objects.requireNonNull(iconImages, "iconImages"));
+    }
+
     @Override
     public Decision confirm(ToolRequest request, Duration timeout) {
         if (GraphicsEnvironment.isHeadless()) {
@@ -32,6 +47,7 @@ public final class TrayConfirmationProvider implements ConfirmationProvider {
             SwingUtilities.invokeAndWait(() -> {
                 JOptionPane pane = pane(request);
                 JDialog dialog = pane.createDialog(null, "Aura - permission");
+                dialog.setIconImages(iconImages);
                 dialog.setAlwaysOnTop(true);
 
                 // The window closes itself. Without this, the timeout would leave a

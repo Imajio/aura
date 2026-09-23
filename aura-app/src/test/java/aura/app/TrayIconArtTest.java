@@ -4,48 +4,56 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.awt.image.BufferedImage;
-import java.util.HashSet;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * The mark is drawn rather than shipped as a bitmap, so what a test can check is
- * that it is drawn at all, at every size the taskbar might ask for, and that the
- * five states are actually distinguishable from one another.
+ * The mark is the owner's logo rather than something drawn on the fly, so what
+ * a test can check is that every state still produces an image at every size
+ * the taskbar might ask for, that READY is the plain logo with no badge on
+ * it, and that the one state meant to be noticed, WAITING, is the only one
+ * that paints an amber badge and paints the largest one.
  */
 class TrayIconArtTest {
 
-    @ParameterizedTest
-    @EnumSource(TrayIconArt.State.class)
-    void everyStateDrawsSomethingAtTraySize(TrayIconArt.State state) {
-        BufferedImage image = TrayIconArt.render(state, 16);
-
-        assertThat(image.getWidth()).isEqualTo(16);
-        assertThat(opaquePixels(image)).isGreaterThan(8);
-    }
+    private static final int[] TRAY_SIZES = {16, 20, 24, 32};
 
     @ParameterizedTest
     @EnumSource(TrayIconArt.State.class)
-    void theMarkSurvivesTheSizesWindowsActuallyAsks(TrayIconArt.State state) {
-        // 16 at 100%, 20 at 125%, 24 at 150%, 32 at 200%. Drawing at 16 and
-        // letting AWT stretch is what makes a tray icon look like a smudge.
-        for (int size : new int[] {16, 20, 24, 32, 64}) {
-            assertThat(opaquePixels(TrayIconArt.render(state, size)))
-                .as("size %d", size)
-                .isGreaterThan(size / 2);
+    void everyStateDrawsSomethingAtEverySize(TrayIconArt.State state) {
+        for (int size : TRAY_SIZES) {
+            BufferedImage image = TrayIconArt.render(state, size);
+
+            assertThat(image.getWidth()).isEqualTo(size);
+            assertThat(image.getHeight()).isEqualTo(size);
+            assertThat(opaquePixels(image)).as("size %d", size).isGreaterThan(size * 2);
         }
     }
 
     @Test
-    void theStatesAreTellableApart() {
-        Set<String> fingerprints = new HashSet<>();
-        for (TrayIconArt.State state : TrayIconArt.State.values()) {
-            fingerprints.add(fingerprint(TrayIconArt.render(state, 32)));
-        }
+    void readyIsExactlyThePlainLogo() {
+        for (int size : TRAY_SIZES) {
+            BufferedImage ready = TrayIconArt.render(TrayIconArt.State.READY, size);
+            BufferedImage plain = TrayIconArt.logo(size);
 
-        assertThat(fingerprints).hasSize(TrayIconArt.State.values().length);
+            assertThat(ready.getWidth()).isEqualTo(plain.getWidth());
+            assertThat(ready.getHeight()).isEqualTo(plain.getHeight());
+            assertThat(differingPixels(ready, plain)).as("size %d", size).isZero();
+        }
+    }
+
+    @Test
+    void waitingsBadgeCoversMorePixelsThanWorkings() {
+        for (int size : TRAY_SIZES) {
+            BufferedImage plain = TrayIconArt.logo(size);
+            int waitingBadge = differingPixels(
+                TrayIconArt.render(TrayIconArt.State.WAITING, size), plain);
+            int workingBadge = differingPixels(
+                TrayIconArt.render(TrayIconArt.State.WORKING, size), plain);
+
+            assertThat(waitingBadge).as("size %d", size).isGreaterThan(workingBadge);
+        }
     }
 
     @Test
@@ -57,6 +65,21 @@ class TrayIconArtTest {
         for (TrayIconArt.State state : TrayIconArt.State.values()) {
             if (state != TrayIconArt.State.WAITING) {
                 assertThat(state.colour()).isNotEqualTo(TrayIconArt.ATTENTION);
+            }
+        }
+
+        // The same has to be true of what actually gets painted, not only of
+        // the colour a state is assigned to: the pixel at the shared badge
+        // centre is amber for WAITING and for no other state.
+        int size = 32;
+        int centre = (int) Math.round(TrayIconArt.badgeCentre(size));
+        int attention = TrayIconArt.ATTENTION.getRGB();
+        for (TrayIconArt.State state : TrayIconArt.State.values()) {
+            int pixel = TrayIconArt.render(state, size).getRGB(centre, centre);
+            if (state == TrayIconArt.State.WAITING) {
+                assertThat(pixel).as("badge pixel for WAITING").isEqualTo(attention);
+            } else {
+                assertThat(pixel).as("badge pixel for %s", state).isNotEqualTo(attention);
             }
         }
     }
@@ -107,15 +130,16 @@ class TrayIconArtTest {
         return count;
     }
 
-    /** Cheap shape-and-colour signature: enough to tell two marks apart. */
-    private static String fingerprint(BufferedImage image) {
-        StringBuilder out = new StringBuilder();
-        for (int y = 0; y < image.getHeight(); y += 2) {
-            for (int x = 0; x < image.getWidth(); x += 2) {
-                int argb = image.getRGB(x, y);
-                out.append((argb >>> 24) > 0x40 ? Integer.toHexString(argb & 0xFFFFFF) : ".");
+    /** Counts pixels where two same sized images disagree, badge or no badge. */
+    private static int differingPixels(BufferedImage a, BufferedImage b) {
+        int count = 0;
+        for (int x = 0; x < a.getWidth(); x++) {
+            for (int y = 0; y < a.getHeight(); y++) {
+                if (a.getRGB(x, y) != b.getRGB(x, y)) {
+                    count++;
+                }
             }
         }
-        return out.toString();
+        return count;
     }
 }

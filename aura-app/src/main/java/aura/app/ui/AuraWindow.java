@@ -222,6 +222,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         railColumn.add(rail, BorderLayout.CENTER);
         railColumn.add(themeToggle, BorderLayout.SOUTH);
 
+        frame.setIconImages(aura.app.TrayIconArt.windowIcons());
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         frame.setLayout(new BorderLayout());
         frame.add(railColumn, BorderLayout.WEST);
