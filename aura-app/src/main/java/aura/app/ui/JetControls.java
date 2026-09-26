@@ -508,6 +508,23 @@ public final class JetControls {
             return new Dimension(natural.width, UiTheme.controlHeight());
         }
 
+        /**
+         * Pinned to the preferred size. The delegate answers its own natural
+         * size here, which knows nothing of the height above, and a {@code
+         * BoxLayout} row never makes a component taller than its maximum: every
+         * button in one came out the height of its text, 24 px beside a 32 px
+         * field or spinner in the same row.
+         */
+        @Override
+        public Dimension getMaximumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            return getPreferredSize();
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();

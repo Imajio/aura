@@ -9,10 +9,12 @@ import java.awt.Component;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JList;
+import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
@@ -408,6 +410,23 @@ class JetControlsTest {
         list.setEnabled(true);
         renderer.getListCellRendererComponent(list, "a", 0, false, false);
         assertThat(renderer.getForeground()).isEqualTo(UiTheme.color("text.primary"));
+    }
+
+    @Test
+    void aButtonKeepsItsThirtyTwoPixelsInABoxLayoutRow() {
+        // Breaks if Button stops pinning its maximum size to its preferred
+        // size. BoxLayout never makes a component taller than its maximum, and
+        // the delegate's own maximum is the height of the label: every button
+        // in such a row came out 24 px, beside 32 px fields in the same row.
+        JButton button = JetControls.button("Record takes…");
+        JPanel row = new JPanel();
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.add(button);
+        row.setSize(400, 40);
+
+        row.doLayout();
+
+        assertThat(button.getHeight()).isEqualTo(32);
     }
 
     /** Euclidean distance in RGB space - "how far a colour moved," not which way. */
