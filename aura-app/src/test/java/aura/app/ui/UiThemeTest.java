@@ -113,6 +113,25 @@ class UiThemeTest {
     }
 
     @Test
+    void successAndWarningWordsMeetTextContrastOnTheSurfacesTheySitOnInBothThemes() {
+        // Breaks if the light palette goes back to TOKENS.md's own success
+        // (#4CAF73, 2.73:1 on white) or warning (#D9A441, 2.25:1). Both are
+        // only ever the ink of a 13 px word - "missing", "recorded", "running"
+        // - on a card or the page, and 13 px text needs 4.5:1. error is left
+        // out on purpose: light error measures 3.55:1 on white, also short of
+        // 4.5:1, and changing it is a separate decision from this one.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            for (String state : List.of("success", "warning")) {
+                for (String surface : List.of("surface.primary", "surface.app")) {
+                    assertThat(JetControlsTest.contrast(UiTheme.color(state), UiTheme.color(surface)))
+                        .as(mode + " " + state + " on " + surface).isGreaterThanOrEqualTo(4.5);
+                }
+            }
+        }
+    }
+
+    @Test
     void aCappedComponentIsBoundedInHeightOnlyAndIsStillTheSameComponent() {
         // Breaks if capped() is written as new Dimension(height, height), which
         // pins the width too: every card in a BoxLayout column would then shrink

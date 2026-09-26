@@ -20,6 +20,7 @@ import java.awt.event.HierarchyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.util.Objects;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonModel;
@@ -544,7 +545,8 @@ public final class JetControls {
      * hover/pressed/focus/disabled state machine, differing only in which
      * colours each state maps to. Paints its own rounded fill and outline
      * because a plain {@link JButton} under this project's plain look and feel
-     * (Ruling 1: no FlatLaf) has no rounded corners to ask for.
+     * (Ruling 1: no FlatLaf) has no rounded corners to ask for, and its own
+     * label for the reason {@link #paintLabel} gives.
      */
     private static final class Button extends JButton {
 
@@ -665,20 +667,56 @@ public final class JetControls {
 
         @Override
         protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
+            Graphics2D g2 = smooth(g);
             try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int arc = BUTTON_RADIUS * 2;
-                g2.setColor(getBackground());
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-                if (borderColor != null) {
-                    g2.setColor(borderColor);
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
-                }
+                paintRounded(g2, 0, 0, getWidth(), getHeight(), BUTTON_RADIUS, getBackground(), borderColor);
             } finally {
                 g2.dispose();
             }
-            super.paintComponent(g);
+            paintLabel(g);
+        }
+
+        /**
+         * The label, drawn here in {@link #getForeground()} rather than left to
+         * the look and feel's delegate.
+         *
+         * <p>The Windows delegate draws a disabled button's text in its visual
+         * style's own grey and never reads the component's foreground, so {@link
+         * #refresh} setting {@code text.disabled} changed nothing on screen: a
+         * disabled label came out the same fixed platform grey in both themes.
+         * {@link CheckBox} draws its own label for the same reason.
+         *
+         * <p>Laid out the way {@code BasicButtonUI} lays it out - the compound
+         * label inside the insets, the baseline at the text box's ascent - so an
+         * enabled label lands on the pixels it always did. Text only: nothing in
+         * this application gives one of these buttons an icon or HTML, and a
+         * caller that starts to would need this method to learn them.
+         */
+        private void paintLabel(Graphics g) {
+            String text = getText();
+            if (text == null || text.isEmpty()) {
+                return;
+            }
+            Insets insets = getInsets();
+            Rectangle view = new Rectangle(insets.left, insets.top,
+                getWidth() - insets.left - insets.right,
+                getHeight() - insets.top - insets.bottom);
+            Rectangle iconBounds = new Rectangle();
+            Rectangle textBounds = new Rectangle();
+            FontMetrics fm = getFontMetrics(getFont());
+            String shown = SwingUtilities.layoutCompoundLabel(this, fm, text, null,
+                getVerticalAlignment(), getHorizontalAlignment(),
+                getVerticalTextPosition(), getHorizontalTextPosition(),
+                view, iconBounds, textBounds, 0);
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setFont(getFont());
+                g2.setColor(getForeground());
+                BasicGraphicsUtils.drawStringUnderlineCharAt(this, g2, shown,
+                    getDisplayedMnemonicIndex(), textBounds.x, textBounds.y + fm.getAscent());
+            } finally {
+                g2.dispose();
+            }
         }
     }
 
@@ -776,6 +814,40 @@ public final class JetControls {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         return g2;
+    }
+
+    /**
+     * Fills a rounded box and strokes its 1 px outline so that all four edges
+     * come out the same weight. Either colour may be null to skip that part.
+     * Meant for a {@link Graphics2D} from {@link #smooth}, whose pure stroke
+     * control keeps the geometry below exact.
+     *
+     * <p>A stroke is centred on the path it follows. Traced along whole pixel
+     * coordinates, the way {@code drawRoundRect(0, 0, w - 1, h - 1)} traces it,
+     * the top and left edges straddle the box's own bounds and lose half their
+     * width to the clip, while the bottom and right edges keep all of it and
+     * leave a strip of fill showing outside them. At this machine's 2.0 scale
+     * that was one device pixel of outline on two sides and two on the other
+     * two. Tracing the path half a pixel inside the bounds puts the whole stroke
+     * inside them on every side. The fill follows the same inset path when there
+     * is an outline, so no corner of it pokes out past the stroke, and takes the
+     * full bounds when there is none.
+     */
+    private static void paintRounded(Graphics2D g2, float x, float y, float width, float height,
+            int radius, Color fill, Color outline) {
+        Shape edge = new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, width - 1, height - 1,
+            radius * 2 - 1, radius * 2 - 1);
+        if (fill != null) {
+            g2.setColor(fill);
+            g2.fill(outline == null
+                ? new RoundRectangle2D.Float(x, y, width, height, radius * 2, radius * 2)
+                : edge);
+        }
+        if (outline != null) {
+            g2.setColor(outline);
+            g2.setStroke(new BasicStroke(1f));
+            g2.draw(edge);
+        }
     }
 
     /**
@@ -909,14 +981,8 @@ public final class JetControls {
             try {
                 int left = x + CHECK_RING;
                 int top = y + CHECK_RING;
-                int arc = CHECK_RADIUS * 2;
-                g2.setColor(box.boxFill());
-                g2.fillRoundRect(left, top, CHECK_SIZE, CHECK_SIZE, arc, arc);
-                Color outline = box.boxOutline();
-                if (outline != null) {
-                    g2.setColor(outline);
-                    g2.drawRoundRect(left, top, CHECK_SIZE - 1, CHECK_SIZE - 1, arc, arc);
-                }
+                paintRounded(g2, left, top, CHECK_SIZE, CHECK_SIZE, CHECK_RADIUS,
+                    box.boxFill(), box.boxOutline());
                 if (box.isSelected()) {
                     Path2D.Float mark = new Path2D.Float();
                     mark.moveTo(left + 4f, top + 8.5f);
@@ -927,10 +993,8 @@ public final class JetControls {
                     g2.draw(mark);
                 }
                 if (box.focused() && box.isEnabled()) {
-                    g2.setColor(UiTheme.color("border.focus"));
-                    g2.setStroke(new BasicStroke(1f));
-                    int ringArc = (CHECK_RADIUS + CHECK_RING) * 2;
-                    g2.drawRoundRect(x, y, getIconWidth() - 1, getIconHeight() - 1, ringArc, ringArc);
+                    paintRounded(g2, x, y, getIconWidth(), getIconHeight(), CHECK_RADIUS + CHECK_RING,
+                        null, UiTheme.color("border.focus"));
                 }
             } finally {
                 g2.dispose();
@@ -1057,11 +1121,8 @@ public final class JetControls {
             }
             Graphics2D g2 = smooth(g);
             try {
-                int arc = SPINNER_RADIUS * 2;
-                g2.setColor(UiTheme.color("surface.input"));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-                g2.setColor(outline());
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+                paintRounded(g2, 0, 0, getWidth(), getHeight(), SPINNER_RADIUS,
+                    UiTheme.color("surface.input"), outline());
             } finally {
                 g2.dispose();
             }

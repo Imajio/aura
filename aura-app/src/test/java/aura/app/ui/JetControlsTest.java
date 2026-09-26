@@ -11,6 +11,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
@@ -24,8 +28,10 @@ import javax.swing.JProgressBar;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.LookAndFeel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -180,6 +186,50 @@ class JetControlsTest {
             .isEqualTo(UiTheme.color("text.disabled"))
             .isNotEqualTo(enabledForeground)
             .isNotEqualTo(button.getBackground());
+    }
+
+    @Test
+    void aDisabledButtonsLabelReachesTheScreenInTextDisabledUnderThePlatformLookAndFeel()
+            throws Exception {
+        // Breaks if Button hands its label back to the look and feel's
+        // delegate. The Windows delegate draws disabled text in its visual
+        // style's own grey whatever the foreground says, so the test above,
+        // which reads getForeground(), stayed green while every disabled
+        // label on screen was the same platform grey in both themes. The
+        // platform look and feel is installed here because it is the one the
+        // application runs under; the default one would hide the defect.
+        LookAndFeel before = UIManager.getLookAndFeel();
+        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        try {
+            for (Theme.Mode mode : Theme.Mode.values()) {
+                Theme.install(mode);
+                JButton button = JetControls.primaryButton("Enrol from all takes");
+                button.setEnabled(false);
+
+                assertThat(dominantInk(button))
+                    .as(mode + " disabled label").isEqualTo(UiTheme.color("text.disabled"));
+            }
+        } finally {
+            UIManager.setLookAndFeel(before);
+        }
+    }
+
+    @Test
+    void aSpinnerAndAButtonStrokeTheirOutlineAtTheSameWeightOnAllFourSides() {
+        // Breaks if either outline goes back to drawRoundRect on whole pixel
+        // coordinates under pure stroke control: at a 2.0 scale the top and
+        // left edges then come out one device pixel wide, the bottom and right
+        // two, with a pixel of fill showing outside those. Rendered at 2.0,
+        // the scale this machine runs at, where one logical pixel is two.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            Color outline = UiTheme.color("border.default");
+
+            assertThat(edgeWeights(spinner(), outline))
+                .as(mode + " spinner top, bottom, left, right").containsExactly(2, 2, 2, 2);
+            assertThat(edgeWeights(JetControls.button("Record takes…"), outline))
+                .as(mode + " button top, bottom, left, right").containsExactly(2, 2, 2, 2);
+        }
     }
 
     @Test
@@ -619,8 +669,75 @@ class JetControlsTest {
         return (JetControls.Spinner) JetControls.spinner(new SpinnerNumberModel(3, 1, 50, 1));
     }
 
+    /** Paints a control at its preferred size into an image at {@code scale}. */
+    private static BufferedImage render(JComponent control, int scale) {
+        control.setSize(control.getPreferredSize());
+        BufferedImage image = new BufferedImage(control.getWidth() * scale,
+            control.getHeight() * scale, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.scale(scale, scale);
+            control.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    /**
+     * The commonest colour inside a button's padding other than its own fill:
+     * the ink of its label, since a glyph's solid middle is painted in exactly
+     * that colour whatever antialiasing does to its edges.
+     */
+    private static Color dominantInk(JButton button) {
+        int scale = 2;
+        BufferedImage image = render(button, scale);
+        Insets insets = button.getInsets();
+        int fill = button.getBackground().getRGB();
+        Map<Integer, Integer> counts = new HashMap<>();
+        for (int x = insets.left * scale; x < image.getWidth() - insets.right * scale; x++) {
+            for (int y = 2 * scale; y < image.getHeight() - 2 * scale; y++) {
+                int rgb = image.getRGB(x, y);
+                if (rgb != fill) {
+                    counts.merge(rgb, 1, Integer::sum);
+                }
+            }
+        }
+        return new Color(Collections.max(counts.entrySet(), Map.Entry.comparingByValue()).getKey());
+    }
+
+    /**
+     * How many device pixels of {@code outline} each edge shows, counted
+     * inward from the top, bottom, left and right at the control's middle, at
+     * a 2.0 scale. A pixel of anything else on the outermost row or column
+     * counts as zero for that edge.
+     */
+    private static List<Integer> edgeWeights(JComponent control, Color outline) {
+        BufferedImage image = render(control, 2);
+        int rgb = outline.getRGB();
+        int midX = image.getWidth() / 2;
+        int midY = image.getHeight() / 2;
+        int top = 0;
+        while (image.getRGB(midX, top) == rgb) {
+            top++;
+        }
+        int bottom = 0;
+        while (image.getRGB(midX, image.getHeight() - 1 - bottom) == rgb) {
+            bottom++;
+        }
+        int left = 0;
+        while (image.getRGB(left, midY) == rgb) {
+            left++;
+        }
+        int right = 0;
+        while (image.getRGB(image.getWidth() - 1 - right, midY) == rgb) {
+            right++;
+        }
+        return List.of(top, bottom, left, right);
+    }
+
     /** WCAG 2 contrast ratio, the figure its 4.5:1 floor for body text is stated in. */
-    private static double contrast(Color a, Color b) {
+    static double contrast(Color a, Color b) {
         double la = luminance(a);
         double lb = luminance(b);
         return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
