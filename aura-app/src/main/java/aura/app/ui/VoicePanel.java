@@ -2,10 +2,8 @@ package aura.app.ui;
 
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -127,8 +125,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             + "quietly, in a hurry. Twenty identical takes teach one mood and miss every other.",
         "Train the wake word", "train.wake");
 
-    private final JCheckBox listenToggle = new JCheckBox("Listen for the wake word");
-    private final JLabel listenState = UiTheme.status("off", UiTheme.MUTED);
+    private final JCheckBox listenToggle = JetControls.checkBox("Listen for the wake word");
+    private final JLabel listenState = UiTheme.status("off", "text.secondary");
     private final JLabel listenReason = UiTheme.elastic(UiTheme.hint(""));
     private final JLabel listenReport = UiTheme.wrapped("");
     private String listenMessage = "";
@@ -192,12 +190,21 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(UiTheme.CANVAS);
         scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
 
         setLayout(new BorderLayout());
-        setBackground(UiTheme.CANVAS);
         add(scroll, BorderLayout.CENTER);
+
+        // The panel and its viewport hold whatever background they were last
+        // given, so both are set again on every switch, and once now, because
+        // AuraWindow builds this panel before it installs the first theme.
+        // Everything inside the cards paints from tokens and needs neither.
+        Runnable refreshCanvas = () -> {
+            setBackground(UiTheme.canvas());
+            scroll.getViewport().setBackground(UiTheme.canvas());
+        };
+        Theme.onChange(refreshCanvas);
+        refreshCanvas.run();
 
         applyState();
     }
@@ -336,7 +343,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         String detail = event.text("detail");
         String sentence = code + " - " + (detail.isEmpty() ? "the sidecar refused" : detail);
         if (section != null) {
-            section.report(sentence, UiTheme.BAD);
+            section.report(sentence, "error");
         } else {
             say(sentence);
         }
@@ -388,7 +395,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             pendingSection = null;
             String sentence = "The sidecar could not be reached. Nothing was started.";
             if (owner != null) {
-                owner.report(sentence, UiTheme.BAD);
+                owner.report(sentence, "error");
             } else {
                 say(sentence);
             }
@@ -400,16 +407,13 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     private void say(String sentence) {
         listenMessage = sentence;
         listenReport.setText(UiTheme.html(sentence));
-        listenReport.setForeground(UiTheme.BAD);
+        UiTheme.recolour(listenReport, "error");
     }
 
     private JComponent listeningCard() {
         Card card = new Card("Listening");
         card.line("Microphone", listenState, null);
         listenToggle.setName("voice.listen.toggle");
-        listenToggle.setFont(UiTheme.body());
-        listenToggle.setOpaque(false);
-        listenToggle.setFocusPainted(false);
         listenToggle.addActionListener(e -> {
             // A JCheckBox flips itself before anybody is asked. Nothing puts it
             // back here: send() ends in applyState(), which is the single place
@@ -444,16 +448,16 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         private final int secondsPerTake;
 
         private final JSpinner takes;
-        private final JButton record = button("Record takes…");
+        private final JButton record = JetControls.button("Record takes…");
         private final JButton confirm;
-        private final JButton cancel = button("Cancel");
+        private final JButton cancel = JetControls.button("Cancel");
         private final JButton action;
-        private final JLabel takesValue = UiTheme.status("", UiTheme.MUTED);
-        private final JLabel artefactValue = UiTheme.status("", UiTheme.MUTED);
+        private final JLabel takesValue = UiTheme.status("", "text.secondary");
+        private final JLabel artefactValue = UiTheme.status("", "text.secondary");
         private final JLabel reason = UiTheme.elastic(UiTheme.hint(""));
         private final JLabel recordReason = UiTheme.elastic(UiTheme.hint(""));
-        private final JLabel warning = UiTheme.wrapped("", UiTheme.WARN);
-        private final JProgressBar progress = new JProgressBar();
+        private final JLabel warning = UiTheme.wrapped("", "warning");
+        private final JProgressBar progress = JetControls.progressBar();
         private final JLabel report = UiTheme.wrapped("");
         private final JPanel armRow;
 
@@ -476,12 +480,14 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             this.actionLabel = actionLabel;
             this.command = command;
 
-            takes = new JSpinner(new SpinnerNumberModel(defaultTakes, 1, 50, 1));
+            takes = JetControls.spinner(new SpinnerNumberModel(defaultTakes, 1, 50, 1));
             // A Swing Timer, so every tick lands on the event dispatch thread
             // like everything else that touches these components.
             countIn = new Timer(1000, e -> tick());
-            confirm = button("Open the microphone and record");
-            action = button(actionLabel);
+            confirm = JetControls.button("Open the microphone and record");
+            // The major action of its card, and the only accent-filled button
+            // in it: confirm, beside it while armed, is deliberately neutral.
+            action = JetControls.primaryButton(actionLabel);
             armRow = row(confirm, cancel);
 
             takes.setName("voice." + kind + ".spinner");
@@ -497,9 +503,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             progress.setName("voice." + kind + ".progress");
             report.setName("voice." + kind + ".report");
 
-            Dimension spinnerSize = new Dimension(64, takes.getPreferredSize().height);
-            takes.setPreferredSize(spinnerSize);
-            takes.setMaximumSize(spinnerSize);
             // The warning names the number of takes, so changing the number
             // while it is on screen has to rewrite it. Through applyState, which
             // is the one place that sentence is written.
@@ -512,7 +515,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 armed = true;
                 lines.clear();
                 quiet = 0;
-                report("", UiTheme.MUTED);
+                report("", "text.secondary");
                 applyState();
             });
             cancel.addActionListener(e -> {
@@ -532,7 +535,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 applyState();
             });
             action.addActionListener(e -> {
-                report("", UiTheme.MUTED);
+                report("", "text.secondary");
                 send(Map.of("cmd", command), this);
             });
         }
@@ -624,7 +627,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             // Muted while the takes arrive, whatever their level. The verdict is
             // in the words on the line it belongs to; colouring the whole block
             // amber for one quiet take prints "good" in amber as well.
-            report(lines, UiTheme.MUTED);
+            report(lines, "text.secondary");
             progress.setValue(Math.min(progress.getValue() + 1, progress.getMaximum()));
             // The first take is the proof that the device really did open.
             progress.setString("recording - " + progress.getValue() + " of "
@@ -638,7 +641,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                     + "record that many again - the quiet ones stay on disk, so delete them "
                     + "from the voice folder if you would rather not train on them.");
             }
-            report(lines, quiet > 0 ? UiTheme.WARN : UiTheme.MUTED);
+            report(lines, quiet > 0 ? "warning" : "text.secondary");
         }
 
         void progressed(String stage, int done, int total, String detail) {
@@ -652,7 +655,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         /** What enrolment or training produced, as the numbers that decide trust. */
         void trained(SidecarEvent event) {
             List<String> result = new ArrayList<>();
-            Color colour = UiTheme.MUTED;
+            String token = "text.secondary";
             if ("enrol".equals(command)) {
                 result.add(count((int) event.number("takes"), "take")
                     + " averaged into the reference.");
@@ -666,7 +669,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 String warned = event.text("warning");
                 if (!warned.isEmpty()) {
                     result.add(warned);
-                    colour = UiTheme.WARN;
+                    token = "warning";
                 }
             } else {
                 int recognised = (int) event.number("recognised");
@@ -680,23 +683,23 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                     result.add(falsePositives + " false triggers in training is a model that "
                         + "will talk to the room. Record more takes, and more varied ones, "
                         + "then train again.");
-                    colour = UiTheme.WARN;
+                    token = "warning";
                 } else if (recognised < takesUsed) {
                     result.add("It missed " + (takesUsed - recognised) + " of your own takes. "
                         + "More takes, said more ways, is what improves that.");
-                    colour = UiTheme.WARN;
+                    token = "warning";
                 }
             }
-            report(result, colour);
+            report(result, token);
         }
 
-        void report(String sentence, Color colour) {
-            report(sentence.isEmpty() ? List.of() : List.of(sentence), colour);
+        void report(String sentence, String token) {
+            report(sentence.isEmpty() ? List.of() : List.of(sentence), token);
         }
 
-        void report(List<String> sentences, Color colour) {
+        void report(List<String> sentences, String token) {
             report.setText(UiTheme.html(sentences));
-            report.setForeground(colour);
+            UiTheme.recolour(report, token);
             report.setVisible(!sentences.isEmpty());
         }
 
@@ -715,9 +718,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 armed = false;
             }
             takesValue.setText(count(onDisk, "recording"));
-            takesValue.setForeground(onDisk > 0 ? UiTheme.INK : UiTheme.MUTED);
+            UiTheme.recolour(takesValue, onDisk > 0 ? "text.primary" : "text.secondary");
             artefactValue.setText(artefact ? artefactWord : "missing");
-            artefactValue.setForeground(artefact ? UiTheme.GOOD : UiTheme.WARN);
+            UiTheme.recolour(artefactValue, artefact ? "success" : "warning");
             record.setEnabled(live && !armed);
             recordReason.setText(whyNoRecording);
             recordReason.setToolTipText(whyNoRecording.isEmpty() ? null : whyNoRecording);
@@ -745,7 +748,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         wake.apply(live, wakeTakes, hasWakeModel, trainReason(), canTrain(), waiting());
 
         listenState.setText(listening ? "on" : "off");
-        listenState.setForeground(listening ? UiTheme.GOOD : UiTheme.MUTED);
+        UiTheme.recolour(listenState, listening ? "success" : "text.secondary");
         listenToggle.setSelected(listening);
         listenToggle.setEnabled(live && hasWakeModel);
         String why = waiting();
@@ -843,13 +846,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         }
         panel.add(Box.createHorizontalGlue());
         return panel;
-    }
-
-    private static JButton button(String text) {
-        JButton button = new JButton(text);
-        button.setFont(UiTheme.body());
-        button.setFocusPainted(false);
-        return button;
     }
 
     private static JComponent leftAligned(JComponent component) {

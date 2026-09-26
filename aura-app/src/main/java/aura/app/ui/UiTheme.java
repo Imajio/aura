@@ -268,19 +268,29 @@ public final class UiTheme {
     }
 
     /**
-     * The same, in a colour the caller already holds.
+     * Points a label built by this class at a different token.
      *
-     * <p>This is the unconverted path: a label built here keeps the colour it
-     * was given and does not follow a theme switch. It exists so a panel can be
-     * moved onto tokens one file at a time rather than all at once, and it goes
-     * when the last caller does.
+     * <p>For a label that is kept and written to rather than rebuilt: a state
+     * word that turns from "missing" to "recorded", a report that turns from
+     * muted to a warning. The label goes on resolving its colour when it
+     * paints, so a theme switch after this call still reaches it. That holds
+     * even for a label an earlier {@code setForeground} had stopped tracking:
+     * naming a token here is a caller asking for tracking again.
+     *
+     * <p>A label this class did not build throws rather than falling back to
+     * {@code setForeground}. The fallback would freeze the colour at whatever
+     * the current mode says, which is the exact defect the token layer exists
+     * to remove, and it would do so silently. An unknown token throws the same
+     * way {@link #color(String)} does, before the label is touched.
      */
-    public static JLabel status(String text, Color colour) {
-        JLabel label = new JLabel(text);
-        label.setFont(body().deriveFont(Font.BOLD));
-        label.setForeground(colour);
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return label;
+    public static void recolour(JLabel label, String token) {
+        if (!(label instanceof TokenLabel tracked)) {
+            throw new IllegalArgumentException("Only a label built by UiTheme can be recoloured"
+                + " by token, not " + (label == null ? "null" : label.getClass().getName()));
+        }
+        color(token);
+        tracked.token = token;
+        tracked.repaint();
     }
 
     private static JLabel styled(String text, Font font, String token) {
@@ -350,15 +360,6 @@ public final class UiTheme {
     /** The same wrapping, in whichever token the caller names - a warning, usually. */
     public static JLabel wrapped(String text, String token) {
         return styled(html(text), body(), token);
-    }
-
-    /** The unconverted path, as {@link #status(String, Color)} is. */
-    public static JLabel wrapped(String text, Color colour) {
-        JLabel label = new JLabel(html(text));
-        label.setFont(body());
-        label.setForeground(colour);
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return label;
     }
 
     /**

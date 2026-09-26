@@ -91,7 +91,7 @@ class UiThemeTest {
         // scans for, and unbolded it sits at the same weight as the label beside
         // it. Body is asserted plain in the same test so that making *everything*
         // bold does not quietly satisfy the first half.
-        JLabel status = UiTheme.status("running", UiTheme.GOOD);
+        JLabel status = UiTheme.status("running", "success");
         JLabel body = UiTheme.body("running");
 
         assertThat(status.getFont().isBold()).isTrue();
@@ -490,5 +490,62 @@ class UiThemeTest {
 
         assertThat(chosen).isEqualTo(UiTheme.LIGHT_PALETTE.get("error"));
         assertThat(label.getForeground()).isEqualTo(chosen);
+    }
+
+    @Test
+    void recolourPointsALabelAtANewTokenThatGoesOnFollowingTheTheme() {
+        // Breaks if recolour resolves the token and hands the label a Color:
+        // the label would be right until the next switch and wrong after it,
+        // which is the frozen-constant defect VoicePanel's state words had.
+        // text.primary rather than a state token, because success, warning
+        // and error are the same hex in both palettes and could not tell a
+        // frozen colour from a tracked one.
+        Theme.install(Theme.Mode.LIGHT);
+        JLabel label = UiTheme.status("0 recordings", "text.secondary");
+
+        UiTheme.recolour(label, "text.primary");
+        Color underLight = label.getForeground();
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(underLight).isEqualTo(UiTheme.LIGHT_PALETTE.get("text.primary"));
+        assertThat(label.getForeground()).isEqualTo(UiTheme.DARK_PALETTE.get("text.primary"));
+    }
+
+    @Test
+    void recolourResumesTrackingOnALabelAnExplicitColourHadStopped() {
+        // Breaks if recolour leaves a label alone once setForeground has
+        // cleared its token. Naming a token is a request to track it.
+        Theme.install(Theme.Mode.LIGHT);
+        JLabel label = UiTheme.body("failed");
+        label.setForeground(UiTheme.color("error"));
+
+        UiTheme.recolour(label, "text.secondary");
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(label.getForeground()).isEqualTo(UiTheme.DARK_PALETTE.get("text.secondary"));
+    }
+
+    @Test
+    void recolourRefusesALabelThisClassDidNotBuildAndSaysWhatItWas() {
+        // Breaks if recolour falls back to setForeground on a plain JLabel:
+        // the colour would freeze at the current mode, silently.
+        JLabel plain = new JLabel("missing");
+
+        assertThatThrownBy(() -> UiTheme.recolour(plain, "warning"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(JLabel.class.getName());
+    }
+
+    @Test
+    void recolourRefusesAnUnknownTokenAndLeavesTheLabelAsItWas() {
+        // Breaks if the token is stored before it is checked: the label would
+        // throw on its next paint instead of here, far from the typo.
+        Theme.install(Theme.Mode.LIGHT);
+        JLabel label = UiTheme.status("recorded", "success");
+
+        assertThatThrownBy(() -> UiTheme.recolour(label, "sucess"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("sucess");
+        assertThat(label.getForeground()).isEqualTo(UiTheme.color("success"));
     }
 }
