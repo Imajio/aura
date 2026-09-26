@@ -1,28 +1,44 @@
 package aura.app.ui;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.HierarchyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Path2D;
 import java.util.Objects;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonModel;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComponent;
+import javax.swing.JFormattedTextField;
 import javax.swing.JList;
+import javax.swing.JProgressBar;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
+import javax.swing.plaf.basic.BasicGraphicsUtils;
+import javax.swing.plaf.basic.BasicSpinnerUI;
 
 /**
  * The controls {@code COMPONENTS.md} and {@code INTERACTIONS.md} describe, with
@@ -32,20 +48,23 @@ import javax.swing.border.Border;
  *
  * <p>Ported from jet-swing-design-system's {@code
  * com.example.jetswing.theme.JetComponents} (96 lines). Kept: {@link #button},
- * {@link #primaryButton} and {@link #textField}, the three controls this
- * application actually builds - grepping every {@code new JButton}/{@code
- * JTextField} in {@code aura.app.ui} found none of them icon-only and none
- * inside a tool-window header. Cut: {@code panel} and {@code scrollPane}, since
- * every panel and scroll pane already in this codebase sets its own background
- * explicitly and a second way to do the one thing is not a port, it is a fork;
- * {@code toolWindow}, since the plan's Ruling 3 keeps this milestone to the
- * token layer and not jet-swing-design-system's IDE shell; and {@code
- * iconButton}, since nothing here is icon-only. Added: {@link #list} and {@link
- * RowRenderer}, which the reference does not have at all - {@code
+ * {@link #primaryButton} and {@link #textField} - grepping every {@code new
+ * JButton}/{@code JTextField} in {@code aura.app.ui} found none of them
+ * icon-only and none inside a tool-window header. Cut: {@code panel} and {@code
+ * scrollPane}, since every panel and scroll pane already in this codebase sets
+ * its own background explicitly and a second way to do the one thing is not a
+ * port, it is a fork; {@code toolWindow}, since the plan's Ruling 3 keeps this
+ * milestone to the token layer and not jet-swing-design-system's IDE shell; and
+ * {@code iconButton}, since nothing here is icon-only. Added: {@link #list} and
+ * {@link RowRenderer}, which the reference does not have at all - {@code
  * JetComponents} never wraps a {@link JList}, so the row geometry, hover and
  * selection rules below are built straight from {@code COMPONENTS.md}'s "Lists
  * and trees" section, {@code INTERACTIONS.md}'s hover and focus rules, and
- * {@code DESIGN_RULES.md}'s "Selection" rule, not ported from anything.
+ * {@code DESIGN_RULES.md}'s "Selection" rule, not ported from anything. Also
+ * added, and also absent from the reference: {@link #checkBox}, {@link
+ * #spinner} and {@link #progressBar}, the three controls Voice setup builds
+ * besides buttons. Left to the platform look and feel they paint in its colours,
+ * which do not follow the theme and sit light and grey on a dark card.
  *
  * <h2>Colour, read live</h2>
  *
@@ -55,11 +74,27 @@ import javax.swing.border.Border;
  * the rest of the run - {@code Theme}'s own class javadoc explains why:
  * {@code UIManager} plus {@code updateComponentTreeUI} only copies a colour into
  * a component the first time its {@code updateUI()} runs after the key is
- * already correct, not on every later switch. Every control built here instead
- * recomputes its own colours from three triggers: the state that decides which
- * colour applies (a {@link ButtonModel} change, a focus change, an enabled
- * change), and {@link Theme#onChange}, registered once per control, for when the
- * palette itself changes under it.
+ * already correct, not on every later switch. The controls here come in two
+ * shapes, depending on where the colour ends up.
+ *
+ * <p>{@link #checkBox}, {@link #spinner} and {@link #progressBar} set no colour
+ * on anything. Each paints its own surfaces and reads every token inside its
+ * paint method, the same shape {@link Card} and {@code UiTheme.TokenLabel}
+ * already have, so a repaint is all a theme switch needs: no listener, no handle,
+ * nothing to clean up when the control goes away. The spinner has the one
+ * wrinkle. The text field inside it is built by {@link JSpinner} itself and
+ * cannot be subclassed, and its text is painted by its own view from colours
+ * stored on it. So the spinner copies the current tokens onto that field from its
+ * own {@code paintComponent}, which runs before the field paints because the
+ * field is not opaque, and sets only a colour that differs from the one already
+ * there, so that a paint never schedules another.
+ *
+ * <p>{@link #button}, {@link #primaryButton}, {@link #textField} and {@link
+ * #list} store their colours on the component, as a background, a foreground or
+ * a {@code Border}. They recompute those from three triggers: the state that
+ * decides which colour applies (a {@link ButtonModel} change, a focus change, an
+ * enabled change), and {@link Theme#onChange}, registered once per control, for
+ * when the palette itself changes under it.
  *
  * <p>{@link Theme#onChange} returns a handle for exactly this reason: a factory
  * that registers a listener per control would otherwise leak one every time a
@@ -177,6 +212,43 @@ public final class JetControls {
      */
     private static final Color ACCENT_INK = UiTheme.LIGHT_PALETTE.get("text.primary");
 
+    /**
+     * The check mark on a selected check box's accent fill: white, read from
+     * the light palette's {@code surface.primary} rather than typed as a
+     * literal, and mode-invariant for the same reason {@link #ACCENT_INK} is -
+     * the fill under it does not change with the mode either.
+     *
+     * <p>White here and dark ink on the primary button is not a contradiction.
+     * The button's label is text, and 13 px text needs 4.5:1, which white on
+     * {@code accent.primary} (3.20:1) does not reach. A check mark is not text:
+     * WCAG 1.4.11 asks 3:1 of a graphical object that conveys state, and 3.20:1
+     * clears it. White is also what a check box's mark is expected to be, so a
+     * dark one would cost recognition for contrast nobody needed.
+     */
+    private static final Color CHECK_MARK = UiTheme.LIGHT_PALETTE.get("surface.primary");
+
+    /** The side of the check box's square. */
+    private static final int CHECK_SIZE = 16;
+
+    private static final int CHECK_RADIUS = UiTheme.radius(4);
+
+    /**
+     * Room kept around the check box's square for its focus ring. The ring sits
+     * outside the square rather than recolouring its outline, because a selected
+     * square is filled with {@code accent.primary} and the dark palette's {@code
+     * border.focus} is the very same hex: an outline drawn on the fill would be
+     * invisible exactly when it is needed.
+     */
+    private static final int CHECK_RING = 2;
+
+    /** The spinner's field corners, matching the check box's rather than the buttons' 6. */
+    private static final int SPINNER_RADIUS = UiTheme.radius(4);
+
+    /** Each spinner arrow's width: room for a 7 px chevron and a hover chip around it. */
+    private static final int ARROW_WIDTH = 18;
+
+    private static final int PROGRESS_RADIUS = UiTheme.radius(4);
+
     /** A neutral button: {@code COMPONENTS.md}'s "Secondary buttons are neutral." */
     public static JButton button(String text) {
         return new Button(text, false);
@@ -201,6 +273,72 @@ public final class JetControls {
      */
     public static JTextField textField(String placeholder) {
         return new PlaceholderField(placeholder);
+    }
+
+    /**
+     * A check box whose square is painted here: {@value #CHECK_SIZE} px, radius
+     * 4, a 1 px {@code border.default} outline on {@code surface.input} when
+     * clear, and filled with {@code accent.primary} under a white mark when
+     * selected. Focus shows as a {@code border.focus} ring just outside the
+     * square, in both states - see {@link #CHECK_RING} for why outside. The
+     * label is {@code text.primary}.
+     *
+     * <p>Disabled follows {@link #button}'s lead: the surface stays as it is and
+     * the foreground and outline recede. The label turns {@code text.disabled},
+     * the outline {@code border.subtle}, and a selected square keeps the input
+     * surface with its mark drawn in {@code text.disabled} instead of the
+     * accent fill, so "on but not changeable right now" still reads as on.
+     *
+     * <p>Only painting changes. Space toggles it and a click toggles it, both
+     * through the platform's own {@link JCheckBox} handling, which this class
+     * leaves in place.
+     */
+    public static JCheckBox checkBox(String text) {
+        return new CheckBox(text);
+    }
+
+    /**
+     * A {@value #ARROW_WIDTH} px wide pair of quiet arrows beside a number
+     * field: {@link UiTheme#controlHeight()} high, the field on {@code
+     * surface.input} inside a 1 px {@code border.default} outline at radius 4,
+     * the outline turning {@code border.focus} while the field has keyboard
+     * focus, the digits in {@code text.primary}. The arrows have no bevel: a
+     * chevron in {@code text.secondary}, and a {@code surface.secondary} chip
+     * behind it on hover.
+     *
+     * <p>As wide as the model's longest value needs and no wider, and it keeps
+     * that width in a layout that offers more: {@link JSpinner.NumberEditor}
+     * already sizes its field to the longer of the model's minimum and maximum,
+     * and a spinner told to stretch to the end of a row stops looking like a
+     * place for two digits.
+     */
+    public static JSpinner spinner(SpinnerNumberModel model) {
+        return new Spinner(model);
+    }
+
+    /**
+     * A flat bar: a {@code surface.secondary} track, an {@code accent.primary}
+     * fill, radius 4, no bevel, and a centred caption when the caller turns one
+     * on with {@link JProgressBar#setStringPainted}.
+     *
+     * <p>The caption is drawn twice, each time clipped to one side of the fill's
+     * edge: over the fill in {@link #ACCENT_INK}, the dark ink that reaches
+     * 5.04:1 on the accent in both themes, and over the track in {@code
+     * text.primary}, which reaches far more than that on {@code
+     * surface.secondary} in either theme. A single ink cannot do both jobs in
+     * the dark theme, where the track wants light text and the fill wants dark:
+     * the dark palette's {@code text.primary} on the accent is 2.62:1, and dark
+     * ink on the dark track is close to invisible. A caption moved off the bar
+     * would dodge the question, but it would also move the one line that says
+     * what the bar is measuring away from the bar measuring it.
+     *
+     * <p>Horizontal and determinate only. An indeterminate bar paints its track
+     * and caption with no moving part: the look and feel's animator repaints
+     * only the region of its own bouncing box, which a painter of the whole bar
+     * would tear, and nothing in this application sets one indeterminate.
+     */
+    public static JProgressBar progressBar() {
+        return new ProgressBar();
     }
 
     /**
@@ -627,6 +765,479 @@ public final class JetControls {
                 int x = getInsets().left;
                 int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
                 g2.drawString(placeholder, x, y);
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    private static Graphics2D smooth(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        return g2;
+    }
+
+    /**
+     * A check box that paints its own square and label - see {@link #checkBox}.
+     *
+     * <p>Package-private, with the colours it paints exposed as methods, so a
+     * test can ask what a state looks like without rasterising it. The look and
+     * feel's delegate stays installed for what it does besides painting: the
+     * Space binding, the mouse handling, the preferred size.
+     */
+    static final class CheckBox extends JCheckBox {
+
+        private boolean focused;
+
+        CheckBox(String text) {
+            super(text);
+            setOpaque(false);
+            setFocusPainted(false);
+            setRolloverEnabled(true);
+            setFont(UiTheme.body());
+            setIcon(new CheckIcon());
+            setIconTextGap(UiTheme.space(8));
+            // Not a UIResource, so the look and feel's own border, with its
+            // platform margin, is not put back on the next updateUI.
+            setBorder(BorderFactory.createEmptyBorder());
+            addFocusListener(new FocusAdapter() {
+                @Override
+                public void focusGained(FocusEvent e) {
+                    focused = true;
+                    repaint();
+                }
+
+                @Override
+                public void focusLost(FocusEvent e) {
+                    focused = false;
+                    repaint();
+                }
+            });
+        }
+
+        /**
+         * The label's colour, resolved on every call. Overridden rather than
+         * set so that the look and feel, which installs a foreground only over
+         * a missing one or its own, never replaces it either.
+         */
+        @Override
+        public Color getForeground() {
+            return UiTheme.color(isEnabled() ? "text.primary" : "text.disabled");
+        }
+
+        boolean focused() {
+            return focused;
+        }
+
+        Color boxFill() {
+            ButtonModel model = getModel();
+            boolean enabled = isEnabled();
+            if (enabled && model.isSelected()) {
+                if (model.isArmed() && model.isPressed()) {
+                    return UiTheme.color("accent.pressed");
+                }
+                return model.isRollover() ? UiTheme.color("accent.hover") : UiTheme.accent();
+            }
+            boolean hover = enabled && (model.isRollover() || model.isPressed());
+            return UiTheme.color(hover ? "surface.secondary" : "surface.input");
+        }
+
+        /** The square's own outline, or null where its fill is the edge. */
+        Color boxOutline() {
+            if (!isEnabled()) {
+                return UiTheme.color("border.subtle");
+            }
+            return getModel().isSelected() ? null : UiTheme.color("border.default");
+        }
+
+        Color markColour() {
+            return isEnabled() ? CHECK_MARK : UiTheme.color("text.disabled");
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = smooth(g);
+            try {
+                Insets insets = getInsets();
+                Rectangle view = new Rectangle(insets.left, insets.top,
+                    getWidth() - insets.left - insets.right,
+                    getHeight() - insets.top - insets.bottom);
+                Rectangle iconBounds = new Rectangle();
+                Rectangle textBounds = new Rectangle();
+                FontMetrics fm = getFontMetrics(getFont());
+                String text = getText();
+                String shown = SwingUtilities.layoutCompoundLabel(this, fm, text, getIcon(),
+                    getVerticalAlignment(), getHorizontalAlignment(),
+                    getVerticalTextPosition(), getHorizontalTextPosition(),
+                    view, iconBounds, textBounds,
+                    text == null || text.isEmpty() ? 0 : getIconTextGap());
+                if (getIcon() != null) {
+                    getIcon().paintIcon(this, g2, iconBounds.x, iconBounds.y);
+                }
+                if (shown != null && !shown.isEmpty()) {
+                    g2.setFont(getFont());
+                    g2.setColor(getForeground());
+                    BasicGraphicsUtils.drawString(this, g2, shown, textBounds.x,
+                        textBounds.y + fm.getAscent());
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /** The square, the mark and the focus ring {@link CheckBox} paints, read at paint time. */
+    private static final class CheckIcon implements Icon {
+
+        @Override
+        public int getIconWidth() {
+            return CHECK_SIZE + 2 * CHECK_RING;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return CHECK_SIZE + 2 * CHECK_RING;
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            if (!(c instanceof CheckBox box)) {
+                return;
+            }
+            Graphics2D g2 = smooth(g);
+            try {
+                int left = x + CHECK_RING;
+                int top = y + CHECK_RING;
+                int arc = CHECK_RADIUS * 2;
+                g2.setColor(box.boxFill());
+                g2.fillRoundRect(left, top, CHECK_SIZE, CHECK_SIZE, arc, arc);
+                Color outline = box.boxOutline();
+                if (outline != null) {
+                    g2.setColor(outline);
+                    g2.drawRoundRect(left, top, CHECK_SIZE - 1, CHECK_SIZE - 1, arc, arc);
+                }
+                if (box.isSelected()) {
+                    Path2D.Float mark = new Path2D.Float();
+                    mark.moveTo(left + 4f, top + 8.5f);
+                    mark.lineTo(left + 7f, top + 11.5f);
+                    mark.lineTo(left + 12f, top + 5f);
+                    g2.setColor(box.markColour());
+                    g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.draw(mark);
+                }
+                if (box.focused() && box.isEnabled()) {
+                    g2.setColor(UiTheme.color("border.focus"));
+                    g2.setStroke(new BasicStroke(1f));
+                    int ringArc = (CHECK_RADIUS + CHECK_RING) * 2;
+                    g2.drawRoundRect(x, y, getIconWidth() - 1, getIconHeight() - 1, ringArc, ringArc);
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /** A number spinner painted here - see {@link #spinner}. */
+    static final class Spinner extends JSpinner {
+
+        private boolean focused;
+
+        // A field initialiser, so it exists only once super() has returned:
+        // JSpinner's constructor builds the editor and installs the delegate
+        // before any of this class's own state is there to be read.
+        private final FocusListener editorFocus = new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                focused = true;
+                repaint();
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                focused = false;
+                repaint();
+            }
+        };
+
+        Spinner(SpinnerNumberModel model) {
+            super(model);
+            setOpaque(false);
+            setFont(UiTheme.body());
+            // One pixel all round, so the editor and the arrows sit inside the
+            // outline paintComponent draws rather than over it.
+            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+            addPropertyChangeListener("editor", e -> styleEditor());
+            styleEditor();
+        }
+
+        /**
+         * Always this class's own delegate, including on the {@code
+         * updateComponentTreeUI} every theme switch runs. A platform delegate
+         * would bring back its bevelled arrow buttons.
+         */
+        @Override
+        public void updateUI() {
+            setUI(new SpinnerSkin());
+        }
+
+        boolean focused() {
+            return focused;
+        }
+
+        Color outline() {
+            if (!isEnabled()) {
+                return UiTheme.color("border.subtle");
+            }
+            return UiTheme.color(focused ? "border.focus" : "border.default");
+        }
+
+        JFormattedTextField field() {
+            return getEditor() instanceof DefaultEditor editor ? editor.getTextField() : null;
+        }
+
+        private void styleEditor() {
+            JComponent editor = getEditor();
+            editor.setOpaque(false);
+            JFormattedTextField field = field();
+            if (field == null) {
+                return;
+            }
+            field.setOpaque(false);
+            field.setFont(UiTheme.body());
+            field.setBorder(BorderFactory.createEmptyBorder(0, UiTheme.space(8), 0, UiTheme.space(4)));
+            field.removeFocusListener(editorFocus);
+            field.addFocusListener(editorFocus);
+            syncField(field);
+        }
+
+        /** Copies the current tokens onto the field, touching only what changed. */
+        private void syncField(JFormattedTextField field) {
+            Color text = UiTheme.color("text.primary");
+            if (!text.equals(field.getForeground())) {
+                field.setForeground(text);
+            }
+            if (!text.equals(field.getSelectedTextColor())) {
+                field.setSelectedTextColor(text);
+            }
+            Color disabled = UiTheme.color("text.disabled");
+            if (!disabled.equals(field.getDisabledTextColor())) {
+                field.setDisabledTextColor(disabled);
+            }
+            Color caret = UiTheme.accent();
+            if (!caret.equals(field.getCaretColor())) {
+                field.setCaretColor(caret);
+            }
+            Color selection = UiTheme.color("surface.selection");
+            if (!selection.equals(field.getSelectionColor())) {
+                field.setSelectionColor(selection);
+            }
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(super.getPreferredSize().width, UiTheme.controlHeight());
+        }
+
+        @Override
+        public Dimension getMaximumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            JFormattedTextField field = field();
+            if (field != null) {
+                syncField(field);
+            }
+            Graphics2D g2 = smooth(g);
+            try {
+                int arc = SPINNER_RADIUS * 2;
+                g2.setColor(UiTheme.color("surface.input"));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+                g2.setColor(outline());
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+            } finally {
+                g2.dispose();
+            }
+            super.paintComponent(g);
+        }
+    }
+
+    /**
+     * The delegate {@link Spinner} installs: the basic one, with this class's
+     * arrows instead of the platform's. Reads nothing from its spinner beyond
+     * what {@link BasicSpinnerUI} already does, because it is installed from
+     * inside {@link JSpinner}'s constructor, before {@link Spinner} has any
+     * state of its own.
+     */
+    private static final class SpinnerSkin extends BasicSpinnerUI {
+
+        @Override
+        protected Component createNextButton() {
+            ArrowButton button = new ArrowButton(SwingConstants.NORTH);
+            button.setName("Spinner.nextButton");
+            installNextButtonListeners(button);
+            return button;
+        }
+
+        @Override
+        protected Component createPreviousButton() {
+            ArrowButton button = new ArrowButton(SwingConstants.SOUTH);
+            button.setName("Spinner.previousButton");
+            installPreviousButtonListeners(button);
+            return button;
+        }
+
+        /**
+         * Digits against the arrows whatever the look and feel prefers, so the
+         * number sits in the same place under every delegate that has ever
+         * been installed.
+         */
+        @Override
+        protected JComponent createEditor() {
+            JComponent editor = super.createEditor();
+            if (editor instanceof JSpinner.DefaultEditor text) {
+                text.getTextField().setHorizontalAlignment(SwingConstants.TRAILING);
+            }
+            return editor;
+        }
+    }
+
+    /** One of a spinner's two arrows: a chevron, and a chip behind it on hover. */
+    private static final class ArrowButton extends JButton {
+
+        private final int direction;
+
+        ArrowButton(int direction) {
+            this.direction = direction;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFocusable(false);
+            setRolloverEnabled(true);
+            setBorder(BorderFactory.createEmptyBorder());
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(ARROW_WIDTH, UiTheme.controlHeight() / 2);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = smooth(g);
+            try {
+                ButtonModel model = getModel();
+                boolean enabled = isEnabled();
+                if (enabled && (model.isRollover() || model.isPressed())) {
+                    boolean pressed = model.isArmed() && model.isPressed();
+                    g2.setColor(UiTheme.color(pressed ? "border.subtle" : "surface.secondary"));
+                    int arc = UiTheme.radius(4) * 2;
+                    // Inset by a pixel so the chip never reaches the rounded
+                    // corner of the outline the spinner draws around it.
+                    g2.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, arc, arc);
+                }
+                float cx = getWidth() / 2f;
+                float cy = getHeight() / 2f;
+                float half = 3.5f;
+                float rise = direction == SwingConstants.NORTH ? -1.75f : 1.75f;
+                Path2D.Float chevron = new Path2D.Float();
+                chevron.moveTo(cx - half, cy - rise);
+                chevron.lineTo(cx, cy + rise);
+                chevron.lineTo(cx + half, cy - rise);
+                g2.setColor(UiTheme.color(enabled ? "text.secondary" : "text.disabled"));
+                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.draw(chevron);
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /** A flat progress bar with a two-ink caption - see {@link #progressBar}. */
+    static final class ProgressBar extends JProgressBar {
+
+        ProgressBar() {
+            setOpaque(false);
+            setBorderPainted(false);
+            setBorder(BorderFactory.createEmptyBorder());
+            setFont(UiTheme.body());
+        }
+
+        /** The caption's colour where it crosses the fill. */
+        Color inkOverFill() {
+            return isEnabled() ? ACCENT_INK : UiTheme.color("text.disabled");
+        }
+
+        /** The caption's colour where it lies on the bare track. */
+        Color inkOverTrack() {
+            return UiTheme.color(isEnabled() ? "text.primary" : "text.disabled");
+        }
+
+        Color track() {
+            return UiTheme.color("surface.secondary");
+        }
+
+        Color fill() {
+            return isEnabled() ? UiTheme.accent() : UiTheme.color("border.default");
+        }
+
+        /** Tall enough for one line of caption with a 4 px band above and below. */
+        @Override
+        public Dimension getPreferredSize() {
+            FontMetrics fm = getFontMetrics(getFont());
+            return new Dimension(super.getPreferredSize().width,
+                fm.getHeight() + 2 * UiTheme.space(4));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = smooth(g);
+            try {
+                int width = getWidth();
+                int height = getHeight();
+                int arc = PROGRESS_RADIUS * 2;
+                g2.setColor(track());
+                g2.fillRoundRect(0, 0, width, height, arc, arc);
+
+                int filled = isIndeterminate() ? 0
+                    : (int) Math.round(width * Math.max(0, Math.min(1, getPercentComplete())));
+                Shape whole = g2.getClip();
+                if (filled > 0) {
+                    // The fill is the whole rounded bar clipped at its leading
+                    // edge, so it keeps the track's left corners and meets the
+                    // rest of the track with a straight cut.
+                    g2.clipRect(0, 0, filled, height);
+                    g2.setColor(fill());
+                    g2.fillRoundRect(0, 0, width, height, arc, arc);
+                    g2.setClip(whole);
+                }
+
+                String caption = isStringPainted() ? getString() : null;
+                if (caption == null || caption.isEmpty()) {
+                    return;
+                }
+                g2.setFont(getFont());
+                FontMetrics fm = getFontMetrics(getFont());
+                int x = Math.max(UiTheme.space(8), (width - fm.stringWidth(caption)) / 2);
+                int y = (height - fm.getHeight()) / 2 + fm.getAscent();
+
+                g2.clipRect(0, 0, filled, height);
+                g2.setColor(inkOverFill());
+                BasicGraphicsUtils.drawString(this, g2, caption, x, y);
+                g2.setClip(whole);
+
+                g2.clipRect(filled, 0, width - filled, height);
+                g2.setColor(inkOverTrack());
+                BasicGraphicsUtils.drawString(this, g2, caption, x, y);
+                g2.setClip(whole);
             } finally {
                 g2.dispose();
             }

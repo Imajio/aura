@@ -4,18 +4,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Component;
+import java.awt.event.ActionEvent;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.awt.image.BufferedImage;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
+import javax.swing.InputMap;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -427,6 +437,203 @@ class JetControlsTest {
         row.doLayout();
 
         assertThat(button.getHeight()).isEqualTo(32);
+    }
+
+    @Test
+    void aClearCheckBoxSitsOnTheInputSurfaceAndASelectedOneFillsWithAccent() {
+        // Breaks if the two states collapse onto one look, or if the selected
+        // fill stops being the accent the rest of the window uses for "on".
+        JetControls.CheckBox box = checkBox("Listen for the wake word");
+
+        Color clearFill = box.boxFill();
+        Color clearOutline = box.boxOutline();
+        box.setSelected(true);
+
+        assertThat(clearFill).isEqualTo(UiTheme.color("surface.input"));
+        assertThat(clearOutline).isEqualTo(UiTheme.color("border.default"));
+        assertThat(box.boxFill()).isEqualTo(UiTheme.accent());
+        assertThat(box.markColour()).isNotEqualTo(box.boxFill());
+    }
+
+    @Test
+    void aDisabledCheckBoxKeepsItsSurfaceAndFadesItsLabelOutlineAndMark() {
+        // The button's disabled rule, applied to the check box: the surface
+        // stays, the foreground and the outline recede. Breaks if a disabled
+        // selected box keeps the accent fill (reads as live) or loses its mark
+        // (reads as off while listening is still on).
+        JetControls.CheckBox box = checkBox("Listen for the wake word");
+        box.setSelected(true);
+
+        box.setEnabled(false);
+
+        assertThat(box.boxFill()).isEqualTo(UiTheme.color("surface.input"));
+        assertThat(box.boxOutline()).isEqualTo(UiTheme.color("border.subtle"));
+        assertThat(box.markColour()).isEqualTo(UiTheme.color("text.disabled"))
+            .isNotEqualTo(box.boxFill());
+        assertThat(box.getForeground()).isEqualTo(UiTheme.color("text.disabled"));
+    }
+
+    @Test
+    void aCheckBoxReadsTheThemeInstalledNowRatherThanTheOneItWasBuiltUnder() {
+        // Breaks if the check box caches a colour at construction. It has no
+        // Theme.onChange listener to correct one, by design, so a cached
+        // colour would stay wrong for the rest of the run.
+        Theme.install(Theme.Mode.LIGHT);
+        JetControls.CheckBox box = checkBox("Listen for the wake word");
+
+        Theme.install(Theme.Mode.DARK);
+
+        assertThat(box.getForeground()).isEqualTo(UiTheme.DARK_PALETTE.get("text.primary"));
+        assertThat(box.boxFill()).isEqualTo(UiTheme.DARK_PALETTE.get("surface.input"));
+    }
+
+    @Test
+    void spaceTogglesACheckBox() {
+        // Breaks if the painted check box loses the platform's key binding,
+        // for instance by replacing the delegate with one that installs none.
+        JCheckBox box = JetControls.checkBox("Listen for the wake word");
+        InputMap keys = box.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionEvent event = new ActionEvent(box, ActionEvent.ACTION_PERFORMED, null);
+
+        box.getActionMap().get(keys.get(KeyStroke.getKeyStroke("pressed SPACE"))).actionPerformed(event);
+        box.getActionMap().get(keys.get(KeyStroke.getKeyStroke("released SPACE"))).actionPerformed(event);
+
+        assertThat(box.isSelected()).isTrue();
+    }
+
+    @Test
+    void aFocusedCheckBoxSaysSoAndABlurredOneDoesNot() {
+        // Breaks if the focus listener is removed: the ring CheckIcon paints
+        // around the square would then never appear.
+        JetControls.CheckBox box = checkBox("Listen for the wake word");
+
+        fireFocus(box, true);
+        boolean focused = box.focused();
+        fireFocus(box, false);
+
+        assertThat(focused).isTrue();
+        assertThat(box.focused()).isFalse();
+    }
+
+    @Test
+    void aSpinnerIsThirtyTwoPixelsHighAndKeepsItsWidthInARowThatOffersMore() {
+        // Breaks if Spinner stops overriding the height, or stops pinning its
+        // maximum: a spinner in a BoxLayout row with glue would stretch toward
+        // the glue and stop looking like a place for two digits.
+        JSpinner spinner = JetControls.spinner(new SpinnerNumberModel(20, 1, 50, 1));
+
+        assertThat(spinner.getPreferredSize().height).isEqualTo(32);
+        assertThat(spinner.getMaximumSize()).isEqualTo(spinner.getPreferredSize());
+    }
+
+    @Test
+    void aSpinnerOutlineTurnsBorderFocusWhileItsFieldHasFocus() {
+        // Breaks if the focus listener is not installed on the editor's field,
+        // which is where focus actually goes: the spinner itself never has it.
+        JetControls.Spinner spinner = spinner();
+        Color resting = spinner.outline();
+
+        fireFocus(spinner.field(), true);
+        Color focused = spinner.outline();
+        fireFocus(spinner.field(), false);
+
+        assertThat(resting).isEqualTo(UiTheme.color("border.default"));
+        assertThat(focused).isEqualTo(UiTheme.color("border.focus"));
+        assertThat(spinner.outline()).isEqualTo(resting);
+    }
+
+    @Test
+    void aSpinnerKeepsItsOwnArrowsThroughALookAndFeelRefresh() {
+        // Breaks if Spinner.updateUI stops installing its own delegate. Every
+        // Theme.install runs updateComponentTreeUI, which would otherwise put
+        // the platform's bevelled arrow buttons back.
+        JSpinner spinner = JetControls.spinner(new SpinnerNumberModel(3, 1, 50, 1));
+
+        SwingUtilities.updateComponentTreeUI(spinner);
+
+        for (Component child : spinner.getComponents()) {
+            if (child.getName() != null && child.getName().startsWith("Spinner.")
+                    && child.getName().endsWith("Button")) {
+                assertThat(child.getClass().getEnclosingClass()).as(child.getName())
+                    .isEqualTo(JetControls.class);
+            }
+        }
+        assertThat(spinner.getComponents()).extracting(Component::getName)
+            .contains("Spinner.nextButton", "Spinner.previousButton");
+    }
+
+    @Test
+    void aSpinnerCopiesTheCurrentTextTokenOntoItsFieldWhenItPaints() {
+        // Breaks if the field's colours are set once at construction. The
+        // field belongs to JSpinner and cannot resolve tokens itself, so a
+        // spinner that stopped copying them at paint time would keep the
+        // palette it was built under.
+        Theme.install(Theme.Mode.LIGHT);
+        JetControls.Spinner spinner = spinner();
+        spinner.setSize(spinner.getPreferredSize());
+
+        Theme.install(Theme.Mode.DARK);
+        BufferedImage image = new BufferedImage(80, 40, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            spinner.paintComponent(g);
+        } finally {
+            g.dispose();
+        }
+
+        assertThat(spinner.field().getForeground())
+            .isEqualTo(UiTheme.DARK_PALETTE.get("text.primary"));
+    }
+
+    @Test
+    void aProgressCaptionMeetsTextContrastOnBothSidesOfTheFillInBothThemes() {
+        // Breaks if the caption is drawn in one ink. In the dark theme the
+        // track wants light text and the fill wants dark: text.primary on the
+        // accent is 2.62:1, and dark ink on the dark track is close to 1:1.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            JetControls.ProgressBar bar = (JetControls.ProgressBar) JetControls.progressBar();
+
+            assertThat(contrast(bar.inkOverFill(), bar.fill()))
+                .as(mode + " caption over the fill").isGreaterThanOrEqualTo(4.5);
+            assertThat(contrast(bar.inkOverTrack(), bar.track()))
+                .as(mode + " caption over the track").isGreaterThanOrEqualTo(4.5);
+        }
+    }
+
+    @Test
+    void aProgressBarPaintsNoBevelOfItsOwn() {
+        // Breaks if the platform border comes back: the bar would sit in a
+        // bevelled frame no other control in the window has.
+        JProgressBar bar = JetControls.progressBar();
+
+        assertThat(bar.isBorderPainted()).isFalse();
+        assertThat(bar.getBorder()).isNotInstanceOf(javax.swing.plaf.UIResource.class);
+    }
+
+    private static JetControls.CheckBox checkBox(String text) {
+        return (JetControls.CheckBox) JetControls.checkBox(text);
+    }
+
+    private static JetControls.Spinner spinner() {
+        return (JetControls.Spinner) JetControls.spinner(new SpinnerNumberModel(3, 1, 50, 1));
+    }
+
+    /** WCAG 2 contrast ratio, the figure its 4.5:1 floor for body text is stated in. */
+    private static double contrast(Color a, Color b) {
+        double la = luminance(a);
+        double lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+
+    private static double luminance(Color colour) {
+        return 0.2126 * channel(colour.getRed()) + 0.7152 * channel(colour.getGreen())
+            + 0.0722 * channel(colour.getBlue());
+    }
+
+    private static double channel(int value) {
+        double c = value / 255.0;
+        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     }
 
     /** Euclidean distance in RGB space - "how far a colour moved," not which way. */
