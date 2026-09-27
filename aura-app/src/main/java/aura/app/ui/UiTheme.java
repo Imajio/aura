@@ -4,11 +4,14 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Insets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.border.AbstractBorder;
 import javax.swing.border.Border;
 
 /**
@@ -31,10 +34,11 @@ import javax.swing.border.Border;
  * colour" is a compile error rather than a string a typo can slip through
  * unnoticed.
  *
- * <p>Everything under the "pre-M4 API" heading below is what four panels
- * still read directly: fixed spacings and colours, kept exactly as they were
- * and pinned to the light palette, so those panels keep compiling and keep
- * looking the same until a later task moves them onto the accessors above.
+ * <p>The five spacing constants under the "pre-M4 spacing" heading below are
+ * the names the panels were written against, each one a step on the same grid
+ * {@link #space(int)} checks. The fixed colours that used to sit beside them,
+ * pinned to the light palette, are gone: every panel now reads colour through
+ * the accessors above, so a theme switch reaches all of it.
  */
 public final class UiTheme {
 
@@ -180,8 +184,7 @@ public final class UiTheme {
         return px;
     }
 
-    // ---- pre-M4 API: fixed, pinned to the light palette, kept for the four
-    // panels that still read these directly. See the class comment. ----
+    // ---- pre-M4 spacing, still read by the panels. See the class comment. ----
 
     /** A four-point grid. Every gap in the application is one of these. */
     public static final int TIGHT = 4;
@@ -189,24 +192,6 @@ public final class UiTheme {
     public static final int SPACE = 16;
     public static final int WIDE = 24;
     public static final int SECTION = 32;
-
-    // Read from LIGHT_PALETTE rather than re-typed as their own hex literals,
-    // so this file still has exactly one place a colour's hex value belongs.
-    // Values below therefore differ slightly from Aura's pre-M4 numbers -
-    // that shift is this task's whole point for a call site that reads
-    // color("text.primary") or ink() directly; these fields exist only so
-    // the panels that have not been moved onto that call yet keep compiling
-    // and keep the same colour on every repaint until they are.
-    public static final Color INK = LIGHT_PALETTE.get("text.primary");
-    public static final Color MUTED = LIGHT_PALETTE.get("text.secondary");
-    public static final Color LINE = LIGHT_PALETTE.get("border.subtle");
-    public static final Color CANVAS = LIGHT_PALETTE.get("surface.app");
-    public static final Color ACCENT = LIGHT_PALETTE.get("accent.primary");
-    public static final Color GOOD = LIGHT_PALETTE.get("success");
-    public static final Color WARN = LIGHT_PALETTE.get("warning");
-    public static final Color BAD = LIGHT_PALETTE.get("error");
-
-    public static final Color SURFACE = LIGHT_PALETTE.get("surface.primary");
 
     // A note wraps at this width - a CSS length, not a count of screen pixels,
     // which is the trap it was set in the first time. javax.swing.text.html's
@@ -433,9 +418,45 @@ public final class UiTheme {
         return BorderFactory.createEmptyBorder(all, all, all, all);
     }
 
+    /**
+     * A card's 1 px outline in {@link #line()} and its {@link #SPACE} padding,
+     * for a panel that looks like a card but needs a layout other than {@link
+     * Card}'s grid.
+     *
+     * <p>The outline reads the token each time it paints. A border built once
+     * holds the colour it was given, and this one used to be built from the
+     * light palette's {@code border.subtle}: in the dark theme the one card
+     * using it had a visibly lighter edge than every {@link Card} beside it.
+     */
     public static Border card() {
-        return BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(LINE), pad(SPACE));
+        return BorderFactory.createCompoundBorder(new CardOutline(), pad(SPACE));
+    }
+
+    /**
+     * A one pixel outline in {@link #line()}, resolved when it paints and drawn
+     * with the same {@code drawRect} call {@link Card} makes for its own edge.
+     *
+     * <p>Not a {@link javax.swing.border.LineBorder} with its colour swapped at
+     * paint time. That border paints through its own unscaled path, which places
+     * the stroke by device pixels rather than the way {@code drawRect} does, and
+     * an outline meant to look like the cards beside it has to come out on the
+     * same pixels as theirs at every display scale, not only in the same colour.
+     */
+    private static final class CardOutline extends AbstractBorder {
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Color before = g.getColor();
+            g.setColor(line());
+            g.drawRect(x, y, width - 1, height - 1);
+            g.setColor(before);
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c, Insets insets) {
+            insets.set(1, 1, 1, 1);
+            return insets;
+        }
     }
 
     /** Keeps a growable component from stretching to the height of the window. */

@@ -120,8 +120,10 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * <p>{@code JetComponents.primaryButton} paints white text on {@code
  * accent.primary}. Measured against this project's actual token values (WCAG
  * relative luminance, the same formula {@code contrast-ratio} tools use), white
- * reaches only 3.20:1 on the resting fill and 2.69:1 on {@code accent.hover} -
- * both under the 3:1 floor WCAG sets even for large or bold UI text. The light
+ * reaches only 3.20:1 on the resting fill and 2.69:1 on {@code accent.hover}.
+ * The label is 13 px {@link UiTheme#body()} text, and for text that size WCAG
+ * sets the floor at 4.5:1: its 3:1 allowance for large text starts at 18 pt,
+ * or 14 pt bold, which even a bold 13 px label would fall short of. The light
  * palette's own {@code text.primary} (#202124) reaches 5.04:1 on the resting
  * fill and 5.99:1 on hover, because {@code accent.primary}'s luminance (0.28)
  * sits above the crossover point (about 0.18) past which a dark ink out-contrasts
@@ -131,15 +133,15 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * accent.primary}, {@code accent.hover} and {@code accent.pressed} are the same
  * hex in both palettes (TOKENS.md gives them no dark/light split), so the ink
  * that reads against them cannot be mode-dependent either without going
- * unreadable in one mode - the exact shape {@link UiTheme#INK} already is a
- * precedent for, a deliberately mode-invariant lookup into one named palette.
- * This is not the theme-staleness bug the class comment above warns about:
- * that bug is caching a colour that is supposed to change with the mode and
- * does not; {@link #ACCENT_INK} is supposed to never change with the mode, the
- * same way the accent tokens it sits on already do not. TOKENS.md defines no
- * {@code text.onAccent} token to read instead, and inventing one would fail
- * {@code UiThemeTest}'s own token-agreement test, which lists TOKENS.md's
- * twenty-two names exactly.
+ * unreadable in one mode. It is a deliberately mode-invariant lookup into one
+ * named palette, the same kind {@link #CHECK_MARK} makes for the mark drawn on
+ * the same fill. This is not the theme-staleness bug the class comment above
+ * warns about: that bug is caching a colour that is supposed to change with
+ * the mode and does not; {@link #ACCENT_INK} is supposed to never change with
+ * the mode, the same way the accent tokens it sits on already do not. TOKENS.md
+ * defines no {@code text.onAccent} token to read instead, and inventing one
+ * would fail {@code UiThemeTest}'s own token-agreement test, which lists
+ * TOKENS.md's twenty-two names exactly.
  *
  * <h2>Hover, lighter than selection</h2>
  *

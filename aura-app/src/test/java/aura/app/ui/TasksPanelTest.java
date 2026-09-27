@@ -58,8 +58,8 @@ class TasksPanelTest {
         //
         // Task 4c changed what this test is a guarantee of, and widened it.
         // The scroll pane's background used to be pinned to the light
-        // palette's SURFACE regardless of mode (painting a light bar in dark
-        // mode, a defect of its own), so afterDark and afterLight were
+        // palette's surface.primary regardless of mode (painting a light bar in
+        // dark mode, a defect of its own), so afterDark and afterLight were
         // asserted equal to each other. Every one of the four surfaces below
         // now overrides getBackground() to read UiTheme.surface() live, so
         // each must render two different colours across a switch - the dark

@@ -273,10 +273,10 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // Task 2's fix that background was the look and feel's own
         // ScrollPane.background, frozen at whichever mode installed first and
         // rendered as a solid bar that survived a switch to light and a switch
-        // back to dark. Task 2's own fix pinned it to SURFACE instead, which
-        // held across a switch only because it was always the light value
-        // regardless of mode - the same light-in-both-themes defect this task
-        // fixes. getBackground() below reads the installed theme's surface
+        // back to dark. Task 2's own fix pinned it to the light palette's
+        // surface.primary instead, which held across a switch only because it
+        // was always the light value regardless of mode - the same
+        // light-in-both-themes defect this task fixes. getBackground() below reads the installed theme's surface
         // every time the scroll pane paints, the same as the viewport it
         // wraps, so the inset tracks a real switch instead of merely
         // surviving one.

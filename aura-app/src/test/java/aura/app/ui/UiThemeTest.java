@@ -69,7 +69,7 @@ class UiThemeTest {
 
     @Test
     void aHintIsQuieterThanBodyText() {
-        // Breaks if hint() is changed to use INK - the sentence under a control
+        // Breaks if hint() is changed to use text.primary - the sentence under a control
         // would then read as loudly as the control's own label, and the reader
         // loses the cue that says "this is explanation, not content". Asserted
         // as a relation rather than a hex value so that repainting the palette
@@ -100,16 +100,18 @@ class UiThemeTest {
 
     @Test
     void theStateColoursCanBeToldApartFromEachOtherAndFromInk() {
-        // Breaks if two state colours are collapsed onto one value - WARN set to
-        // BAD's red, say, so "missing" and "broken" become the same signal - or
-        // if any of them is set to INK, which would make a coloured state word
-        // indistinguishable from ordinary text and undo the point of colouring
-        // it at all.
-        List<Color> states = List.of(
-            UiTheme.ACCENT, UiTheme.GOOD, UiTheme.WARN, UiTheme.BAD);
+        // Breaks if two state colours are collapsed onto one value - warning set
+        // to error's red, say, so "missing" and "broken" become the same signal -
+        // or if any of them is set to text.primary, which would make a coloured
+        // state word indistinguishable from ordinary text and undo the point of
+        // colouring it at all. Read from both palettes, since either can break.
+        for (Map<String, Color> palette : List.of(UiTheme.LIGHT_PALETTE, UiTheme.DARK_PALETTE)) {
+            List<Color> states = List.of(palette.get("accent.primary"), palette.get("success"),
+                palette.get("warning"), palette.get("error"));
 
-        assertThat(states).doesNotHaveDuplicates();
-        assertThat(states).doesNotContain(UiTheme.INK);
+            assertThat(states).doesNotHaveDuplicates();
+            assertThat(states).doesNotContain(palette.get("text.primary"));
+        }
     }
 
     @Test
