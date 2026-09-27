@@ -4,6 +4,7 @@ import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import javax.swing.JSpinner;
 import javax.swing.KeyStroke;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -465,6 +467,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         private final JProgressBar progress = JetControls.progressBar();
         private final JLabel report = UiTheme.wrapped("");
         private final JPanel armRow;
+        private JComponent cardPanel;
 
         private boolean armed;
         private int counting;
@@ -522,6 +525,11 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 quiet = 0;
                 report("", "text.secondary");
                 applyState();
+                // Into the row that just opened, not wherever Swing sends focus when
+                // this button turns itself off: that was the primary action beside
+                // it, where the next Space would start work. Cancel, because a
+                // confirmation is safest answered with no.
+                cancel.requestFocusInWindow();
             });
             // Cancels an arm and a count-in alike. Stopping the count is the
             // last moment at which nothing has been asked of the microphone,
@@ -534,6 +542,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 countIn.setDelay(tickMillis);
                 countIn.restart();
                 applyState();
+                // This button turns itself off for the count; Cancel is the one
+                // control still live in the row, and the way out of the count.
+                cancel.requestFocusInWindow();
             });
             action.addActionListener(e -> {
                 report("", "text.secondary");
@@ -552,6 +563,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             card.row(row(action, reason));
             card.row(progress);
             card.note(report);
+            cardPanel = card;
             // Escape does what Cancel does, from anywhere in this card, while
             // there is an arm or a count to cancel. Disabled the rest of the
             // time, so the key is not swallowed when there is nothing to stop.
@@ -571,11 +583,22 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             return card;
         }
 
-        /** Ends an arm or a count-in, before anything has been asked of the microphone. */
+        /**
+         * Ends an arm or a count-in, before anything has been asked of the
+         * microphone, and hands focus back to "Record takes..." if it was in
+         * this card. The row that held it has just been hidden, and left to
+         * Swing, focus went on to the primary action beside it.
+         */
         private void disarm() {
+            Component owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+            boolean focusHere = owner != null && cardPanel != null
+                && SwingUtilities.isDescendingFrom(owner, cardPanel);
             armed = false;
             stopCounting();
             applyState();
+            if (focusHere) {
+                record.requestFocusInWindow();
+            }
         }
 
         /** Whether this half is counting the owner in rather than recording yet. */
