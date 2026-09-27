@@ -3,6 +3,7 @@ package aura.app.ui;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import aura.app.ui.AuditionLibrary.AuditionVoice;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.io.ByteArrayInputStream;
@@ -153,6 +154,67 @@ class VoiceChoicePanelTest {
             button(panel.panel, "voice.choice.use").doClick();
         });
         assertThat(textOnEdt(panel.panel, "voice.choice.useReport")).contains("secretvoicename");
+    }
+
+    /**
+     * Breaks if the saved report is given a fixed colour. It was: a report written
+     * under dark kept dark's success on a white card after a switch to light, at
+     * 2.73:1, and the painted glyphs lagged a message behind the colour asked for.
+     */
+    @Test
+    void theSavedReportPaintsInSuccessAndFollowsAThemeSwitch(@TempDir Path tmp) throws Exception {
+        playableWav(tmp, "release", "voiceA", "running-tests", 50);
+        Path configFile = tmp.resolve("config.yaml");
+        Files.writeString(configFile, "voice: aidar\nprofile: en\nlisten: false\n");
+        Theme.Mode before = Theme.mode();
+        try {
+            Theme.install(Theme.Mode.DARK);
+            Panel panel = panel(tmp, configFile, 1L);
+            onEdt(() -> {
+                list(panel.panel).setSelectedIndex(0);
+                button(panel.panel, "voice.choice.use").doClick();
+                JLabel report = (JLabel) find(panel.panel, "voice.choice.useReport");
+                Color ink = UiThemeTest.paintedInk(report, UiTheme.surface());
+                assertThat(UiThemeTest.distance(ink, UiTheme.color("success")))
+                    .isLessThan(UiThemeTest.distance(ink, UiTheme.color("text.secondary")));
+            });
+
+            Theme.install(Theme.Mode.LIGHT);
+
+            onEdt(() -> assertThat(((JLabel) find(panel.panel, "voice.choice.useReport"))
+                .getForeground()).isEqualTo(UiTheme.LIGHT_PALETTE.get("success")));
+        } finally {
+            Theme.install(before);
+        }
+    }
+
+    /** Breaks if a failed line is given a fixed colour instead of the error token. */
+    @Test
+    void aFailedLineReportsInTheErrorTokenAndFollowsAThemeSwitch(@TempDir Path tmp) throws Exception {
+        unplayableWav(tmp, "release", "voiceA", "running-tests");
+        Theme.Mode before = Theme.mode();
+        try {
+            Theme.install(Theme.Mode.DARK);
+            Panel panel = panel(tmp, tmp.resolve("config.yaml"), 1L);
+            onEdt(() -> {
+                list(panel.panel).setSelectedIndex(0);
+                button(panel.panel, "voice.choice.line.running-tests").doClick();
+            });
+            waitUntil(() -> textOnEdt(panel.panel, "voice.choice.playback").contains("Could not play"), 5000);
+            onEdt(() -> {
+                JLabel report = (JLabel) find(panel.panel, "voice.choice.playback");
+                Color ink = UiThemeTest.paintedInk(report, UiTheme.surface());
+                assertThat(UiThemeTest.distance(ink, UiTheme.color("error")))
+                    .isLessThan(UiThemeTest.distance(ink, UiTheme.color("text.secondary")));
+            });
+
+            Theme.install(Theme.Mode.LIGHT);
+
+            onEdt(() -> assertThat(((JLabel) find(panel.panel, "voice.choice.playback"))
+                .getForeground()).isEqualTo(UiTheme.LIGHT_PALETTE.get("error")));
+        } finally {
+            Theme.install(before);
+        }
     }
 
     /**
