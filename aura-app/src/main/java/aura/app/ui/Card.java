@@ -67,7 +67,7 @@ final class Card extends JPanel {
             canvas.setColor(UiTheme.surface());
             canvas.fillRect(0, 0, getWidth(), getHeight());
             canvas.setColor(UiTheme.color("border.subtle"));
-            canvas.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+            UiTheme.outline(canvas, 0, 0, getWidth(), getHeight());
         } finally {
             canvas.dispose();
         }
@@ -84,7 +84,11 @@ final class Card extends JPanel {
 
     /** A row of name, state and an optional action. Returns the state component. */
     <T extends JComponent> T line(String name, T state, JComponent action) {
-        add(nameColumn(name), 0, 1, false);
+        // On one baseline rather than centred in the row: a value that runs to
+        // a second line, such as the Sidecar card's Models row at a narrow
+        // window, keeps its name beside the first line instead of between the
+        // two, and a name beside a button still sits on the button's text line.
+        add(nameColumn(name), 0, 1, false, GridBagConstraints.BASELINE_LEADING);
         // The state column is the one that both grows and gives way, so it
         // carries the row's weight and is filled to its cell. Both halves of
         // that matter. GridBagLayout hands a zero-weight column exactly its
@@ -93,9 +97,9 @@ final class Card extends JPanel {
         // swallowed the window; and a cell at fill NONE keeps its preferred
         // width whatever the cell can spare, which is how a long value comes to
         // overrun the column beside it rather than ellipsise inside its own.
-        add(state, 1, action == null ? 2 : 1, true);
+        add(state, 1, action == null ? 2 : 1, true, GridBagConstraints.BASELINE_LEADING);
         if (action != null) {
-            add(action, 2, 1, false);
+            add(action, 2, 1, false, GridBagConstraints.BASELINE_LEADING);
         }
         row++;
         return state;
@@ -133,11 +137,15 @@ final class Card extends JPanel {
     }
 
     private void add(JComponent component, int x, int width, boolean elastic) {
+        add(component, x, width, elastic, GridBagConstraints.WEST);
+    }
+
+    private void add(JComponent component, int x, int width, boolean elastic, int anchor) {
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = x;
         c.gridy = row;
         c.gridwidth = width;
-        c.anchor = GridBagConstraints.WEST;
+        c.anchor = anchor;
         c.insets = new Insets(row == 0 ? 0 : UiTheme.GAP, x == 0 ? 0 : UiTheme.WIDE, 0, 0);
         // Something in the grid must carry weight, or GridBagLayout centres the
         // whole thing in the card instead of packing it to the left.

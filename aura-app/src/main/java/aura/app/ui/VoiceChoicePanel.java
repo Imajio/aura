@@ -217,10 +217,9 @@ public final class VoiceChoicePanel extends JPanel {
             }
         });
         JetControls.list(voiceList);
-        JScrollPane voiceScroll = JetControls.scrollPane(voiceList,
+        JScrollPane voiceScroll = JetControls.listScrollPane(voiceList,
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        voiceScroll.setBorder(null);
         card.row(voiceScroll);
 
         useButton.setName("voice.choice.use");

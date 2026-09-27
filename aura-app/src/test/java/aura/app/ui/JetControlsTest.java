@@ -25,10 +25,12 @@ import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.LookAndFeel;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -439,14 +441,21 @@ class JetControlsTest {
         // Breaks the same way the button and field focus tests do. Asserted
         // here specifically with an empty model and no selection, because a
         // focus signal carried only by the selected row's stripe would have
-        // nothing to show in exactly this case.
+        // nothing to show in exactly this case. The outline is the scroll
+        // pane's, and the list itself carries none: a border on the list
+        // scrolls with its rows and the viewport clips it.
         JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()));
-        Color resting = strokeOf(list);
+        JScrollPane pane = JetControls.listScrollPane(list,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        JetControls.ListOutline outline = (JetControls.ListOutline) pane.getBorder();
+        Color resting = outline.colour();
 
         fireFocus(list, true);
 
+        assertThat(list.getBorder()).isNull();
         assertThat(resting).isEqualTo(UiTheme.color("border.subtle"));
-        assertThat(strokeOf(list)).isEqualTo(UiTheme.color("border.focus"));
+        assertThat(outline.colour()).isEqualTo(UiTheme.color("border.focus"));
     }
 
     @Test

@@ -436,14 +436,35 @@ public final class UiTheme {
     }
 
     /**
+     * Paints a one pixel outline just inside the given bounds, in the
+     * graphics' current colour, the same weight on all four sides.
+     *
+     * <p>Four filled strips rather than {@code drawRect(x, y, width - 1,
+     * height - 1)}. That call traces the edge along whole pixel coordinates,
+     * and a stroke is centred on what it traces: at this machine's 2.0 scale
+     * the top and left edges came out one device pixel wide and the bottom and
+     * right two, with a device pixel of fill showing outside those. A strip
+     * one pixel across, lying inside the bounds, covers the same device pixels
+     * on every side, and at 2.0 that is the two a control's outline has.
+     */
+    static void outline(Graphics g, int x, int y, int width, int height) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        g.fillRect(x, y, width, 1);
+        g.fillRect(x, y + height - 1, width, 1);
+        g.fillRect(x, y + 1, 1, height - 2);
+        g.fillRect(x + width - 1, y + 1, 1, height - 2);
+    }
+
+    /**
      * A one pixel outline in {@link #line()}, resolved when it paints and drawn
-     * with the same {@code drawRect} call {@link Card} makes for its own edge.
+     * by {@link #outline}, the same call {@link Card} makes for its own edge.
      *
      * <p>Not a {@link javax.swing.border.LineBorder} with its colour swapped at
-     * paint time. That border paints through its own unscaled path, which places
-     * the stroke by device pixels rather than the way {@code drawRect} does, and
-     * an outline meant to look like the cards beside it has to come out on the
-     * same pixels as theirs at every display scale, not only in the same colour.
+     * paint time. An outline meant to look like the cards beside it has to come
+     * out on the same pixels as theirs at every display scale, not only in the
+     * same colour, and one routine drawing both is how that holds.
      */
     private static final class CardOutline extends AbstractBorder {
 
@@ -451,7 +472,7 @@ public final class UiTheme {
         public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
             Color before = g.getColor();
             g.setColor(line());
-            g.drawRect(x, y, width - 1, height - 1);
+            outline(g, x, y, width, height);
             g.setColor(before);
         }
 

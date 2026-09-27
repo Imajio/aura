@@ -9,7 +9,11 @@ import aura.core.ToolClass;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -24,6 +28,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JViewport;
 import javax.swing.ListCellRenderer;
+import javax.swing.ScrollPaneLayout;
 import javax.swing.SwingUtilities;
 
 /**
@@ -309,10 +314,72 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // the window is allowed to be. FontMetrics rather than a rendered
         // component's own preferred size, because that measurement is reliable
         // before this list has a peer, where a component's is not.
+        //
+        // Exactly VISIBLE_ROWS rows of viewport, not VISIBLE_ROWS rows of
+        // pane: the gap under the heading and the horizontal scrollbar come on
+        // top. Room for the scrollbar is kept whether it shows or not, and
+        // WholeRows trims the viewport back to whole rows when it does not.
         int rowHeight = activity.getFontMetrics(UiTheme.body()).getHeight() + 2 * UiTheme.TIGHT;
-        scroll.setPreferredSize(new Dimension(0, rowHeight * VISIBLE_ROWS));
+        activity.setFixedCellHeight(rowHeight);
+        scroll.setLayout(new WholeRows(rowHeight));
+        Insets insets = scroll.getInsets();
+        scroll.setPreferredSize(new Dimension(0, insets.top + insets.bottom
+            + rowHeight * VISIBLE_ROWS + scroll.getHorizontalScrollBar().getPreferredSize().height));
         card.add(scroll, BorderLayout.CENTER);
         return card;
+    }
+
+    /**
+     * The Activity list's scroll pane layout: the usual one, with the viewport
+     * and the vertical scrollbar then trimmed to a whole number of rows.
+     *
+     * <p>The list scrolls to its newest row, so the viewport's top edge falls
+     * wherever the rows above happen to end. A viewport a few pixels taller
+     * than a whole number of rows showed a sliver of the row above: the
+     * descenders of a line with nothing over them, floating under the heading
+     * like stray marks. What the trim takes off stays blank card surface
+     * under the last row.
+     *
+     * <p>The usual layout sizes the viewport untrimmed first, and a list
+     * scrolled to its end is pulled back to fit that taller viewport as it
+     * does. Trimmed without undoing that, the newest row lost its bottom and
+     * a sliver of the row above came back. So the view goes back to where it
+     * was before the layout, as far as the trimmed viewport allows.
+     */
+    private static final class WholeRows extends ScrollPaneLayout {
+
+        private final int rowHeight;
+
+        WholeRows(int rowHeight) {
+            this.rowHeight = rowHeight;
+        }
+
+        @Override
+        public void layoutContainer(Container parent) {
+            if (viewport == null) {
+                super.layoutContainer(parent);
+                return;
+            }
+            Point before = viewport.getViewPosition();
+            super.layoutContainer(parent);
+            Rectangle port = viewport.getBounds();
+            int whole = port.height / rowHeight * rowHeight;
+            if (whole == 0 || whole == port.height) {
+                return;
+            }
+            viewport.setSize(port.width, whole);
+            if (vsb != null && vsb.isVisible()) {
+                vsb.setSize(vsb.getWidth(), whole);
+            }
+            if (hsb != null && hsb.isVisible()) {
+                hsb.setLocation(hsb.getX(), port.y + whole);
+            }
+            Component view = viewport.getView();
+            if (view != null) {
+                int end = Math.max(0, view.getPreferredSize().height - whole);
+                viewport.setViewPosition(new Point(viewport.getViewPosition().x, Math.min(before.y, end)));
+            }
+        }
     }
 
     /**

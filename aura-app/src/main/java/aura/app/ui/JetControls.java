@@ -40,6 +40,7 @@ import javax.swing.JViewport;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.border.AbstractBorder;
 import javax.swing.border.Border;
 import javax.swing.plaf.UIResource;
 import javax.swing.plaf.basic.BasicGraphicsUtils;
@@ -61,8 +62,8 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * second way to do the one thing is not a port, it is a fork; {@code
  * toolWindow}, since the plan's Ruling 3 keeps this milestone to the token layer
  * and not jet-swing-design-system's IDE shell; and {@code iconButton}, since
- * nothing here is icon-only. Added: {@link #list} and
- * {@link RowRenderer}, which the reference does not have at all - {@code
+ * nothing here is icon-only. Added: {@link #list}, {@link #listScrollPane}
+ * and {@link RowRenderer}, which the reference does not have at all - {@code
  * JetComponents} never wraps a {@link JList}, so the row geometry, hover and
  * selection rules below are built straight from {@code COMPONENTS.md}'s "Lists
  * and trees" section, {@code INTERACTIONS.md}'s hover and focus rules, and
@@ -88,8 +89,9 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * already correct, not on every later switch. The controls here come in two
  * shapes, depending on where the colour ends up.
  *
- * <p>{@link #checkBox}, {@link #spinner}, {@link #progressBar} and the
- * scrollbars of a {@link #scrollPane} set no colour on anything. Each paints
+ * <p>{@link #checkBox}, {@link #spinner}, {@link #progressBar}, the
+ * scrollbars of a {@link #scrollPane} and the outline of a {@link
+ * #listScrollPane} set no colour on anything. Each paints
  * its own surfaces and reads every token inside its paint method, the same
  * shape {@link Card} and {@code UiTheme.TokenLabel} already have, so a repaint
  * is all a theme switch needs: no listener, no handle,
@@ -398,6 +400,61 @@ public final class JetControls {
     }
 
     /**
+     * A {@link #scrollPane} for a list passed through {@link #list}, with the
+     * list's 1 px outline drawn round the pane: round the viewport and the
+     * scrollbar together. {@code border.subtle} at rest, {@code border.focus}
+     * while the list holds keyboard focus, both read when the outline paints.
+     *
+     * <p>Not a border on the list. The list is the viewport's view, so its
+     * border belongs to the rows: it scrolls with them and the viewport clips
+     * it, and the box showed only the edges the scroll position happened to
+     * reach - no bottom edge at rest, no top edge at the end, two loose
+     * vertical lines half way - with the scrollbar outside it, and the focus
+     * colour scrolling away with the edge that carried it.
+     *
+     * <p>The outline is the pane's own border, so it survives a theme switch
+     * the way any border a caller sets on a {@link #scrollPane} does.
+     */
+    public static JScrollPane listScrollPane(JList<?> list, int vertical, int horizontal) {
+        TokenScrollPane pane = new TokenScrollPane(list, vertical, horizontal);
+        pane.setBorder(new ListOutline(list));
+        return pane;
+    }
+
+    /**
+     * The outline {@link #listScrollPane} draws, in the colour its list's
+     * focus calls for when it paints. Drawn by {@link UiTheme#outline}, so
+     * it lands on the same device pixels as the card round it.
+     */
+    static final class ListOutline extends AbstractBorder {
+
+        private final JList<?> list;
+
+        ListOutline(JList<?> list) {
+            this.list = list;
+        }
+
+        Color colour() {
+            return UiTheme.color(Boolean.TRUE.equals(list.getClientProperty(FOCUS_PROPERTY))
+                ? "border.focus" : "border.subtle");
+        }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Color before = g.getColor();
+            g.setColor(colour());
+            UiTheme.outline(g, x, y, width, height);
+            g.setColor(before);
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c, Insets insets) {
+            insets.set(1, 1, 1, 1);
+            return insets;
+        }
+    }
+
+    /**
      * The scroll pane {@link #scrollPane} builds, open to subclassing so a
      * site can still override what the {@link JScrollPane} constructor calls.
      *
@@ -584,14 +641,11 @@ public final class JetControls {
     /**
      * Fits {@code target} for {@code COMPONENTS.md}'s list rules: a fixed
      * {@value #ROW_HEIGHT} px row height, hover tracked by mouse position, and
-     * a border that turns {@code border.focus} while the list itself holds
-     * keyboard focus - the one indicator that still shows when nothing in the
-     * list is selected yet. A caller wrapping the result in a {@link
-     * #scrollPane} should set that scroll pane's own border to null, the same
-     * way every whole-column scroll pane in this codebase already does, so
-     * this border is the one that shows. A plain {@link JScrollPane} would
-     * not keep the null: the first theme install gives it the look and feel's
-     * frame back.
+     * its keyboard focus tracked for the outline {@link #listScrollPane} draws
+     * round it, which turns {@code border.focus} while the list holds focus -
+     * the one indicator that still shows when nothing in the list is selected
+     * yet. The list itself gets no border; see {@link #listScrollPane} for
+     * why the outline is the scroll pane's.
      *
      * <p>Returns {@code target} so a caller can chain it the way {@link
      * UiTheme#capped} already does.
@@ -664,11 +718,13 @@ public final class JetControls {
         // the look and feel's own foreground against a themed background, which
         // in the dark palette is near-black on near-black.
         list.setForeground(UiTheme.color("text.primary"));
-        Object focused = list.getClientProperty(FOCUS_PROPERTY);
-        Color line = Boolean.TRUE.equals(focused)
-            ? UiTheme.color("border.focus") : UiTheme.color("border.subtle");
-        list.setBorder(BorderFactory.createLineBorder(line));
         list.repaint();
+        // The outline that shows focus is painted by the scroll pane, which
+        // a repaint of the list alone never reaches.
+        Component pane = SwingUtilities.getAncestorOfClass(JScrollPane.class, list);
+        if (pane != null) {
+            pane.repaint();
+        }
     }
 
     private static MouseAdapter hoverTracker(JList<?> list) {
@@ -803,7 +859,6 @@ public final class JetControls {
             setContentAreaFilled(false);
             setFocusPainted(false);
             setFont(UiTheme.body());
-            setBorder(BorderFactory.createEmptyBorder(0, UiTheme.space(12), 0, UiTheme.space(12)));
             getModel().addChangeListener(e -> refresh());
             addFocusListener(new FocusAdapter() {
                 @Override
@@ -820,6 +875,25 @@ public final class JetControls {
             });
             unsubscribeTheme = Theme.onChange(this::refresh);
             refresh();
+        }
+
+        /**
+         * Puts the 12 px side padding back after every delegate install.
+         *
+         * <p>{@code WindowsButtonUI.installDefaults} sets its visual style's
+         * own border on the button unconditionally, not only over a missing
+         * one or a {@code UIResource}, and that border's side insets are the
+         * look and feel's {@code Button.margin} plus 2: 16 px. Every theme
+         * switch installs the delegate again, so a button that was on screen
+         * for one came out 8 px wider than the same button added later, and
+         * four "Set this up" buttons in the Status section came in two widths.
+         * Runs inside the {@link JButton} constructor as well, before this
+         * class's fields exist, so it reads nothing from them.
+         */
+        @Override
+        public void updateUI() {
+            super.updateUI();
+            setBorder(BorderFactory.createEmptyBorder(0, UiTheme.space(12), 0, UiTheme.space(12)));
         }
 
         @Override

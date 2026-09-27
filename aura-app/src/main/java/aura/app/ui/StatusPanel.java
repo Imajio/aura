@@ -23,6 +23,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -347,28 +348,139 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         return card;
     }
 
-    /** The three model slots on one line, each with its own state colour. */
+    /** The three model slots, each with its own state colour. */
     private JComponent models() {
-        JPanel row = new JPanel();
-        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
-        row.setOpaque(false);
-        slot(row, "Speech to text", stt, true);
-        slot(row, "Narrator", slm, false);
-        slot(row, "Text to speech", tts, false);
+        SlotFlow row = new SlotFlow();
+        row.addSlot("Speech to text", modelState(stt));
+        row.addSlot("Narrator", modelState(slm));
+        row.addSlot("Text to speech", modelState(tts));
         return row;
     }
 
-    private void slot(JPanel row, String name, String state, boolean first) {
-        if (!first) {
-            row.add(Box.createHorizontalStrut(UiTheme.WIDE));
+    /**
+     * The Models row: its slots on one line when the card has the width for
+     * them, flowing onto further lines when it does not, every slot whole.
+     *
+     * <p>All six labels used to share one {@code BoxLayout} row, each made
+     * shrinkable, so a row short of width shrank every one of them in
+     * proportion: within about 50 px of the window's minimum width every name
+     * and every state word was cut to an ellipsis, "lazy" included. The one
+     * line's width also pushed the card's grid onto its minimum sizes, which
+     * is what moved this card's state column left of every other card's.
+     * Asking only for the widest slot's width keeps the grid on its preferred
+     * sizes.
+     *
+     * <p>How many lines fit is known only once the width is, and the layout
+     * that sets the width asks for the height first. So the height reported
+     * is the one the width from the last layout needs, and a layout whose new
+     * width needs a different number of lines asks for one more pass. That
+     * pass settles it: the width this row is given does not depend on its
+     * height.
+     */
+    private static final class SlotFlow extends JPanel {
+
+        private JLabel firstName;
+        private boolean passPending;
+
+        SlotFlow() {
+            super(null);
+            setOpaque(false);
         }
-        // The slot's own name is elastic too. Three names and three states on one
-        // line is the widest row on the page, and a row that cannot shrink is a
-        // row that shoves the whole grid off the left edge at a narrow window -
-        // the state alone being shrinkable would not save it.
-        row.add(UiTheme.elastic(UiTheme.hint(name)));
-        row.add(Box.createHorizontalStrut(UiTheme.GAP));
-        row.add(UiTheme.elastic(modelState(state)));
+
+        /**
+         * One model's name and state, kept together. Only the state gives way,
+         * and only on a line narrower than this one slot: it is the half the
+         * sidecar names, and could be longer than anything this panel chose.
+         */
+        void addSlot(String name, JLabel state) {
+            JLabel label = UiTheme.hint(name);
+            JPanel slot = new JPanel();
+            slot.setLayout(new BoxLayout(slot, BoxLayout.X_AXIS));
+            slot.setOpaque(false);
+            slot.add(label);
+            slot.add(Box.createHorizontalStrut(UiTheme.GAP));
+            slot.add(UiTheme.elastic(state));
+            add(slot);
+            if (firstName == null) {
+                firstName = label;
+            }
+        }
+
+        /**
+         * The first line's baseline, which is where the card puts the row's
+         * name. A slot's name and state share one font size, so the name sits
+         * at the top of its slot and the first slot at the top of this row.
+         */
+        @Override
+        public int getBaseline(int width, int height) {
+            if (firstName == null) {
+                return -1;
+            }
+            Dimension size = firstName.getPreferredSize();
+            return firstName.getBaseline(size.width, size.height);
+        }
+
+        @Override
+        public BaselineResizeBehavior getBaselineResizeBehavior() {
+            return BaselineResizeBehavior.CONSTANT_ASCENT;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(widest(false), lines(getWidth() > 0 ? getWidth() : Integer.MAX_VALUE, false));
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            return new Dimension(widest(true), getPreferredSize().height);
+        }
+
+        @Override
+        public void doLayout() {
+            int needed = lines(getWidth(), true);
+            if (needed != getHeight() && !passPending) {
+                passPending = true;
+                SwingUtilities.invokeLater(() -> {
+                    passPending = false;
+                    revalidate();
+                });
+            }
+        }
+
+        private int widest(boolean minimum) {
+            int widest = 0;
+            for (Component slot : getComponents()) {
+                widest = Math.max(widest, (minimum ? slot.getMinimumSize() : slot.getPreferredSize()).width);
+            }
+            return widest;
+        }
+
+        /**
+         * Places the slots in lines no wider than {@code width}, or only
+         * measures them, and returns the height they take. A slot wider than
+         * a whole line gets the line.
+         */
+        private int lines(int width, boolean place) {
+            int x = 0;
+            int y = 0;
+            int lineHeight = 0;
+            for (Component slot : getComponents()) {
+                Dimension size = slot.getPreferredSize();
+                if (x > 0 && (long) x + UiTheme.WIDE + size.width > width) {
+                    x = 0;
+                    y += lineHeight + UiTheme.TIGHT;
+                    lineHeight = 0;
+                } else if (x > 0) {
+                    x += UiTheme.WIDE;
+                }
+                if (place) {
+                    slot.setBounds(x, y, Math.max(0, Math.min(size.width, width - x)), size.height);
+                }
+                x += size.width;
+                lineHeight = Math.max(lineHeight, size.height);
+            }
+            return y + lineHeight;
+        }
     }
 
     /**
