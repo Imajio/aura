@@ -255,6 +255,75 @@ class VoicePanelTest {
     }
 
     @Test
+    void escapeInsideTheCardCancelsAnArmAndAskingOtherwiseIsLeftAlone() {
+        // Breaks if the Escape binding goes, or if it stays enabled when there
+        // is nothing to cancel. The confirmation and the count-in both carry a
+        // Cancel, and Escape did neither, whichever control held focus. An
+        // always-enabled binding would also swallow Escape for the rest of the
+        // window.
+        onEdt(() -> {
+            Panel panel = new Panel();
+            panel.status(8, 20, true, true, true, false);
+            AbstractButton record = button(panel.voice, "voice.reference.record");
+            javax.swing.Action escape = escapeActionAround(record);
+
+            boolean enabledAtRest = escape.isEnabled();
+            record.doClick();
+            boolean enabledWhileArmed = escape.isEnabled();
+            escape.actionPerformed(new java.awt.event.ActionEvent(record, 0, "escape"));
+
+            assertThat(enabledAtRest).isFalse();
+            assertThat(enabledWhileArmed).isTrue();
+            assertThat(find(panel.voice, "voice.reference.warning").isVisible()).isFalse();
+            assertThat(button(panel.voice, "voice.reference.confirm").getParent().isVisible()).isFalse();
+            assertThat(record.isEnabled()).isTrue();
+            assertThat(panel.sent).isEmpty();
+        });
+    }
+
+    @Test
+    void escapeDuringTheCountInStopsItBeforeTheMicrophoneIsAskedFor() {
+        // Breaks if Escape only covers the arm and not the count that follows,
+        // which Cancel stops and Escape did not.
+        Panel panel = panel(200);
+        onEdt(() -> {
+            panel.status(8, 20, true, true, true, false);
+            AbstractButton record = button(panel.voice, "voice.wake.record");
+            javax.swing.Action escape = escapeActionAround(record);
+            panel.arm("wake");
+
+            assertThat(escape.isEnabled()).isTrue();
+            escape.actionPerformed(new java.awt.event.ActionEvent(record, 0, "escape"));
+
+            assertThat(find(panel.voice, "voice.wake.warning").isVisible()).isFalse();
+            assertThat(record.isEnabled()).isTrue();
+        });
+        try {
+            Thread.sleep(800);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
+        onEdt(() -> assertThat(panel.sent).as("three ticks later").isEmpty());
+    }
+
+    /** The action a card binds to Escape for components inside it, found from one of them. */
+    private static javax.swing.Action escapeActionAround(Component inside) {
+        javax.swing.KeyStroke escape = javax.swing.KeyStroke.getKeyStroke(
+            java.awt.event.KeyEvent.VK_ESCAPE, 0);
+        for (Component at = inside; at != null; at = at.getParent()) {
+            if (at instanceof javax.swing.JComponent component) {
+                Object key = component.getInputMap(
+                    javax.swing.JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).get(escape);
+                if (key != null) {
+                    return component.getActionMap().get(key);
+                }
+            }
+        }
+        throw new AssertionError("nothing round " + inside.getName() + " binds Escape");
+    }
+
+    @Test
     void pressingRecordSendsOneCommandCarryingTheKindAndTheTakesOnTheSpinner() {
         // Breaks if the panel sends the other section's kind, ignores the spinner
         // and sends its default, or sends twice. Twenty takes is ten minutes of

@@ -4,12 +4,15 @@ import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import javax.swing.AbstractAction;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -20,6 +23,7 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.KeyStroke;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
@@ -519,14 +523,10 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
                 report("", "text.secondary");
                 applyState();
             });
-            cancel.addActionListener(e -> {
-                // Cancels an arm and a count-in alike. Stopping the count is the
-                // last moment at which nothing has been asked of the microphone,
-                // so the button that offers it stays live for the whole count.
-                armed = false;
-                stopCounting();
-                applyState();
-            });
+            // Cancels an arm and a count-in alike. Stopping the count is the
+            // last moment at which nothing has been asked of the microphone,
+            // so the button that offers it stays live for the whole count.
+            cancel.addActionListener(e -> disarm());
             confirm.addActionListener(e -> {
                 armed = false;
                 counting = COUNT_IN;
@@ -552,7 +552,30 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             card.row(row(action, reason));
             card.row(progress);
             card.note(report);
+            // Escape does what Cancel does, from anywhere in this card, while
+            // there is an arm or a count to cancel. Disabled the rest of the
+            // time, so the key is not swallowed when there is nothing to stop.
+            card.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "voice.cancel");
+            card.getActionMap().put("voice.cancel", new AbstractAction() {
+                @Override
+                public boolean isEnabled() {
+                    return armed || counting();
+                }
+
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    disarm();
+                }
+            });
             return card;
+        }
+
+        /** Ends an arm or a count-in, before anything has been asked of the microphone. */
+        private void disarm() {
+            armed = false;
+            stopCounting();
+            applyState();
         }
 
         /** Whether this half is counting the owner in rather than recording yet. */
