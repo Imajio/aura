@@ -157,6 +157,34 @@ class VoiceChoicePanelTest {
     }
 
     /**
+     * Breaks if "Reveal names" goes back into the card on its own. The card
+     * stretches a row to its width, and a click 483 px right of the label, over
+     * blank card, revealed every name; that is not undone by unticking it.
+     */
+    @Test
+    void revealNamesTakesClicksOnlyAsWideAsItsSquareAndLabel(@TempDir Path tmp) throws Exception {
+        playableWav(tmp, "release", "voiceA", "running-tests", 50);
+        Panel panel = panel(tmp, tmp.resolve("config.yaml"), 1L);
+
+        onEdt(() -> {
+            panel.panel.setSize(900, 700);
+            layOut(panel.panel);
+            AbstractButton reveal = button(panel.panel, "voice.choice.reveal");
+
+            assertThat(reveal.getWidth()).isEqualTo(reveal.getPreferredSize().width);
+        });
+    }
+
+    private static void layOut(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container container) {
+                layOut(container);
+            }
+        }
+    }
+
+    /**
      * Breaks if the saved report is given a fixed colour. It was: a report written
      * under dark kept dark's success on a white card after a switch to light, at
      * 2.73:1, and the painted glyphs lagged a message behind the colour asked for.

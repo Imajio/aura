@@ -201,7 +201,11 @@ public final class VoiceChoicePanel extends JPanel {
         revealToggle.setName("voice.choice.reveal");
         revealToggle.setEnabled(!voices.isEmpty());
         revealToggle.addActionListener(e -> voiceList.repaint());
-        card.row(revealToggle);
+        // In a left-packed row, not straight in the card: the card stretches what
+        // it holds to its width, and the box took clicks across the whole blank
+        // row beside its label. One stray click there shows which voice is which,
+        // and unticking it cannot take that back.
+        card.row(row(revealToggle));
 
         voiceList.setName("voice.choice.voices");
         voiceList.setFont(UiTheme.body());
