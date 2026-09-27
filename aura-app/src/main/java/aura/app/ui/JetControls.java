@@ -401,10 +401,12 @@ public final class JetControls {
      * The scroll pane {@link #scrollPane} builds, open to subclassing so a
      * site can still override what the {@link JScrollPane} constructor calls.
      *
-     * <p>Its fields have no initialisers on purpose. {@link #updateUI} and
-     * {@link #setBorder} both run inside the {@link JScrollPane} constructor,
-     * before any initialiser would, and an initialiser would then overwrite
-     * what they recorded.
+     * <p>Its fields carry no initialisers, because the {@link JScrollPane}
+     * constructor calls {@link #updateUI}, and with it {@link #setBorder},
+     * before any initialiser here would run. Nothing needs recording at that
+     * point, since every border set there is the look and feel's, and a field
+     * without an initialiser keeps whatever those early calls left rather
+     * than being reset under them afterwards.
      */
     static class TokenScrollPane extends JScrollPane {
 
