@@ -4,11 +4,14 @@ import aura.app.AuraConfig;
 import aura.app.SidecarEvents.SidecarEvent;
 import aura.core.AgentEvent;
 import aura.core.ProjectRegistry;
+import java.awt.AWTEvent;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Frame;
+import java.awt.Toolkit;
+import java.awt.event.FocusEvent;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -230,6 +233,18 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         frame.setSize(900, 640);
         frame.setMinimumSize(new Dimension(MINIMUM_WIDTH, MINIMUM_HEIGHT));
         frame.setLocationRelativeTo(null);
+
+        // Focus that arrives by keyboard, or by a panel moving it, scrolls its
+        // page to it. Not focus from a click: whatever the pointer reached is
+        // already on screen, and moving the page under a pressed button would
+        // be a surprise of its own.
+        Toolkit.getDefaultToolkit().addAWTEventListener(event -> {
+            if (event instanceof FocusEvent focus && focus.getID() == FocusEvent.FOCUS_GAINED
+                    && focus.getCause() != FocusEvent.Cause.MOUSE_EVENT
+                    && SwingUtilities.isDescendingFrom(focus.getComponent(), body)) {
+                ContentPane.reveal(focus.getComponent());
+            }
+        }, AWTEvent.FOCUS_EVENT_MASK);
 
         voice = new VoicePanel(toSidecar);
         // Reads and writes config.yaml directly; it never talks to the sidecar, so it
