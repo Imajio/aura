@@ -23,11 +23,11 @@ import javax.swing.border.Border;
  *
  * <p>Since M4 the palette itself comes from jet-swing-design-system's token
  * layer: two maps, one per {@link Theme.Mode}, holding the colours {@code
- * TOKENS.md} lists, under exactly its names. Two values differ from the
- * document on purpose: the light palette's {@code success} and {@code
- * warning} are darker shades of the document's hues, because the document's
- * single value for both themes is too faint to read as text on a white card.
- * The comment above them has the measurements. {@link #color(String)} reads
+ * TOKENS.md} lists, under exactly its names. Three values differ from the
+ * document on purpose: the light palette's {@code success}, {@code warning}
+ * and {@code error} are darker shades of the document's hues, because the
+ * document's single value for both themes is too faint to read as text on a
+ * white card. The comment above them has the measurements. {@link #color(String)} reads
  * whichever map {@link Theme#mode()} says is current; the named accessors
  * below it - {@link #ink()}, {@link #muted()} and the rest - read the same
  * map through the same lookup, so a call site that means "the muted text
@@ -48,8 +48,8 @@ public final class UiTheme {
     // token the document names appears in both maps, whether or not Aura
     // reads it yet; a token added to one without its twin in the other is
     // exactly what UiThemeTest's palette agreement test is for. Every value
-    // is the document's except light success and warning; the comment above
-    // those two says why.
+    // is the document's except light success, warning and error; the comment
+    // above those three says why.
     static final Map<String, Color> DARK_PALETTE = Map.ofEntries(
         Map.entry("surface.app", hex("#191A1C")),
         Map.entry("surface.primary", hex("#1E1F22")),
@@ -99,20 +99,23 @@ public final class UiTheme {
         Map.entry("accent.primary", hex("#4D8DFF")),
         Map.entry("accent.hover", hex("#649DFF")),
         Map.entry("accent.pressed", hex("#3E77DD")),
-        // The two values in either map that are not TOKENS.md's. The document
-        // gives success #4CAF73 and warning #D9A441 once, for both themes, and
-        // on the dark card they read well: 6.03:1 and 7.33:1 on
-        // surface.primary. On the light card they measure 2.73:1 and 2.25:1,
-        // and every place Aura uses either token it uses it as the ink of
-        // 13 px text - a state word such as "missing" or "running", or a
-        // sentence such as the microphone warning - which needs 4.5:1. These
-        // are the same two hues made darker, each to the lightest shade that
-        // still clears 4.5:1 on surface.secondary, the darkest light surface:
-        // success 5.11:1 and warning 5.19:1 on surface.primary, 4.81:1 and
-        // 4.88:1 on surface.app. The dark palette keeps the document's values.
+        // The three values in either map that are not TOKENS.md's. The
+        // document gives success #4CAF73, warning #D9A441 and error #E35B5B
+        // once, for both themes, and on the dark card they read: 6.03:1,
+        // 7.33:1 and 4.64:1 on surface.primary. On the light card they measure
+        // 2.73:1, 2.25:1 and 3.55:1, and every place Aura uses any of them it
+        // uses it as the ink of 13 px text - a state word such as "missing" or
+        // "running", a sentence such as the microphone warning, or a failed
+        // task's reason - which needs 4.5:1. These are the same three hues
+        // made darker, each to the lightest shade that still clears 4.5:1 on
+        // surface.secondary, the darkest light surface, or for error one step
+        // past it, for the same margin the other two have: success 5.11:1,
+        // warning 5.19:1 and error 5.11:1 on surface.primary, 4.81:1, 4.88:1
+        // and 4.81:1 on surface.app, 4.56:1 for error on surface.secondary.
+        // The dark palette keeps the document's values.
         Map.entry("success", hex("#367B51")),
         Map.entry("warning", hex("#8D661C")),
-        Map.entry("error", hex("#E35B5B")),
+        Map.entry("error", hex("#D52424")),
         Map.entry("info", hex("#4D8DFF")));
 
     private static Color hex(String value) {

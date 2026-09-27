@@ -426,7 +426,9 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         String value = state == null || state.isBlank() ? "unknown" : state;
         String token = switch (value.toLowerCase(Locale.ROOT)) {
             case "loaded" -> "success";
-            case "lazy" -> "accent.primary";
+            // Loads on first use: not a fault to fix and not something to press,
+            // so plain secondary text rather than a state colour or the accent.
+            case "lazy" -> "text.secondary";
             case "absent" -> "warning";
             default -> "text.secondary";
         };
