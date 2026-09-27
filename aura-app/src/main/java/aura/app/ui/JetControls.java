@@ -257,6 +257,16 @@ public final class JetControls {
      */
     private static final int CHECK_RING = 2;
 
+    /**
+     * How far inside a focused primary button its focus ring sits. The ring is
+     * drawn in {@link #ACCENT_INK}, the dark ink the label already uses, which
+     * reaches 5.04:1 on the accent fill in both themes. Inside the button
+     * rather than round it, so focusing a button never changes the room it
+     * takes; 2 px keeps a band of accent on each side of the ring, so the ring
+     * reads as a ring and not as the edge of a darker button.
+     */
+    private static final int PRIMARY_FOCUS_INSET = 2;
+
     /** The spinner's field corners, matching the check box's rather than the buttons' 6. */
     private static final int SPINNER_RADIUS = UiTheme.radius(4);
 
@@ -951,10 +961,20 @@ public final class JetControls {
             if (pressed) {
                 return UiTheme.accent();
             }
-            if (focused) {
+            if (focused && !primary) {
                 return UiTheme.color("border.focus");
             }
             return primary ? null : UiTheme.color("border.default");
+        }
+
+        /**
+         * Whether to draw {@link #PRIMARY_FOCUS_INSET}'s ring. A primary
+         * button cannot show focus with its outline the way a neutral one
+         * does: its fill is the edge, and {@code border.focus} on {@code
+         * accent.primary} is the same hex in dark and 1.23:1 in light.
+         */
+        private boolean paintsFocusRing() {
+            return primary && focused && isEnabled();
         }
 
         @Override
@@ -985,6 +1005,11 @@ public final class JetControls {
             Graphics2D g2 = smooth(g);
             try {
                 paintRounded(g2, 0, 0, getWidth(), getHeight(), BUTTON_RADIUS, getBackground(), borderColor);
+                if (paintsFocusRing()) {
+                    int inset = PRIMARY_FOCUS_INSET;
+                    paintRounded(g2, inset, inset, getWidth() - 2 * inset, getHeight() - 2 * inset,
+                        BUTTON_RADIUS - inset, null, ACCENT_INK);
+                }
             } finally {
                 g2.dispose();
             }

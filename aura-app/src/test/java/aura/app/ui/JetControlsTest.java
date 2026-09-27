@@ -170,6 +170,32 @@ class JetControlsTest {
     }
 
     @Test
+    void aFocusedPrimaryButtonChangesByAtLeastThreeToOneInBothThemes() {
+        // Breaks if the primary button strokes border.focus onto its own fill
+        // again. In dark the two are the same hex, and in light they measure
+        // 1.23:1, so the rendered window showed no focus on the three buttons
+        // that start enrolment, training and a saved voice. WCAG 1.4.11 asks
+        // 3:1 of a state indicator against what it replaces.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            JButton button = JetControls.primaryButton("Use this voice");
+            BufferedImage resting = render(button, 2);
+
+            fireFocus(button, true);
+            BufferedImage focused = render(button, 2);
+
+            double strongest = 1.0;
+            for (int y = 0; y < resting.getHeight(); y++) {
+                for (int x = 0; x < resting.getWidth(); x++) {
+                    strongest = Math.max(strongest, contrast(new Color(resting.getRGB(x, y)),
+                        new Color(focused.getRGB(x, y))));
+                }
+            }
+            assertThat(strongest).as(mode + " strongest change on focus").isGreaterThanOrEqualTo(3.0);
+        }
+    }
+
+    @Test
     void disabledButtonFadesItsOwnLabelWithoutMakingItInvisible() {
         // Breaks if the disabled branch is deleted (foreground would stay
         // text.primary, no reduction at all) or if it is set equal to the
