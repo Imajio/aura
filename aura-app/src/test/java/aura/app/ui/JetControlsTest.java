@@ -422,6 +422,61 @@ class JetControlsTest {
     }
 
     @Test
+    void aListOnAnotherSurfaceRestsOnItAndItsRowsHoverFromIt() {
+        // Breaks if list(target, token) ignores the token, or if the rows
+        // hover and rest from surface.primary whatever the list sits on. The
+        // section rail sits on the canvas, and its rows used to be a plain
+        // DefaultListCellRenderer with no hover and no stripe at all.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            JetControls.RowRenderer<String> renderer = new JetControls.RowRenderer<>() {
+                @Override
+                protected String text(String value) {
+                    return value;
+                }
+            };
+            JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()), "surface.app");
+
+            renderer.getListCellRendererComponent(list, "Status", 0, false, false);
+            Color rest = renderer.getBackground();
+            list.putClientProperty("jet.hoveredRow", 0);
+            renderer.getListCellRendererComponent(list, "Status", 0, false, false);
+            Color hover = renderer.getBackground();
+
+            assertThat(list.getBackground()).as(mode + " list").isEqualTo(UiTheme.canvas());
+            assertThat(rest).as(mode + " resting row").isEqualTo(UiTheme.canvas());
+            assertThat(hover).as(mode + " hovered row")
+                .isEqualTo(JetControls.mix(UiTheme.canvas(), UiTheme.color("surface.selection"), 0.55));
+        }
+    }
+
+    @Test
+    void aRingingRendererOutlinesTheFocusedRowWithoutMovingAnyRow() {
+        // Breaks if the ring is dropped: the rail is the first Tab stop in
+        // every section, and focus on it changed not one pixel. Also breaks
+        // if an unfocused row loses the matching empty inset, which would
+        // shift a row's label by a pixel the moment focus reached it.
+        JetControls.RowRenderer<String> renderer = new JetControls.RowRenderer<>(true) {
+            @Override
+            protected String text(String value) {
+                return value;
+            }
+        };
+        JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()), "surface.app");
+
+        renderer.getListCellRendererComponent(list, "Status", 0, true, true);
+        Border focused = renderer.getBorder();
+        renderer.getListCellRendererComponent(list, "Status", 0, true, false);
+        Border resting = renderer.getBorder();
+
+        Border ring = ((CompoundBorder) focused).getOutsideBorder();
+        assertThat(ring).isInstanceOf(LineBorder.class);
+        assertThat(((LineBorder) ring).getLineColor()).isEqualTo(UiTheme.color("border.focus"));
+        assertThat(((CompoundBorder) resting).getOutsideBorder()).isInstanceOf(EmptyBorder.class);
+        assertThat(focused.getBorderInsets(renderer)).isEqualTo(resting.getBorderInsets(renderer));
+    }
+
+    @Test
     void hoveredRowIsNotRepaintedAsSelected() {
         // Breaks if rowBackground's hover branch is reordered above the
         // selected branch, or if RowRenderer stops passing isSelected through

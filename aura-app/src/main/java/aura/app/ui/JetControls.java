@@ -217,6 +217,7 @@ public final class JetControls {
 
     private static final String HOVER_PROPERTY = "jet.hoveredRow";
     private static final String FOCUS_PROPERTY = "jet.focused";
+    private static final String SURFACE_PROPERTY = "jet.surface";
 
     /** The painted stroke colour of a control that draws its own border. */
     static final String BORDER_COLOUR_PROPERTY = "jet.borderColour";
@@ -685,6 +686,19 @@ public final class JetControls {
      * UiTheme#capped} already does.
      */
     public static <T> JList<T> list(JList<T> target) {
+        return list(target, "surface.primary");
+    }
+
+    /**
+     * The same, for a list that sits straight on another surface rather than
+     * on a card: the section rail, whose rows lie on the window's canvas. The
+     * list's background and a {@link RowRenderer}'s resting and hovered rows
+     * start from {@code surfaceToken} instead of {@code surface.primary}; the
+     * selection is the same full {@code surface.selection} tint and stripe.
+     */
+    public static <T> JList<T> list(JList<T> target, String surfaceToken) {
+        UiTheme.color(surfaceToken);
+        target.putClientProperty(SURFACE_PROPERTY, surfaceToken);
         target.setFixedCellHeight(ROW_HEIGHT);
         MouseAdapter hover = hoverTracker(target);
         target.addMouseListener(hover);
@@ -745,8 +759,14 @@ public final class JetControls {
         }
     }
 
+    /** The surface a list passed through {@link #list} sits on. */
+    private static Color surfaceOf(JList<?> list) {
+        Object token = list.getClientProperty(SURFACE_PROPERTY);
+        return token instanceof String name ? UiTheme.color(name) : UiTheme.surface();
+    }
+
     private static void refreshListChrome(JList<?> list) {
-        list.setBackground(UiTheme.surface());
+        list.setBackground(surfaceOf(list));
         // Set here as well as in RowRenderer, because a list whose caller has
         // not installed one still has to be legible: without it the rows keep
         // the look and feel's own foreground against a themed background, which
@@ -804,13 +824,18 @@ public final class JetControls {
      * this is a distance from the base surface rather than a fixed colour.
      */
     static Color rowBackground(boolean selected, boolean hovered) {
+        return rowBackground(UiTheme.surface(), selected, hovered);
+    }
+
+    /** The same, for rows that rest on {@code base} rather than {@code surface.primary}. */
+    static Color rowBackground(Color base, boolean selected, boolean hovered) {
         if (selected) {
             return UiTheme.color("surface.selection");
         }
         if (hovered) {
-            return mix(UiTheme.surface(), UiTheme.color("surface.selection"), ROW_HOVER_MIX);
+            return mix(base, UiTheme.color("surface.selection"), ROW_HOVER_MIX);
         }
-        return UiTheme.surface();
+        return base;
     }
 
     /**
@@ -852,6 +877,23 @@ public final class JetControls {
      */
     public abstract static class RowRenderer<T> extends DefaultListCellRenderer {
 
+        private final boolean ringsFocusedRow;
+
+        protected RowRenderer() {
+            this(false);
+        }
+
+        /**
+         * With {@code ringsFocusedRow}, the row that holds the list's keyboard
+         * focus gets a 1 px {@code border.focus} ring, and every other row an
+         * empty inset of the same width. For a list with no outline of its own
+         * to turn {@code border.focus}, such as the section rail, where a box
+         * round the whole column would fight the divider beside it.
+         */
+        protected RowRenderer(boolean ringsFocusedRow) {
+            this.ringsFocusedRow = ringsFocusedRow;
+        }
+
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                 boolean isSelected, boolean cellHasFocus) {
@@ -860,10 +902,16 @@ public final class JetControls {
             super.getListCellRendererComponent(list, text(typed), index, isSelected, cellHasFocus);
             boolean hovered = !isSelected && index == hoveredIndex(list);
             setOpaque(true);
-            setBackground(rowBackground(isSelected, hovered));
+            setBackground(rowBackground(surfaceOf(list), isSelected, hovered));
             setForeground(list.isEnabled()
                 ? UiTheme.color("text.primary") : UiTheme.color("text.disabled"));
-            setBorder(rowBorder(isSelected));
+            Border row = rowBorder(isSelected);
+            if (ringsFocusedRow) {
+                row = BorderFactory.createCompoundBorder(cellHasFocus
+                    ? BorderFactory.createLineBorder(UiTheme.color("border.focus"))
+                    : BorderFactory.createEmptyBorder(1, 1, 1, 1), row);
+            }
+            setBorder(row);
             return this;
         }
 

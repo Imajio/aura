@@ -7,7 +7,6 @@ import aura.core.ProjectRegistry;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.nio.file.Path;
@@ -17,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -75,24 +73,23 @@ import org.slf4j.LoggerFactory;
  *
  * <h2>Theme</h2>
  *
- * <p>The rail, the foot under it and the body are the pieces of chrome this class
- * owns directly, and none of them may cache a {@link java.awt.Color} the way a
- * constructor-time field would: {@link #refreshChrome} reads {@link UiTheme}'s
- * accessors fresh and is the only place they touch a colour, called from every
- * {@link Theme#onChange}. A value read once at construction and kept is exactly
- * the defect this milestone is most likely to ship, because it looks correct
- * until somebody switches. The theme control in the foot is a {@link
- * JetControls#button} and keeps its own colours.
+ * <p>The rail's scroll pane and column, the foot under it and the body are the
+ * pieces of chrome this class owns directly, and none of them may cache a {@link
+ * java.awt.Color} the way a constructor-time field would: {@link #refreshChrome}
+ * reads {@link UiTheme}'s accessors fresh and is the only place they touch a
+ * colour, called from every {@link Theme#onChange}. A value read once at
+ * construction and kept is exactly the defect this milestone is most likely to
+ * ship, because it looks correct until somebody switches. The section list itself
+ * is a {@link JetControls#list} with a {@link JetControls.RowRenderer}, and the
+ * theme control in the foot a {@link JetControls#button}; both keep their own
+ * colours.
  *
  * <p>{@link Theme#install} is called from here exactly once, as the constructor's
  * last statement rather than its first: it calls {@code updateComponentTreeUI},
- * which only reaches components already attached to a window, and {@code
- * sectionList} is not attached until this constructor has built the rest of the
- * frame around it. Installed any earlier, {@code sectionList}'s own selection
- * colours - set once from the plain look and feel's defaults when its field
- * initialiser ran, before this class had touched {@code Theme} at all - would
- * keep those defaults rather than the configured theme's, until whatever the
- * first later switch happens to be.
+ * which only reaches components already attached to a window, and the panels are
+ * not attached until this constructor has built the frame around them. The rail
+ * once showed the system's own blue selection bar on a window nobody had switched,
+ * because install ran before the list was attached.
  */
 public final class AuraWindow implements Consumer<SidecarEvent> {
 
@@ -179,19 +176,18 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         sectionList.setFont(UiTheme.body());
-        sectionList.setFixedCellHeight(UiTheme.SECTION);
         sectionList.setBorder(UiTheme.pad(UiTheme.GAP));
-        // The selection bar is painted by the look and feel and fills the whole
-        // cell, so without this the name of the selected section sits flush
-        // against the coloured edge and reads as cramped.
-        sectionList.setCellRenderer(new DefaultListCellRenderer() {
+        // The same rows as the voice list - hover, a selection tint with its
+        // accent stripe - resting on the canvas rather than on a card, and a
+        // ring round the row that holds keyboard focus. The rail is the first
+        // Tab stop in every section, and it has no outline of its own to show
+        // focus with. JetControls.list keeps the background and foreground on
+        // the palette across a switch, so refreshChrome does not touch them.
+        JetControls.list(sectionList, "surface.app");
+        sectionList.setCellRenderer(new JetControls.RowRenderer<String>(true) {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value,
-                    int index, boolean selected, boolean focused) {
-                Component cell = super.getListCellRendererComponent(
-                    list, value, index, selected, focused);
-                setBorder(UiTheme.pad(UiTheme.GAP));
-                return cell;
+            protected String text(String title) {
+                return title;
             }
         });
         sectionList.addListSelectionListener(e -> {
@@ -254,13 +250,10 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // Last, after every child above is already attached to frame - not, as it
         // is tempting to write it, first. Theme.install calls
         // SwingUtilities.updateComponentTreeUI, which only walks components already
-        // in a window's tree; run any earlier, and sectionList's own selection
-        // colours - set once from the plain look and feel's defaults the moment its
-        // field initialiser ran, before this class ever touches Theme - would keep
-        // those defaults until whatever the next switch happens to be, rather than
-        // the configured theme. Rendering both themes for this task is what caught
-        // it: a rail with the system's own blue selection bar instead of the design
-        // system's, on a window nobody had switched yet. Registered before install
+        // in a window's tree; run any earlier, and a component that is not attached
+        // yet keeps whatever its look and feel gave it until the next switch.
+        // Rendering both themes caught it once: a rail with the system's own blue
+        // selection bar, on a window nobody had switched yet. Registered before install
         // so the same call both installs the configured mode and runs refreshChrome
         // for the first time, rather than a separate seeding path that could drift
         // from what a later switch does.
@@ -270,8 +263,8 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
     /**
      * Re-reads {@link UiTheme}'s live accessors into the chrome this class paints
-     * directly - sectionList's background, foreground and selection colours, the
-     * rail's border, the rail column's and the body's backgrounds, and the rail
+     * directly - the rail's border and viewport, the rail column's and the body's
+     * backgrounds, and the rail
      * foot's border - plus the theme control's own label, and repaints. Called
      * once, right after the window is built, and again from every {@link
      * Theme#onChange}, so construction and a later switch produce the chrome the
@@ -289,26 +282,10 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
      */
     private void refreshChrome() {
         Color canvas = UiTheme.canvas();
-        Color ink = UiTheme.ink();
-        sectionList.setBackground(canvas);
-        // Foreground and the two selection colours are set explicitly rather than
-        // left to Theme.install's UIManager/updateComponentTreeUI mechanism: that
-        // mechanism only reaches a component's own cached colour the first time
-        // its updateUI() runs after the UIManager key is already correct, not on
-        // every later switch - Theme.applyToLookAndFeel's own javadoc has the
-        // full account, found by rendering a switch back to a mode already seen
-        // once. sectionList's unselected items read that way before this fix:
-        // correct the first time, then frozen at that mode's colour regardless
-        // of what Theme.mode() said next. Explicit here means every later switch
-        // sets the same four colours the same way, not three of the four plus
-        // whatever a Swing internal happened to do once.
-        sectionList.setForeground(ink);
-        sectionList.setSelectionBackground(UiTheme.color("surface.selection"));
-        sectionList.setSelectionForeground(ink);
         body.setBackground(canvas);
         rail.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.line()));
         // sectionList already covers the whole viewport (it stretches to fill it,
-        // and its own background above is correct on every switch), so this is
+        // and JetControls.list keeps its background right on every switch), so this is
         // not fixing an observed defect the way TasksPanel's own activity scroll
         // needed fixing in fix round 2 - it matches the convention every other
         // scroll pane in this codebase already follows now that Theme.install no
