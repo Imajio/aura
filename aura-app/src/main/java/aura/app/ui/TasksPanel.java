@@ -103,7 +103,7 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         }
     };
     private boolean scrollPending;
-    private final JTextField phraseField = new JTextField();
+    private final JTextField phraseField = JetControls.textField("");
     private final JButton sendButton = JetControls.button("Send");
     // dispatch.accept(phrase) now hands the work to Main's own background
     // executor and returns before anything has happened, so returning is no
@@ -170,7 +170,6 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         JPanel row = new JPanel(new BorderLayout(UiTheme.GAP, 0));
         row.setOpaque(false);
         phraseField.setName("tasks.phrase");
-        phraseField.setFont(UiTheme.body());
         phraseField.addActionListener(e -> submit());
         row.add(phraseField, BorderLayout.CENTER);
 

@@ -75,13 +75,14 @@ import org.slf4j.LoggerFactory;
  *
  * <h2>Theme</h2>
  *
- * <p>The rail, the body and the theme control are the pieces of chrome this class
+ * <p>The rail, the foot under it and the body are the pieces of chrome this class
  * owns directly, and none of them may cache a {@link java.awt.Color} the way a
  * constructor-time field would: {@link #refreshChrome} reads {@link UiTheme}'s
- * accessors fresh and is the only place these three touch a colour, called from
- * every {@link Theme#onChange}. A value read once at construction and kept is
- * exactly the defect this milestone is most likely to ship, because it looks
- * correct until somebody switches.
+ * accessors fresh and is the only place they touch a colour, called from every
+ * {@link Theme#onChange}. A value read once at construction and kept is exactly
+ * the defect this milestone is most likely to ship, because it looks correct
+ * until somebody switches. The theme control in the foot is a {@link
+ * JetControls#button} and keeps its own colours.
  *
  * <p>{@link Theme#install} is called from here exactly once, as the constructor's
  * last statement rather than its first: it calls {@code updateComponentTreeUI},
@@ -147,7 +148,11 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     // configured, and themeToggle's label depends on Theme.mode(), which the
     // constructor only settles once the configured theme has been installed.
     private final JScrollPane rail;
-    private final JButton themeToggle = new JButton();
+    private final JButton themeToggle = JetControls.button("");
+    private final JPanel railColumn = new JPanel(new BorderLayout());
+    // Holds themeToggle below the section list, padded so the button lines up
+    // with the list's rows and carrying the rail's separator line past it.
+    private final JPanel railFoot = new JPanel(new BorderLayout());
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -199,8 +204,6 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         rail.setPreferredSize(new Dimension(RAIL_WIDTH, 0));
 
-        themeToggle.setFont(UiTheme.body());
-        themeToggle.setFocusPainted(false);
         themeToggle.setName("theme.toggle");
         // Loads and saves config.yaml fresh on every press rather than holding an
         // AuraConfig field across the window's lifetime, the same choice
@@ -218,9 +221,10 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             }
         });
 
-        JPanel railColumn = new JPanel(new BorderLayout());
+        railFoot.setOpaque(false);
+        railFoot.add(themeToggle, BorderLayout.CENTER);
         railColumn.add(rail, BorderLayout.CENTER);
-        railColumn.add(themeToggle, BorderLayout.SOUTH);
+        railColumn.add(railFoot, BorderLayout.SOUTH);
 
         frame.setIconImages(aura.app.TrayIconArt.windowIcons());
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -267,20 +271,21 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     /**
      * Re-reads {@link UiTheme}'s live accessors into the chrome this class paints
      * directly - sectionList's background, foreground and selection colours, the
-     * rail's border, and the body's background - plus the theme control's own
-     * label, and repaints. Called once, right after the window is built, and
-     * again from every {@link Theme#onChange}, so construction and a later
-     * switch produce the chrome the same way instead of two code paths that
-     * could disagree.
+     * rail's border, the rail column's and the body's backgrounds, and the rail
+     * foot's border - plus the theme control's own label, and repaints. Called
+     * once, right after the window is built, and again from every {@link
+     * Theme#onChange}, so construction and a later switch produce the chrome the
+     * same way instead of two code paths that could disagree.
      *
-     * <p>{@code themeToggle} gets a new label here but deliberately no explicit
-     * foreground: its face is never themed (no button in this codebase has an
-     * explicit background, {@code themeToggle} included), and forcing its text
-     * to track {@code ink()} would put dark mode's near-white text on that
-     * always-light native face - unreadable, the same shape as fix round 1's
-     * defect, self-inflicted this time rather than left over from {@link
-     * UIManager}. Left to the look and feel, its text stays whatever legible
-     * native colour a button's text always was, in either mode.
+     * <p>{@code themeToggle} gets its label here and no colour at all. It is a
+     * {@link JetControls#button}, which paints its own face and outline and
+     * re-reads its tokens on every switch, like every other button in the
+     * window, so a colour set here would only fight it. What surrounds it is
+     * this class's chrome, though: the rail column's canvas shows round the
+     * button's rounded corners and in the padding that lines it up with the
+     * section rows, and the foot's border carries the rail's separator down past
+     * the button. Left to the look and feel, the column behind that padding
+     * would paint the platform's light grey in both themes.
      */
     private void refreshChrome() {
         Color canvas = UiTheme.canvas();
@@ -310,6 +315,9 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // longer sets Viewport.background itself, so rail does not become the
         // one exception if sectionList's coverage of it ever stops being total.
         rail.getViewport().setBackground(canvas);
+        railColumn.setBackground(canvas);
+        railFoot.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.line()), UiTheme.pad(UiTheme.GAP)));
         themeToggle.setText(Theme.mode() == Theme.Mode.DARK
             ? "Switch to light theme" : "Switch to dark theme");
         frame.repaint();

@@ -111,10 +111,10 @@ public final class VoiceChoicePanel extends JPanel {
     private final Path configFile;
     private final List<AuditionVoice> voices;
 
-    private final JCheckBox revealToggle = new JCheckBox("Reveal names");
+    private final JCheckBox revealToggle = JetControls.checkBox("Reveal names");
     private final DefaultListModel<AuditionVoice> voiceListModel = new DefaultListModel<>();
     private final JList<AuditionVoice> voiceList = new JList<>(voiceListModel);
-    private final JButton useButton = new JButton("Use this voice");
+    private final JButton useButton = JetControls.primaryButton("Use this voice");
     private final JLabel useReason = UiTheme.elastic(UiTheme.hint(""));
     private final JLabel useReport = UiTheme.wrapped("");
     private final JLabel linesReason = UiTheme.hint("");
@@ -202,9 +202,6 @@ public final class VoiceChoicePanel extends JPanel {
                 + "hidden until you ask for them.");
         }
         revealToggle.setName("voice.choice.reveal");
-        revealToggle.setFont(UiTheme.body());
-        revealToggle.setOpaque(false);
-        revealToggle.setFocusPainted(false);
         revealToggle.setEnabled(!voices.isEmpty());
         revealToggle.addActionListener(e -> voiceList.repaint());
         card.row(revealToggle);
@@ -227,8 +224,6 @@ public final class VoiceChoicePanel extends JPanel {
         card.row(voiceScroll);
 
         useButton.setName("voice.choice.use");
-        useButton.setFont(UiTheme.body());
-        useButton.setFocusPainted(false);
         useButton.addActionListener(e -> useSelectedVoice());
         useReason.setName("voice.choice.useReason");
         useReport.setName("voice.choice.useReport");
@@ -247,10 +242,8 @@ public final class VoiceChoicePanel extends JPanel {
         grid.setOpaque(false);
         for (String lineId : LINE_ORDER) {
             String label = humanize(lineId) + (ENGLISH_TERM_LINES.contains(lineId) ? " *" : "");
-            JButton button = new JButton(label);
+            JButton button = JetControls.button(label);
             button.setName("voice.choice.line." + lineId);
-            button.setFont(UiTheme.body());
-            button.setFocusPainted(false);
             button.addActionListener(e -> playSelectedLine(lineId));
             lineButtons.put(lineId, button);
             grid.add(button);
