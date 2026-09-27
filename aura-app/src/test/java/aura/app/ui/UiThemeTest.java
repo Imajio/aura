@@ -7,6 +7,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -567,5 +569,60 @@ class UiThemeTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("sucess");
         assertThat(label.getForeground()).isEqualTo(UiTheme.color("success"));
+    }
+
+    @Test
+    void recolourRepaintsTheGlyphsOfAWrappedLabelAndNotOnlyItsForeground() {
+        // Breaks if recolour only swaps the token and repaints. A wrapped label
+        // is HTML, and Swing bakes the foreground into the HTML view when the
+        // text is set, so a sentence written first and recoloured second kept
+        // painting in the old token while getForeground() already answered the
+        // new one. Only the painted pixels can tell the two apart.
+        Theme.install(Theme.Mode.DARK);
+        JLabel label = UiTheme.wrapped("");
+
+        label.setText(UiTheme.html("ENROL_FAILED - no take was loud enough to use"));
+        UiTheme.recolour(label, "error");
+
+        Color ink = paintedInk(label, UiTheme.surface());
+        assertThat(distance(ink, UiTheme.color("error")))
+            .isLessThan(distance(ink, UiTheme.color("text.secondary")));
+    }
+
+    /** The painted pixel furthest from the background: the solid core of the glyphs. */
+    static Color paintedInk(JLabel label, Color background) {
+        Dimension size = label.getPreferredSize();
+        label.setSize(size);
+        BufferedImage image = new BufferedImage(size.width * 2, size.height * 2,
+            BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(background);
+            g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            g.scale(2, 2);
+            label.paint(g);
+        } finally {
+            g.dispose();
+        }
+        Color furthest = background;
+        double far = -1;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                Color pixel = new Color(image.getRGB(x, y));
+                double d = distance(pixel, background);
+                if (d > far) {
+                    far = d;
+                    furthest = pixel;
+                }
+            }
+        }
+        return furthest;
+    }
+
+    static double distance(Color a, Color b) {
+        int red = a.getRed() - b.getRed();
+        int green = a.getGreen() - b.getGreen();
+        int blue = a.getBlue() - b.getBlue();
+        return Math.sqrt(red * red + green * green + blue * blue);
     }
 }

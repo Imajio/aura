@@ -288,6 +288,13 @@ public final class UiTheme {
      * the current mode says, which is the exact defect the token layer exists
      * to remove, and it would do so silently. An unknown token throws the same
      * way {@link #color(String)} does, before the label is touched.
+     *
+     * <p>A change of colour is announced as a {@code "foreground"} property
+     * change, the event a label's delegate already answers by rebuilding its
+     * HTML view. A wrapped label is HTML, and that view holds the foreground it
+     * was built with: without the event, a sentence set first and recoloured
+     * second went on painting in the old token while {@code getForeground()}
+     * answered the new one.
      */
     public static void recolour(JLabel label, String token) {
         if (!(label instanceof TokenLabel tracked)) {
@@ -295,7 +302,9 @@ public final class UiTheme {
                 + " by token, not " + (label == null ? "null" : label.getClass().getName()));
         }
         color(token);
+        Color before = tracked.getForeground();
         tracked.token = token;
+        tracked.firePropertyChange("foreground", before, tracked.getForeground());
         tracked.repaint();
     }
 
@@ -343,6 +352,12 @@ public final class UiTheme {
                 token = null;
             }
             super.setForeground(colour);
+        }
+
+        /** Widened so {@link #recolour} can announce a token change from outside. */
+        @Override
+        public void firePropertyChange(String property, Object before, Object after) {
+            super.firePropertyChange(property, before, after);
         }
     }
 
