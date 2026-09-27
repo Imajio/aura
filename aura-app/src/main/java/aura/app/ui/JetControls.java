@@ -32,13 +32,18 @@ import javax.swing.JComponent;
 import javax.swing.JFormattedTextField;
 import javax.swing.JList;
 import javax.swing.JProgressBar;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.JViewport;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
+import javax.swing.plaf.UIResource;
 import javax.swing.plaf.basic.BasicGraphicsUtils;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.plaf.basic.BasicSpinnerUI;
 
 /**
@@ -51,12 +56,12 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * com.example.jetswing.theme.JetComponents} (96 lines). Kept: {@link #button},
  * {@link #primaryButton} and {@link #textField} - grepping every {@code new
  * JButton}/{@code JTextField} in {@code aura.app.ui} found none of them
- * icon-only and none inside a tool-window header. Cut: {@code panel} and {@code
- * scrollPane}, since every panel and scroll pane already in this codebase sets
- * its own background explicitly and a second way to do the one thing is not a
- * port, it is a fork; {@code toolWindow}, since the plan's Ruling 3 keeps this
- * milestone to the token layer and not jet-swing-design-system's IDE shell; and
- * {@code iconButton}, since nothing here is icon-only. Added: {@link #list} and
+ * icon-only and none inside a tool-window header. Cut: {@code panel}, since
+ * every panel already in this codebase sets its own background explicitly and a
+ * second way to do the one thing is not a port, it is a fork; {@code
+ * toolWindow}, since the plan's Ruling 3 keeps this milestone to the token layer
+ * and not jet-swing-design-system's IDE shell; and {@code iconButton}, since
+ * nothing here is icon-only. Added: {@link #list} and
  * {@link RowRenderer}, which the reference does not have at all - {@code
  * JetComponents} never wraps a {@link JList}, so the row geometry, hover and
  * selection rules below are built straight from {@code COMPONENTS.md}'s "Lists
@@ -65,7 +70,12 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * added, and also absent from the reference: {@link #checkBox}, {@link
  * #spinner} and {@link #progressBar}, the three controls Voice setup builds
  * besides buttons. Left to the platform look and feel they paint in its colours,
- * which do not follow the theme and sit light and grey on a dark card.
+ * which do not follow the theme and sit light and grey on a dark card. {@link
+ * #scrollPane} was cut at first, on the same reasoning as {@code panel}, and
+ * came back for the two things a scroll pane's background does not reach: its
+ * scrollbars, which no panel owns and so none themed, and the border each site
+ * asks for, which a theme switch would otherwise replace with the look and
+ * feel's own.
  *
  * <h2>Colour, read live</h2>
  *
@@ -78,10 +88,11 @@ import javax.swing.plaf.basic.BasicSpinnerUI;
  * already correct, not on every later switch. The controls here come in two
  * shapes, depending on where the colour ends up.
  *
- * <p>{@link #checkBox}, {@link #spinner} and {@link #progressBar} set no colour
- * on anything. Each paints its own surfaces and reads every token inside its
- * paint method, the same shape {@link Card} and {@code UiTheme.TokenLabel}
- * already have, so a repaint is all a theme switch needs: no listener, no handle,
+ * <p>{@link #checkBox}, {@link #spinner}, {@link #progressBar} and the
+ * scrollbars of a {@link #scrollPane} set no colour on anything. Each paints
+ * its own surfaces and reads every token inside its paint method, the same
+ * shape {@link Card} and {@code UiTheme.TokenLabel} already have, so a repaint
+ * is all a theme switch needs: no listener, no handle,
  * nothing to clean up when the control goes away. The spinner has the one
  * wrinkle. The text field inside it is built by {@link JSpinner} itself and
  * cannot be subclassed, and its text is painted by its own view from colours
@@ -252,6 +263,17 @@ public final class JetControls {
 
     private static final int PROGRESS_RADIUS = UiTheme.radius(4);
 
+    /** A scrollbar's thickness, across the direction it scrolls. */
+    private static final int SCROLLBAR_WIDTH = 10;
+
+    /** How far the thumb sits inside its scrollbar's edges, on every side. */
+    private static final int THUMB_INSET = 2;
+
+    private static final int THUMB_RADIUS = UiTheme.radius(4);
+
+    /** The shortest a thumb gets, so a long page still leaves something to grab. */
+    private static final int THUMB_MIN_LENGTH = 24;
+
     /** A neutral button: {@code COMPONENTS.md}'s "Secondary buttons are neutral." */
     public static JButton button(String text) {
         return new Button(text, false);
@@ -345,14 +367,229 @@ public final class JetControls {
     }
 
     /**
+     * A scroll pane with the given scrollbar policies whose scrollbars are
+     * painted here: {@value #SCROLLBAR_WIDTH} px thick, no arrow buttons, a
+     * transparent track, and a rounded thumb {@value #THUMB_INSET} px inside
+     * the track's edges, {@code border.default} at rest and {@code
+     * text.tertiary} under the pointer or while it is dragged.
+     *
+     * <p>A transparent track shows whatever the scroll pane paints behind it,
+     * and so does the corner between two scrollbars. Left alone that is the
+     * look and feel's own scroll pane grey, in both themes. So the pane's
+     * background is the colour of what it scrolls: its view's background when
+     * the view is opaque and has one, otherwise its viewport's. A site that
+     * already sets its viewport's colour, or scrolls a list that sets its own,
+     * gets a track and a corner that match without setting anything else.
+     *
+     * <p>Every theme switch runs {@code updateComponentTreeUI}, which gives
+     * each component its look and feel's delegate again. That would bring back
+     * the platform scrollbar, and {@code LookAndFeel.installBorder} would put
+     * the look and feel's frame back on a pane whose border was set to null.
+     * The scrollbars here always install this class's delegate, and the pane
+     * restores whatever border its caller last set, null included, once each
+     * new delegate is in.
+     *
+     * <p>A site that needs to override something the {@link JScrollPane}
+     * constructor calls, such as {@code createViewport()}, subclasses {@link
+     * TokenScrollPane} instead, which is what this returns.
+     */
+    public static JScrollPane scrollPane(Component view, int vertical, int horizontal) {
+        return new TokenScrollPane(view, vertical, horizontal);
+    }
+
+    /**
+     * The scroll pane {@link #scrollPane} builds, open to subclassing so a
+     * site can still override what the {@link JScrollPane} constructor calls.
+     *
+     * <p>Its fields have no initialisers on purpose. {@link #updateUI} and
+     * {@link #setBorder} both run inside the {@link JScrollPane} constructor,
+     * before any initialiser would, and an initialiser would then overwrite
+     * what they recorded.
+     */
+    static class TokenScrollPane extends JScrollPane {
+
+        private boolean installingUi;
+        private boolean borderChosen;
+        private Border chosenBorder;
+
+        TokenScrollPane(Component view, int vertical, int horizontal) {
+            super(view, vertical, horizontal);
+        }
+
+        @Override
+        public JScrollBar createVerticalScrollBar() {
+            return new TokenScrollBar(JScrollBar.VERTICAL);
+        }
+
+        @Override
+        public JScrollBar createHorizontalScrollBar() {
+            return new TokenScrollBar(JScrollBar.HORIZONTAL);
+        }
+
+        /**
+         * Records the border a caller asks for, so {@link #updateUI} can put it
+         * back. A border set while a delegate is being swapped is the look and
+         * feel's, including the null its old delegate leaves on the way out,
+         * and is not recorded.
+         */
+        @Override
+        public void setBorder(Border border) {
+            super.setBorder(border);
+            if (!installingUi) {
+                borderChosen = true;
+                chosenBorder = border;
+            }
+        }
+
+        @Override
+        public void updateUI() {
+            installingUi = true;
+            try {
+                super.updateUI();
+            } finally {
+                installingUi = false;
+            }
+            if (borderChosen && getBorder() != chosenBorder) {
+                super.setBorder(chosenBorder);
+            }
+        }
+
+        /**
+         * The colour of what this pane scrolls, which is what shows through a
+         * scrollbar's track and in the corner between two. Asks only a
+         * component whose own background is set, because an unset one would
+         * ask its parent, and the parent of a view or a viewport leads back
+         * here.
+         */
+        @Override
+        public Color getBackground() {
+            JViewport port = getViewport();
+            if (port != null) {
+                Component view = port.getView();
+                Component source = view != null && view.isOpaque() ? view : port;
+                if (source.isBackgroundSet()) {
+                    return source.getBackground();
+                }
+            }
+            return super.getBackground();
+        }
+
+        /**
+         * One of the pane's two scrollbars. Extends {@link JScrollPane}'s own
+         * rather than {@link JScrollBar}, because that one asks a {@link
+         * javax.swing.Scrollable} view for its unit increment, which is how a
+         * page moves a card's worth at a time.
+         */
+        private final class TokenScrollBar extends ScrollBar {
+
+            TokenScrollBar(int orientation) {
+                super(orientation);
+            }
+
+            /**
+             * Always this class's own delegate, including on the {@code
+             * updateComponentTreeUI} every theme switch runs.
+             */
+            @Override
+            public void updateUI() {
+                setUI(new ScrollBarSkin());
+            }
+        }
+    }
+
+    /**
+     * The delegate a {@link TokenScrollPane}'s scrollbars install: the basic
+     * one, without arrows, with a track that paints nothing and a thumb that
+     * reads its colour each time it paints, so a theme switch needs only a
+     * repaint.
+     */
+    private static final class ScrollBarSkin extends BasicScrollBarUI {
+
+        @Override
+        protected void installDefaults() {
+            super.installDefaults();
+            scrollBarWidth = SCROLLBAR_WIDTH;
+            minimumThumbSize = new Dimension(THUMB_MIN_LENGTH, THUMB_MIN_LENGTH);
+            // Not opaque, or the repaint manager would take the scrollbar's
+            // word that it covers its own bounds and never paint what lies
+            // behind the track it leaves empty.
+            scrollbar.setOpaque(false);
+            if (scrollbar.getBorder() instanceof UIResource) {
+                scrollbar.setBorder(null);
+            }
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return new NoArrow();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return new NoArrow();
+        }
+
+        @Override
+        protected void paintTrack(Graphics g, JComponent c, Rectangle bounds) {
+        }
+
+        @Override
+        protected void paintThumb(Graphics g, JComponent c, Rectangle bounds) {
+            if (bounds.isEmpty() || !scrollbar.isEnabled()) {
+                return;
+            }
+            Graphics2D g2 = smooth(g);
+            try {
+                g2.setColor(UiTheme.color(isThumbRollover() || isDragging
+                    ? "text.tertiary" : "border.default"));
+                g2.fill(new RoundRectangle2D.Float(bounds.x + THUMB_INSET, bounds.y + THUMB_INSET,
+                    bounds.width - 2 * THUMB_INSET, bounds.height - 2 * THUMB_INSET,
+                    THUMB_RADIUS * 2, THUMB_RADIUS * 2));
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /**
+     * Stands where a scrollbar's arrow button would be. {@link
+     * BasicScrollBarUI} needs a button at each end to lay the track out
+     * between; one with no size leaves the whole length to the track.
+     */
+    private static final class NoArrow extends JButton {
+
+        NoArrow() {
+            setFocusable(false);
+            setBorder(BorderFactory.createEmptyBorder());
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            return new Dimension(0, 0);
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public Dimension getMaximumSize() {
+            return getPreferredSize();
+        }
+    }
+
+    /**
      * Fits {@code target} for {@code COMPONENTS.md}'s list rules: a fixed
      * {@value #ROW_HEIGHT} px row height, hover tracked by mouse position, and
      * a border that turns {@code border.focus} while the list itself holds
      * keyboard focus - the one indicator that still shows when nothing in the
-     * list is selected yet. A caller wrapping the result in a {@code
-     * JScrollPane} should leave that scroll pane's own border null, the same
+     * list is selected yet. A caller wrapping the result in a {@link
+     * #scrollPane} should set that scroll pane's own border to null, the same
      * way every whole-column scroll pane in this codebase already does, so
-     * this border is the one that shows.
+     * this border is the one that shows. A plain {@link JScrollPane} would
+     * not keep the null: the first theme install gives it the look and feel's
+     * frame back.
      *
      * <p>Returns {@code target} so a caller can chain it the way {@link
      * UiTheme#capped} already does.

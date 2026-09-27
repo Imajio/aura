@@ -138,7 +138,7 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // than being squeezed into a sliver nobody could read. The Activity
         // card keeps its own inner scroll besides, sized to a handful of rows
         // that stays constant however tall the page above it grows.
-        JScrollPane scroll = new JScrollPane(new ContentPane(column),
+        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
@@ -279,7 +279,12 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // every time the scroll pane paints, the same as the viewport it
         // wraps, so the inset tracks a real switch instead of merely
         // surviving one.
-        JScrollPane scroll = new JScrollPane(activity,
+        //
+        // JetControls.TokenScrollPane rather than JetControls.scrollPane, for
+        // the scrollbars every other scroll pane has: createViewport() runs
+        // inside the JScrollPane constructor, so overriding it takes a
+        // subclass, and a factory's finished pane comes too late for one.
+        JScrollPane scroll = new JetControls.TokenScrollPane(activity,
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED) {
             @Override
             public Color getBackground() {

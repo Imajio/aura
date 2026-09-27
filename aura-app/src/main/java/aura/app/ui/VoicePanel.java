@@ -186,7 +186,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
         column.add(listeningCard());
 
-        JScrollPane scroll = new JScrollPane(new ContentPane(column),
+        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);

@@ -200,7 +200,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             }
         });
 
-        rail = new JScrollPane(sectionList,
+        rail = JetControls.scrollPane(sectionList,
             JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         rail.setPreferredSize(new Dimension(RAIL_WIDTH, 0));
 

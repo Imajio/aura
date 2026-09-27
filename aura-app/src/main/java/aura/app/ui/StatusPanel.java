@@ -108,7 +108,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         column.setOpaque(false);
         column.setBorder(UiTheme.pad(UiTheme.WIDE));
 
-        JScrollPane scroll = new JScrollPane(new ContentPane(column),
+        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);

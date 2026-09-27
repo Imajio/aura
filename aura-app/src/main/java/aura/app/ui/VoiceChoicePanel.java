@@ -155,7 +155,7 @@ public final class VoiceChoicePanel extends JPanel {
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
         column.add(linesCard());
 
-        JScrollPane scroll = new JScrollPane(new ContentPane(column),
+        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);
@@ -217,7 +217,7 @@ public final class VoiceChoicePanel extends JPanel {
             }
         });
         JetControls.list(voiceList);
-        JScrollPane voiceScroll = new JScrollPane(voiceList,
+        JScrollPane voiceScroll = JetControls.scrollPane(voiceList,
             ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         voiceScroll.setBorder(null);
