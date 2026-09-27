@@ -4,11 +4,13 @@ import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -201,6 +203,15 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * for why.
      */
     private void rebuild() {
+        // A cached button the new cards do not place would otherwise keep a
+        // parent pointer into a card that is about to be thrown away.
+        for (JButton button : List.of(speakerModelSetupButton, referenceSetupButton,
+                wakeModelSetupButton, listeningSetupButton, logFolderButton)) {
+            Container parent = button.getParent();
+            if (parent != null) {
+                parent.remove(button);
+            }
+        }
         refreshSetupButtons();
         column.removeAll();
         column.add(header());
