@@ -271,6 +271,7 @@ public final class VoiceChoicePanel extends JPanel {
             log.warn("could not save the chosen voice to {}", configFile, e);
             useReport.setText(UiTheme.html("Could not save " + configFile + ": " + e.getMessage()));
             UiTheme.recolour(useReport, "error");
+            ContentPane.revealWhenLaidOut(useReport);
         }
     }
 
@@ -348,6 +349,9 @@ public final class VoiceChoicePanel extends JPanel {
         playbackStatus.setText(UiTheme.html("Could not play \"" + humanize(lineId) + "\" - " + reason));
         UiTheme.recolour(playbackStatus, "error");
         applyEnablement();
+        // Under the last row of line buttons, which is the last screenful of the
+        // page: without this a failed line said why below the fold.
+        ContentPane.revealWhenLaidOut(playbackStatus);
     }
 
     /** Repaints every control from the current selection and playback state. */

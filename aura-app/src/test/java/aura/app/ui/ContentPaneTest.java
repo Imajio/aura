@@ -73,6 +73,35 @@ class ContentPaneTest {
         });
     }
 
+    @Test
+    void revealWhenLaidOutScrollsToASentenceJustWrittenIntoAHiddenLabel() {
+        // Breaks if the reveal reads the label's bounds before the page has
+        // laid the new sentence out: a hidden, empty label has no height yet,
+        // and a failure written under "Train the wake word" stayed below the
+        // fold at both window sizes.
+        Page[] page = new Page[1];
+        javax.swing.JLabel report = UiTheme.wrapped("");
+        onEdt(() -> {
+            report.setVisible(false);
+            page[0] = new Page(report);
+            report.setText(UiTheme.html("NO_FEATURE_MODELS - the openwakeword folder is empty"));
+            report.setVisible(true);
+            report.revalidate();
+            ContentPane.revealWhenLaidOut(report);
+        });
+        onEdt(() -> {
+            try {
+                Rectangle seen = page[0].scroll.getViewport().getViewRect();
+                Rectangle wanted = SwingUtilities.convertRectangle(report.getParent(), report.getBounds(),
+                    page[0].content);
+                assertThat(wanted.height).isPositive();
+                assertThat(seen.contains(wanted)).as(seen + " holds " + wanted).isTrue();
+            } finally {
+                page[0].frame.dispose();
+            }
+        });
+    }
+
     /** A page taller than its window, padded as every section page is, with {@code last} at its foot. */
     private static final class Page {
 

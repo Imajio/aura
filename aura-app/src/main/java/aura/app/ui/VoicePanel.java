@@ -408,6 +408,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         listenMessage = sentence;
         listenReport.setText(UiTheme.html(sentence));
         UiTheme.recolour(listenReport, "error");
+        ContentPane.revealWhenLaidOut(listenReport);
     }
 
     private JComponent listeningCard() {
@@ -697,10 +698,19 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             report(sentence.isEmpty() ? List.of() : List.of(sentence), token);
         }
 
+        /**
+         * Writes this half's report. A failure or a warning is also scrolled
+         * into view: it lands under the primary action, and at the default
+         * size that is below the fold for the wake word half, where a failed
+         * run otherwise said nothing anyone could see.
+         */
         void report(List<String> sentences, String token) {
             report.setText(UiTheme.html(sentences));
             UiTheme.recolour(report, token);
             report.setVisible(!sentences.isEmpty());
+            if (!sentences.isEmpty() && ("error".equals(token) || "warning".equals(token))) {
+                ContentPane.revealWhenLaidOut(report);
+            }
         }
 
         /**

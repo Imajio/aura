@@ -62,6 +62,24 @@ final class ContentPane extends JPanel implements Scrollable {
         page.scrollRectToVisible(bounds);
     }
 
+    /**
+     * The same, once the page has laid out the change its caller just made:
+     * a sentence written into a label that was empty, or hidden, is still
+     * sized for its old text until the next layout, and bounds read now would
+     * scroll to where the label used to end.
+     */
+    static void revealWhenLaidOut(Component component) {
+        SwingUtilities.invokeLater(() -> {
+            ContentPane page = (ContentPane) SwingUtilities.getAncestorOfClass(ContentPane.class, component);
+            JScrollPane pane = page == null ? null
+                : (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, page);
+            if (pane != null) {
+                pane.validate();
+            }
+            reveal(component);
+        });
+    }
+
     @Override
     public Dimension getPreferredScrollableViewportSize() {
         return getPreferredSize();
