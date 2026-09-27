@@ -93,6 +93,13 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     /** The Activity card's own height, in rows, whatever else is on the page. */
     private static final int VISIBLE_ROWS = 6;
 
+    /**
+     * The selected row's accent stripe, taken out of the row's own leading
+     * padding so selecting a row never moves its text. Three pixels, the
+     * width of the voice list's stripe.
+     */
+    private static final int SELECTION_STRIPE = 3;
+
     private final Consumer<String> dispatch;
     private final Runnable onStopAgent;
 
@@ -252,6 +259,10 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
 
         activity.setName("tasks.log");
         activity.setFont(UiTheme.body());
+        // Through JetControls.list for the focus it tracks, which the outline
+        // on the scroll pane below reads. The list takes Tab, and arrow keys
+        // scroll it, so its focus and its selection both have to show.
+        JetControls.list(activity);
         ListCellRenderer<Row> renderer = (list, value, index, selected, focused) -> {
             JLabel cell = UiTheme.body(value.text());
             cell.setForeground(UiTheme.color(value.token()));
@@ -259,8 +270,17 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
             // Rebuilt by the list on every paint, unlike the four surfaces
             // above and below - a plain accessor call is already live here
             // and needs no override to stay that way.
+            // A selected row is marked by the stripe alone, on the row's own
+            // surface. The selection tint would take the state colours under
+            // their text floor: success and error measure 4.15:1 on light's
+            // surface.selection and 3.69:1 and 2.90:1 on dark's.
             cell.setBackground(UiTheme.surface());
-            cell.setBorder(UiTheme.pad(UiTheme.TIGHT));
+            cell.setBorder(selected
+                ? BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, SELECTION_STRIPE, 0, 0, UiTheme.accent()),
+                    BorderFactory.createEmptyBorder(UiTheme.TIGHT, UiTheme.TIGHT - SELECTION_STRIPE,
+                        UiTheme.TIGHT, UiTheme.TIGHT))
+                : UiTheme.pad(UiTheme.TIGHT));
             return cell;
         };
         activity.setCellRenderer(renderer);
@@ -306,7 +326,8 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
                 };
             }
         };
-        scroll.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
+        scroll.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0), JetControls.focusOutline(activity)));
         // A handful of rows, always, whatever sits above this card on the page.
         // Rendering the window at its minimum with only one project registered
         // found the alternative: the page's own scroll left this card a single

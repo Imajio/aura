@@ -427,32 +427,56 @@ public final class JetControls {
      */
     public static JScrollPane listScrollPane(JList<?> list, int vertical, int horizontal) {
         TokenScrollPane pane = new TokenScrollPane(list, vertical, horizontal);
-        pane.setBorder(new ListOutline(list));
+        pane.setBorder(new ListOutline(list, "border.subtle"));
         return pane;
     }
 
     /**
-     * The outline {@link #listScrollPane} draws, in the colour its list's
-     * focus calls for when it paints. Drawn by {@link UiTheme#outline}, so
-     * it lands on the same device pixels as the card round it.
+     * A 1 px outline for the scroll pane of a list passed through {@link
+     * #list} that has no outline at rest: {@code border.focus} while the list
+     * holds keyboard focus, and nothing otherwise, over the same 1 px inset
+     * either way so the rows never move.
+     *
+     * <p>For a list that sits in a card with nothing beside it to tell apart,
+     * where {@link #listScrollPane}'s resting outline would only draw a box
+     * inside a box. It still takes Tab, so focus has to show somewhere.
+     */
+    static Border focusOutline(JList<?> list) {
+        return new ListOutline(list, null);
+    }
+
+    /**
+     * The outline {@link #listScrollPane} and {@link #focusOutline} draw, in
+     * the colour its list's focus calls for when it paints. Drawn by {@link
+     * UiTheme#outline}, so it lands on the same device pixels as the card
+     * round it.
      */
     static final class ListOutline extends AbstractBorder {
 
         private final JList<?> list;
+        private final String restToken;
 
-        ListOutline(JList<?> list) {
+        ListOutline(JList<?> list, String restToken) {
             this.list = list;
+            this.restToken = restToken;
         }
 
+        /** The colour it paints now, or null when it paints nothing. */
         Color colour() {
-            return UiTheme.color(Boolean.TRUE.equals(list.getClientProperty(FOCUS_PROPERTY))
-                ? "border.focus" : "border.subtle");
+            if (Boolean.TRUE.equals(list.getClientProperty(FOCUS_PROPERTY))) {
+                return UiTheme.color("border.focus");
+            }
+            return restToken == null ? null : UiTheme.color(restToken);
         }
 
         @Override
         public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Color colour = colour();
+            if (colour == null) {
+                return;
+            }
             Color before = g.getColor();
-            g.setColor(colour());
+            g.setColor(colour);
             UiTheme.outline(g, x, y, width, height);
             g.setColor(before);
         }

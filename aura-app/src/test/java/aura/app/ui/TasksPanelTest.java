@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.AbstractButton;
 import javax.swing.DefaultListModel;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -95,6 +96,55 @@ class TasksPanelTest {
         } finally {
             Theme.install(before);
         }
+    }
+
+    @Test
+    void theActivityListShowsFocusOnItsScrollPaneAndNothingAtRest() {
+        // Breaks if the Activity list goes back to taking Tab with no focus
+        // indicator anywhere: the rendered window changed not one pixel when
+        // focus landed on it, the last stop in the section.
+        Panel panel = panel();
+        onEdt(() -> {
+            JList<?> activity = (JList<?>) find(panel.tasks, "tasks.log");
+            JScrollPane scroll = (JScrollPane) activity.getParent().getParent();
+            JetControls.ListOutline outline = (JetControls.ListOutline)
+                ((javax.swing.border.CompoundBorder) scroll.getBorder()).getInsideBorder();
+
+            Color resting = outline.colour();
+            fireFocus(activity, true);
+            Color focused = outline.colour();
+            fireFocus(activity, false);
+
+            assertThat(resting).isNull();
+            assertThat(focused).isEqualTo(UiTheme.color("border.focus"));
+            assertThat(outline.colour()).isNull();
+        });
+    }
+
+    @Test
+    void aSelectedActivityRowIsStripedOnItsOwnSurfaceWithoutMovingItsText() {
+        // Breaks if the renderer ignores the selection again. Arrow keys move
+        // it once the list has focus, and a selection nobody can see is a
+        // keyboard that does nothing visible. Also breaks if the row takes the
+        // selection tint, which drops the success and error text of a row
+        // under 4.5:1 in both themes.
+        Panel panel = panel();
+        onEdt(() -> {
+            panel.tasks.taskNotStarted("deploy it", "Could not tell which project.");
+            @SuppressWarnings("unchecked")
+            JList<TasksPanel.Row> activity = (JList<TasksPanel.Row>) find(panel.tasks, "tasks.log");
+            TasksPanel.Row row = activity.getModel().getElementAt(0);
+            JLabel plain = (JLabel) activity.getCellRenderer()
+                .getListCellRendererComponent(activity, row, 0, false, false);
+            JLabel selected = (JLabel) activity.getCellRenderer()
+                .getListCellRendererComponent(activity, row, 0, true, false);
+
+            assertThat(plain.getBackground()).isEqualTo(UiTheme.surface());
+            assertThat(selected.getBackground()).isEqualTo(UiTheme.surface());
+            assertThat(((javax.swing.border.CompoundBorder) selected.getBorder()).getOutsideBorder())
+                .isInstanceOf(javax.swing.border.MatteBorder.class);
+            assertThat(selected.getInsets().left).isEqualTo(plain.getInsets().left);
+        });
     }
 
     @Test
@@ -467,6 +517,19 @@ class TasksPanelTest {
 
     private static AbstractButton button(Container root, String name) {
         return (AbstractButton) find(root, name);
+    }
+
+    /** Calls the focus listeners a component installed on itself; it is never in a window here. */
+    private static void fireFocus(Component control, boolean gained) {
+        java.awt.event.FocusEvent event = new java.awt.event.FocusEvent(control,
+            gained ? java.awt.event.FocusEvent.FOCUS_GAINED : java.awt.event.FocusEvent.FOCUS_LOST);
+        for (java.awt.event.FocusListener listener : control.getFocusListeners()) {
+            if (gained) {
+                listener.focusGained(event);
+            } else {
+                listener.focusLost(event);
+            }
+        }
     }
 
     private static Component find(Container root, String name) {
