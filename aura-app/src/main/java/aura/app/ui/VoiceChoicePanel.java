@@ -270,10 +270,17 @@ public final class VoiceChoicePanel extends JPanel {
                 ? "Saved \"" + selected.name() + "\" and profile \"ru\"."
                 : "Saved your choice.";
             useReport.setText(UiTheme.html(saved + " Takes effect the next time Aura starts."));
+            useReport.setToolTipText(null);
             UiTheme.recolour(useReport, "success");
         } catch (Exception e) {
             log.warn("could not save the chosen voice to {}", configFile, e);
-            useReport.setText(UiTheme.html("Could not save " + configFile + ": " + e.getMessage()));
+            // The file's name and the cause, not the exception's message: for a
+            // read-only file that message is the path again, a second copy of
+            // an unbreakable token that ran past the card's wrap width. The
+            // full path is on hover.
+            useReport.setText(UiTheme.html("Could not save your choice to " + configFile.getFileName()
+                + ": " + FailureText.of(e) + ". Nothing was changed."));
+            useReport.setToolTipText(configFile.toString());
             UiTheme.recolour(useReport, "error");
             ContentPane.revealWhenLaidOut(useReport);
         }

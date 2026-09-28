@@ -174,6 +174,32 @@ class VoiceChoicePanelTest {
     }
 
     /**
+     * A read-only config.yaml made "Use this voice" print "Could not save <path>:
+     * <path>", naming the file twice and never the cause, as one long token that
+     * ran past the card. Breaks if the sentence goes back to the exception's
+     * message, or stops naming the cause.
+     */
+    @Test
+    void aSaveThatFailsNamesTheFileOnceAndTheCause(@TempDir Path tmp) throws Exception {
+        playableWav(tmp, "release", "voiceA", "running-tests", 50);
+        Path configFile = Files.writeString(tmp.resolve("config.yaml"), "voice: aidar\n");
+        Panel panel = panel(tmp, configFile, 1L);
+        assertThat(configFile.toFile().setReadOnly()).isTrue();
+        try {
+            onEdt(() -> {
+                list(panel.panel).setSelectedIndex(0);
+                button(panel.panel, "voice.choice.use").doClick();
+            });
+
+            assertThat(textOnEdt(panel.panel, "voice.choice.useReport"))
+                .isEqualTo("Could not save your choice to config.yaml: access was denied. "
+                    + "Nothing was changed.");
+        } finally {
+            configFile.toFile().setWritable(true);
+        }
+    }
+
+    /**
      * Breaks if "Reveal names" goes back into the card on its own. The card
      * stretches a row to its width, and a click 483 px right of the label, over
      * blank card, revealed every name; that is not undone by unticking it.
