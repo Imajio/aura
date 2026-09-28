@@ -1,12 +1,15 @@
 package aura.app.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.awt.Component;
 import java.awt.Container;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -178,6 +181,38 @@ class StatusPanelTest {
             assertThat(voice).contains("A download rather than a recording: "
                 + "sidecar\\README.md has the command.");
             assertThat(voice).filteredOn("Set this up"::equals).hasSize(2);
+        });
+    }
+
+    /**
+     * "Open log folder" over a folder that could not be created only logged it,
+     * and the window looked exactly as before: the broken-looking button its own
+     * comment warns about. Breaks if the failure stops being said under the
+     * button, or does not survive the next sidecar event's rebuild.
+     *
+     * <p>The folder sits under a regular file, and the test proves it cannot be
+     * created before it presses, so nothing here can reach Explorer.
+     */
+    @Test
+    void aLogFolderThatCannotBeOpenedSaysSoUnderTheButton(@TempDir Path tmp) throws Exception {
+        Path blocker = Files.writeString(tmp.resolve("not-a-folder.txt"), "a file, not a folder\n");
+        Path logDir = blocker.resolve("logs");
+        assertThatThrownBy(() -> Files.createDirectories(logDir)).isInstanceOf(IOException.class);
+        StatusPanel panel = panel(logDir);
+        onEdt(() -> {
+            JLabel report = (JLabel) find(panel, "status.log.report");
+            assertThat(report.isVisible()).isFalse();
+
+            ((AbstractButton) find(panel, "status.log.open")).doClick();
+
+            assertThat(report.isVisible()).isTrue();
+            assertThat(cardTexts(panel, "Log")).anyMatch(text ->
+                text.startsWith("Could not open the log folder: ") && !text.contains(logDir.toString()));
+
+            panel.accept(event(voiceStatus(0, 0, true, true, 0)));
+
+            assertThat(cardTexts(panel, "Log")).anyMatch(text ->
+                text.startsWith("Could not open the log folder"));
         });
     }
 

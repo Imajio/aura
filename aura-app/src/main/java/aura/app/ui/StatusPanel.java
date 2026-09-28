@@ -72,6 +72,9 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private final JButton wakeModelSetupButton;
     private final JButton listeningSetupButton;
     private final JButton logFolderButton;
+    // Kept across rebuilds for the same reason, though it has no listener to
+    // leak: a failure to open the folder must outlive the next sidecar event.
+    private final JLabel logFolderReport = UiTheme.wrapped("", "error");
 
     // What the sidecar has told us so far. Every field starts at the value that
     // means "it has not said yet", so the first paint is honest about knowing
@@ -104,6 +107,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         wakeModelSetupButton = newSetupButton("status.wakeModel.setup");
         listeningSetupButton = newSetupButton("status.listening.setup");
         logFolderButton = newLogFolderButton();
+        logFolderReport.setName("status.log.report");
+        logFolderReport.setVisible(false);
 
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setOpaque(false);
@@ -200,19 +205,19 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * cost nothing to recreate, and a panel that edits itself in place needs a
      * handle on every label it might later have to change - which is how a card
      * ends up showing two states at once because one of the handles was missed.
-     * The four buttons are the deliberate exception: {@link #referenceSetupButton}
-     * and its three siblings are built once by the constructor and only placed into
+     * The four buttons and {@link #logFolderReport} are the deliberate exception:
+     * they are built once by the constructor and only placed into
      * whichever new card wants them here, never recreated - see the field comment
      * for why.
      */
     private void rebuild() {
-        // A cached button the new cards do not place would otherwise keep a
+        // A cached control the new cards do not place would otherwise keep a
         // parent pointer into a card that is about to be thrown away.
-        for (JButton button : List.of(referenceSetupButton,
-                wakeModelSetupButton, listeningSetupButton, logFolderButton)) {
-            Container parent = button.getParent();
+        for (JComponent cached : List.of(referenceSetupButton, wakeModelSetupButton,
+                listeningSetupButton, logFolderButton, logFolderReport)) {
+            Container parent = cached.getParent();
             if (parent != null) {
-                parent.remove(button);
+                parent.remove(cached);
             }
         }
         refreshSetupButtons();
@@ -382,6 +387,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         JLabel path = UiTheme.body(logDir.toString());
         path.setFont(UiTheme.mono());
         card.line("Folder", UiTheme.elastic(path), logFolderButton);
+        card.note(logFolderReport);
         card.note("Everything Aura did, including what it refused and why.");
         return card;
     }
@@ -568,18 +574,33 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
 
     private JButton newLogFolderButton() {
         JButton button = JetControls.button("Open log folder");
+        button.setName("status.log.open");
         button.addActionListener(e -> {
             // Same best-effort open as the tray's menu item, for the same reason:
             // failing to open a folder does not deserve a dialog, but a silent
-            // no-op looks like a broken button.
+            // no-op looks like a broken button. So the failure is said in the
+            // card, under the button, as well as logged.
             try {
                 Files.createDirectories(logDir);
                 Desktop.getDesktop().open(logDir.toFile());
+                reportLogFolder("");
             } catch (IOException | UnsupportedOperationException | IllegalStateException ex) {
                 log.warn("could not open the log folder {}", logDir, ex);
+                reportLogFolder("Could not open the log folder: " + FailureText.of(ex) + ".");
             }
         });
         return button;
+    }
+
+    /** Shows why the folder did not open, or hides the line again with {@code ""}. */
+    private void reportLogFolder(String sentence) {
+        logFolderReport.setText(sentence.isEmpty() ? "" : UiTheme.html(sentence));
+        logFolderReport.setVisible(!sentence.isEmpty());
+        column.revalidate();
+        column.repaint();
+        if (!sentence.isEmpty()) {
+            ContentPane.revealWhenLaidOut(logFolderReport);
+        }
     }
 
     private static JLabel modelState(String state) {
