@@ -136,8 +136,7 @@ software rather than typed. What ships is code covered by 391 tests in the five 
 `aura-app` is built from; `aura-hook` and the sidecar, which this work did not
 change, are not in that count. Not tested at all: Windows' Text size setting,
 the tray icon on a real taskbar, and hover under a real pointer. Known
-limitations: Exit from the tray saves no window size unless the window was
-closed first, and nothing in the window names Ctrl+1 to Ctrl+4.*
+limitation: nothing in the window names Ctrl+1 to Ctrl+4.*
 
 ### Changed
 

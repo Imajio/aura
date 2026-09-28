@@ -406,6 +406,13 @@ public final class Main {
             configure(speech, config.profile(), narrationPolicy.verbosity());
             tray[0].status("ready");
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                // First, because it is quick and the closes below are not, and
+                // an ending session may not wait for them. Exit from the tray
+                // ends the process without closing the window, so this is the
+                // only place a window left open gets its size saved. It makes
+                // no Swing call: Exit runs System.exit on the event thread, and
+                // a hook that waited on that thread would never finish.
+                window.saveSize();
                 idleSweeper.shutdownNow();
                 dispatchWorker.shutdownNow();
                 supervisor.close();

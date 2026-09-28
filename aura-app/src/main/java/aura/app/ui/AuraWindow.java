@@ -86,8 +86,9 @@ import org.slf4j.LoggerFactory;
  * idempotent - there is one frame for the lifetime of this object, so a second
  * call raises the one that exists instead of opening another.
  *
- * <p>The size the window is closed at is written to {@code config.yaml} and is
- * the size the next start opens at. The section and the position are not: a
+ * <p>The size the window is closed at, or has when Aura exits with it open, is
+ * written to {@code config.yaml} and is the size the next start opens at (see
+ * {@link #saveSize}). The section and the position are not: a
  * start opens on Status, which answers "what is missing?", in the middle of the
  * screen.
  *
@@ -185,12 +186,8 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     // with the list's rows and carrying the rail's separator line past it.
     private final JPanel railFoot = new JPanel(new BorderLayout(0, UiTheme.GAP));
     private final JLabel themeReport = UiTheme.wrapped("", "error");
-    // Both touched only on the EDT once the frame is shown. normalSize is the
-    // last size the frame had while it was neither maximised nor minimised;
-    // sizeNextStart is the size the next start would open at if nothing were
-    // saved now, so a window nobody resized writes nothing.
-    private Dimension normalSize;
-    private Dimension sizeNextStart;
+    private final Path configFile;
+    private final RememberedSize size;
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -216,6 +213,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     public AuraWindow(Consumer<Map<String, Object>> toSidecar, Consumer<String> dispatch,
                       Runnable onStopAgent, ProjectRegistry registry, Path logDir,
                       Path configFile) {
+        this.configFile = configFile;
         AuraConfig settings = AuraConfig.load(configFile);
         status = new StatusPanel(toSidecar, logDir, this::hasSection, this::select);
 
@@ -303,23 +301,17 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             new Dimension(DEFAULT_WIDTH, DEFAULT_HEIGHT), minimum, usableScreen());
         frame.setSize(opening);
         frame.setLocationRelativeTo(null);
-        normalSize = opening;
-        sizeNextStart = opening;
+        size = new RememberedSize(opening);
         frame.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-                // Only a size somebody dragged the window to. A maximised frame
-                // reports the whole work area, and saving that would open the
-                // next start at the maximised size with nothing to restore to.
-                if (frame.getExtendedState() == Frame.NORMAL) {
-                    normalSize = frame.getSize();
-                }
+                size.resized(frame.getSize(), frame.getExtendedState() == Frame.NORMAL);
             }
         });
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                saveSize(configFile);
+                saveSize();
             }
         });
 
@@ -409,25 +401,23 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     }
 
     /**
-     * Writes the window's size into {@code config.yaml} as it closes, when that
-     * size differs from the one the next start would open at anyway.
+     * Writes the window's size into {@code config.yaml}, when that size differs
+     * from the one the next start would open at anyway. Called as the window
+     * closes, and by {@code Main}'s shutdown hook, which is how a size survives
+     * Exit from the tray with the window still open: Exit ends the process
+     * without closing the window.
      *
-     * <p>Through {@link AuraConfig#saveWindowSize}, which rewrites the two
-     * size lines and nothing else, and only when the size has changed: a
-     * window closed at the default size leaves no size in the file, so the
-     * default can change in code without every config file pinning the old
-     * one. A failed save is logged and nothing more. The window is closing,
-     * so there is nowhere left to say it, and what it costs is one start at
-     * the previous size.
+     * <p>Safe from any thread, because it touches no component: the size it
+     * writes is the one {@link RememberedSize} was last told on the event
+     * thread. Through {@link AuraConfig#saveWindowSize}, which rewrites the
+     * two size lines and nothing else. A failed save is logged and nothing
+     * more. The window is closing or the process is ending, so there is
+     * nowhere left to say it, and what it costs is one start at the previous
+     * size.
      */
-    private void saveSize(Path configFile) {
-        Dimension size = normalSize;
-        if (size.equals(sizeNextStart)) {
-            return;
-        }
+    public void saveSize() {
         try {
-            AuraConfig.saveWindowSize(configFile, size.width, size.height);
-            sizeNextStart = size;
+            size.saveIfChanged((width, height) -> AuraConfig.saveWindowSize(configFile, width, height));
         } catch (Exception e) {
             log.warn("could not save the window size to {}", configFile, e);
         }
