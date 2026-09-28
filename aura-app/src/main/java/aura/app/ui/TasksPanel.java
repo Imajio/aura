@@ -14,6 +14,7 @@ import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.nio.file.Path;
 import java.util.function.Consumer;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -123,7 +124,8 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     // end this, whenever Main's queued dispatch resolves.
     private boolean dispatchPending;
 
-    TasksPanel(Consumer<String> dispatch, Runnable onStopAgent, ProjectRegistry registry) {
+    TasksPanel(Consumer<String> dispatch, Runnable onStopAgent, ProjectRegistry registry,
+               Path registryFile) {
         this.dispatch = dispatch;
         this.onStopAgent = onStopAgent;
 
@@ -140,7 +142,7 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         column.add(Box.createVerticalStrut(UiTheme.WIDE));
         column.add(inputCard());
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
-        column.add(projectsCard(registry));
+        column.add(projectsCard(registry, registryFile));
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
         column.add(activityCard());
 
@@ -219,10 +221,13 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         dispatch.accept(phrase);
     }
 
-    private static JComponent projectsCard(ProjectRegistry registry) {
+    private static JComponent projectsCard(ProjectRegistry registry, Path registryFile) {
         Card card = new Card("Projects");
         if (registry.all().isEmpty()) {
-            card.note("No projects in the registry.");
+            // Main reads the file once, before this window exists, so an edit
+            // made now reaches routing only through a restart.
+            card.note("No projects yet. Add them to " + registryFile
+                + " and restart Aura - it reads that file only when it starts.");
             return card;
         }
         for (Project project : registry.all()) {

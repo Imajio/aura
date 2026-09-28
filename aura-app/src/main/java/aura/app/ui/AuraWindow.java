@@ -169,12 +169,14 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
      *                 Tasks section so a person can see what routing will match
      * @param logDir the folder the Log card offers to open
      * @param configFile {@code config.yaml} - read once here for the theme to start
-     *                   in, read and rewritten again by the voice choice section's
+     *                   in and for the registry file an empty Projects card names,
+     *                   then read and rewritten again by the voice choice section's
      *                   {@code Use this voice} button and by the theme control
      */
     public AuraWindow(Consumer<Map<String, Object>> toSidecar, Consumer<String> dispatch,
                       Runnable onStopAgent, ProjectRegistry registry, Path logDir,
                       Path configFile) {
+        AuraConfig settings = AuraConfig.load(configFile);
         status = new StatusPanel(toSidecar, logDir, this::hasSection, this::select);
 
         sectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -250,7 +252,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // Reads and writes config.yaml directly; it never talks to the sidecar, so it
         // is added but not subscribed - there is no sidecar event this section acts on.
         voiceChoice = new VoiceChoicePanel(VoiceChoicePanel.DEFAULT_AUDITION_ROOT, configFile);
-        tasks = new TasksPanel(dispatch, onStopAgent, registry);
+        tasks = new TasksPanel(dispatch, onStopAgent, registry, settings.projectsFile());
 
         addTab("Status", status);
         subscribe(status);
@@ -273,7 +275,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // for the first time, rather than a separate seeding path that could drift
         // from what a later switch does.
         Theme.onChange(this::refreshChrome);
-        Theme.install(AuraConfig.load(configFile).theme());
+        Theme.install(settings.theme());
     }
 
     /**

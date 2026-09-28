@@ -46,6 +46,8 @@ class TasksPanelTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private static final Path REGISTRY_FILE = Path.of("C:\\Users\\someone\\Aura\\projects.yaml");
+
     @Test
     void allFourActivitySurfacesTrackTheInstalledThemeAcrossASwitch() {
         // Fix round 2 on Task 2: activityCard()'s inner scroll pane has an
@@ -161,7 +163,7 @@ class TasksPanelTest {
             Theme.install(Theme.Mode.DARK);
             TasksPanel[] built = new TasksPanel[1];
             onEdt(() -> built[0] = new TasksPanel(
-                phrase -> { }, () -> { }, new ProjectRegistry(List.of())));
+                phrase -> { }, () -> { }, new ProjectRegistry(List.of()), REGISTRY_FILE));
             onEdt(() -> assertThat(built[0].getBackground()).isEqualTo(UiTheme.color("surface.app")));
         } finally {
             Theme.install(before);
@@ -416,6 +418,22 @@ class TasksPanelTest {
         onEdt(() -> assertThat(anyLabelContains(panel.tasks, "no aliases")).isTrue());
     }
 
+    /**
+     * "No projects in the registry." named no file and no action, and every
+     * phrase then ends in "Could not tell which project". Breaks if the empty
+     * card stops naming the file it reads, or stops saying that Aura reads it
+     * only when it starts.
+     */
+    @Test
+    void anEmptyRegistryNamesItsFileAndTheRestart() {
+        Panel panel = panel(new ProjectRegistry(List.of()));
+
+        onEdt(() -> {
+            assertThat(anyLabelContains(panel.tasks, REGISTRY_FILE.toString())).isTrue();
+            assertThat(anyLabelContains(panel.tasks, "restart Aura")).isTrue();
+        });
+    }
+
     private static AgentEvent event(EventKind kind, ToolClass toolClass, String target,
                                     Boolean ok, String summaryHint) {
         return AgentEvent.builder()
@@ -443,7 +461,7 @@ class TasksPanelTest {
         private final TasksPanel tasks;
 
         Panel(ProjectRegistry registry) {
-            tasks = new TasksPanel(sent::add, stops::incrementAndGet, registry);
+            tasks = new TasksPanel(sent::add, stops::incrementAndGet, registry, REGISTRY_FILE);
         }
 
         void event(String json) {
