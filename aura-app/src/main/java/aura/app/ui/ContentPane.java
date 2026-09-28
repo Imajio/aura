@@ -41,7 +41,7 @@ final class ContentPane extends JPanel implements Scrollable {
      * <p>720 because it is a round step just past everything the window was
      * built and audited at. The widest page asks for 646 (Status, whose Log row
      * holds this machine's log path whole beside its button), and the default
-     * 900 px window gives the column 678, or 688 on a page with no scrollbar,
+     * 900 px window gives the column 674, or 688 on a page with no scrollbar,
      * so none of those is cut or squeezed. Past that, every pixel of cap only
      * moves buttons further from their values; 720 leaves some headroom for a
      * longer log path or a longer reason before that row ellipsises or wraps.

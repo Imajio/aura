@@ -271,15 +271,29 @@ public final class JetControls {
     /** The spinner's field corners, matching the check box's rather than the buttons' 6. */
     private static final int SPINNER_RADIUS = UiTheme.radius(4);
 
-    /** Each spinner arrow's width: room for a 7 px chevron and a hover chip around it. */
-    private static final int ARROW_WIDTH = 18;
+    /**
+     * Each spinner arrow's width, which is its hit area: a 7 px chevron and a
+     * hover chip round it. 24 rather than the 18 it was, toward the 28 px the
+     * design system's own icon button takes, while the chevron keeps its size,
+     * as ACCESSIBILITY.md asks of a small icon control. The height stays half
+     * the control's, since a taller pair would need a taller spinner.
+     */
+    private static final int ARROW_WIDTH = 24;
 
     private static final int PROGRESS_RADIUS = UiTheme.radius(4);
 
-    /** A scrollbar's thickness, across the direction it scrolls. */
-    private static final int SCROLLBAR_WIDTH = 10;
+    /**
+     * A scrollbar's thickness, across the direction it scrolls, and so the
+     * width of the thumb a pointer can grab. 14 rather than the 10 it was: the
+     * painted thumb stays {@value #THUMB_WIDTH} px, and the bar round it is the
+     * target.
+     */
+    private static final int SCROLLBAR_WIDTH = 14;
 
-    /** How far the thumb sits inside its scrollbar's edges, on every side. */
+    /** How wide the thumb is painted, across the direction it scrolls. */
+    private static final int THUMB_WIDTH = 6;
+
+    /** How far the painted thumb stops short of its bounds at each end, along the bar. */
     private static final int THUMB_INSET = 2;
 
     private static final int THUMB_RADIUS = UiTheme.radius(4);
@@ -382,9 +396,11 @@ public final class JetControls {
     /**
      * A scroll pane with the given scrollbar policies whose scrollbars are
      * painted here: {@value #SCROLLBAR_WIDTH} px thick, no arrow buttons, a
-     * transparent track, and a rounded thumb {@value #THUMB_INSET} px inside
-     * the track's edges, {@code border.default} at rest and {@code
-     * text.tertiary} under the pointer or while it is dragged.
+     * transparent track, and a rounded thumb {@value #THUMB_WIDTH} px across,
+     * centred in the bar and {@value #THUMB_INSET} px short of its bounds at
+     * each end, {@code border.default} at rest and {@code text.tertiary} under
+     * the pointer or while it is dragged. The whole bar's width takes the
+     * pointer, not only the painted thumb.
      *
      * <p>A transparent track shows whatever the scroll pane paints behind it,
      * and so does the corner between two scrollbars. Left alone that is the
@@ -636,9 +652,14 @@ public final class JetControls {
             try {
                 g2.setColor(UiTheme.color(isThumbRollover() || isDragging
                     ? "text.tertiary" : "border.default"));
-                g2.fill(new RoundRectangle2D.Float(bounds.x + THUMB_INSET, bounds.y + THUMB_INSET,
-                    bounds.width - 2 * THUMB_INSET, bounds.height - 2 * THUMB_INSET,
-                    THUMB_RADIUS * 2, THUMB_RADIUS * 2));
+                boolean vertical = scrollbar.getOrientation() == JScrollBar.VERTICAL;
+                int across = vertical ? bounds.width : bounds.height;
+                int side = (across - THUMB_WIDTH) / 2;
+                g2.fill(vertical
+                    ? new RoundRectangle2D.Float(bounds.x + side, bounds.y + THUMB_INSET,
+                        THUMB_WIDTH, bounds.height - 2 * THUMB_INSET, THUMB_RADIUS * 2, THUMB_RADIUS * 2)
+                    : new RoundRectangle2D.Float(bounds.x + THUMB_INSET, bounds.y + side,
+                        bounds.width - 2 * THUMB_INSET, THUMB_WIDTH, THUMB_RADIUS * 2, THUMB_RADIUS * 2));
             } finally {
                 g2.dispose();
             }

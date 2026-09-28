@@ -3,10 +3,12 @@ package aura.app.ui;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Insets;
-import java.awt.Component;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -667,6 +669,58 @@ class JetControlsTest {
         assertThat(spinner.getMaximumSize()).isEqualTo(spinner.getPreferredSize());
     }
 
+    /**
+     * The arrows were 18 px wide, under the 28 px the design system's own icon
+     * button takes and with centres 15 px apart. Breaks if they go back below
+     * 24, if the two stop tiling the column between them, or if the chevron
+     * grows with the target: ACCESSIBILITY.md asks for a larger hit area round
+     * the same icon.
+     */
+    @Test
+    void aSpinnersArrowsAreTwentyFourPixelTargetsAroundTheSameChevron() {
+        JetControls.Spinner spinner = spinner();
+        spinner.setSize(spinner.getPreferredSize());
+        spinner.doLayout();
+        Component next = child(spinner, "Spinner.nextButton");
+        Component previous = child(spinner, "Spinner.previousButton");
+
+        assertThat(next.getWidth()).isEqualTo(24);
+        assertThat(previous.getWidth()).isEqualTo(24);
+        assertThat(previous.getX()).isEqualTo(next.getX());
+        assertThat(previous.getY()).isEqualTo(next.getY() + next.getHeight());
+
+        Dimension target = next.getSize();
+        Rectangle wide = inked((JComponent) next, target);
+        Rectangle narrow = inked((JComponent) next, new Dimension(18, target.height));
+        assertThat(wide.getSize()).as("the chevron at 24 px against 18").isEqualTo(narrow.getSize());
+        assertThat(wide.width).as("device pixels across the chevron").isLessThanOrEqualTo(2 * 9);
+    }
+
+    /**
+     * The bars were 10 px across, under the 24 px floor and the platform's 17.
+     * Breaks if the bar goes back below 14, or if the thumb it paints grows
+     * with it: the bar is the target and the thumb stays 6 px across and as
+     * long as it was, 2 px short of its bounds at each end.
+     */
+    @Test
+    void aScrollbarTakesFourteenPixelsAroundTheSameSixPixelThumb() {
+        JPanel tall = new JPanel();
+        tall.setPreferredSize(new Dimension(100, 100_000));
+        JScrollPane pane = JetControls.scrollPane(tall,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        pane.setSize(200, 300);
+        pane.doLayout();
+        javax.swing.JScrollBar bar = pane.getVerticalScrollBar();
+        bar.doLayout();
+
+        assertThat(bar.getWidth()).isEqualTo(14);
+        Rectangle thumb = inked(bar, bar.getSize());
+        assertThat(thumb.x).as("device pixels left of the thumb").isEqualTo(2 * 4);
+        assertThat(thumb.width).as("device pixels across the thumb").isEqualTo(2 * 6);
+        // A page this long leaves the thumb at its shortest, 24 px of bounds.
+        assertThat(thumb.height).as("device pixels along the thumb").isEqualTo(2 * (24 - 2 * 2));
+    }
+
     @Test
     void aSpinnerOutlineTurnsBorderFocusWhileItsFieldHasFocus() {
         // Breaks if the focus listener is not installed on the editor's field,
@@ -758,6 +812,48 @@ class JetControlsTest {
 
     private static JetControls.Spinner spinner() {
         return (JetControls.Spinner) JetControls.spinner(new SpinnerNumberModel(3, 1, 50, 1));
+    }
+
+    private static Component child(Container parent, String name) {
+        for (Component c : parent.getComponents()) {
+            if (name.equals(c.getName())) {
+                return c;
+            }
+        }
+        throw new AssertionError("no child named " + name);
+    }
+
+    /**
+     * The device pixels a control paints at {@code size} and a 2.0 scale over a
+     * background of its own choosing: the bounding box of every pixel that is
+     * not that background. For a control that paints no background of its own.
+     */
+    private static Rectangle inked(JComponent control, Dimension size) {
+        Dimension before = control.getSize();
+        control.setSize(size);
+        int background = 0xFF00FF;
+        BufferedImage image = new BufferedImage(size.width * 2, size.height * 2, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(new Color(background));
+            g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            g.scale(2, 2);
+            control.paint(g);
+        } finally {
+            g.dispose();
+            control.setSize(before);
+        }
+        Rectangle box = null;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) & 0xFFFFFF) != background) {
+                    Rectangle pixel = new Rectangle(x, y, 1, 1);
+                    box = box == null ? pixel : box.union(pixel);
+                }
+            }
+        }
+        assertThat(box).as("anything painted").isNotNull();
+        return box;
     }
 
     /** Paints a control at its preferred size into an image at {@code scale}. */
