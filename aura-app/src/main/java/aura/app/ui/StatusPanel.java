@@ -90,6 +90,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     private boolean wakeModel;
     private int referenceTakes;
     private int wakeTakes;
+    private boolean featureModels;
+    private int negatives;
     private boolean listening;
 
     StatusPanel(Consumer<Map<String, Object>> toSidecar, Path logDir,
@@ -173,6 +175,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
                 wakeModel = event.flag("wakeModel");
                 referenceTakes = (int) event.number("referenceTakes");
                 wakeTakes = (int) event.number("wakeTakes");
+                featureModels = event.flag("featureModels");
+                negatives = (int) event.number("negatives");
                 listening = event.flag("listening");
                 rebuild();
             }
@@ -289,9 +293,11 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
                 : "Nothing to ask until the sidecar is running.");
             return card;
         }
-        artefact(card, "Speaker model", speakerModel, "trained", -1, speakerModelSetupButton);
-        artefact(card, "Voice reference", reference, "recorded", referenceTakes, referenceSetupButton);
-        artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes, wakeModelSetupButton);
+        artefact(card, "Speaker model", speakerModel, "trained", -1, speakerModelSetupButton, "");
+        artefact(card, "Voice reference", reference, "recorded", referenceTakes,
+            referenceSetupButton, enrolNext());
+        artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes,
+            wakeModelSetupButton, trainNext());
         return card;
     }
 
@@ -301,18 +307,39 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      *
      * <p>The take count rides in the third column when the artefact exists, and
      * drops to a line of its own only when it does not - where it stops being
-     * trivia and starts being the answer to "how far off am I?". Pass a negative
-     * count for an artefact that has no recordings behind it. {@code setupButton}
-     * is one of this panel's own cached buttons, placed into this row rather than
-     * built for it.
+     * trivia and starts being the answer to "how far off am I?", followed by
+     * {@code next}, what stands between those takes and the artefact. Pass a
+     * negative count for an artefact that has no recordings behind it. {@code
+     * setupButton} is one of this panel's own cached buttons, placed into this row
+     * rather than built for it.
      */
-    private void artefact(Card card, String name, boolean present, String yes, int count, JButton setupButton) {
+    private void artefact(Card card, String name, boolean present, String yes, int count,
+                          JButton setupButton, String next) {
         card.line(name,
             present ? UiTheme.status(yes, "success") : UiTheme.status("missing", "warning"),
             present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setupButton);
         if (!present && count > 0) {
-            card.note(takes(count) + " so far - not enough to train on.");
+            card.note(takes(count) + " so far" + next);
         }
+    }
+
+    /**
+     * What enrolment still needs, in the words Voice setup uses beside its
+     * button, or the step itself when nothing is in the way. Only read with at
+     * least one take on disk, so the missing speaker model is all that can block.
+     */
+    private String enrolNext() {
+        String blocker = VoicePreconditions.enrolBlocker(referenceTakes, speakerModel);
+        return blocker.isEmpty() ? " - enrol them in Voice setup." : ", but " + blocker + ".";
+    }
+
+    /** The same for training, whose first need is a number of takes. */
+    private String trainNext() {
+        if (wakeTakes < VoicePreconditions.WAKE_MINIMUM) {
+            return " - training needs at least " + VoicePreconditions.WAKE_MINIMUM + ".";
+        }
+        String blocker = VoicePreconditions.trainBlocker(featureModels, negatives);
+        return blocker.isEmpty() ? " - train them in Voice setup." : ", but " + blocker + ".";
     }
 
     private JComponent listeningCard() {

@@ -113,6 +113,63 @@ class StatusPanelTest {
         });
     }
 
+    /**
+     * Status said "8 recordings so far - not enough to train on." while Voice
+     * setup had Enrol and Train live beside the same takes. Breaks if the Voice
+     * card goes back to a rule of its own instead of the preconditions Voice
+     * setup applies.
+     */
+    @Test
+    void takesThatAreEnoughAreCalledEnoughAndPointAtTheStep(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            panel.accept(event(voiceStatus(8, 20, true, true, 100)));
+
+            assertThat(cardTexts(panel, "Voice"))
+                .contains("8 recordings so far - enrol them in Voice setup.",
+                    "20 recordings so far - train them in Voice setup.")
+                .noneMatch(text -> text.contains("not enough"));
+        });
+    }
+
+    /**
+     * Six wake takes clear training's minimum of five, and three reference takes
+     * are plenty for enrolment: what is missing is two downloads. Breaks if the
+     * card names the takes as the obstacle when Voice setup names the models.
+     */
+    @Test
+    void takesBlockedByAMissingModelNameTheModel(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            panel.accept(event(voiceStatus(3, 6, false, false, 0)));
+
+            assertThat(String.join(" | ", cardTexts(panel, "Voice")))
+                .contains("3 recordings so far, but the speaker model is missing")
+                .contains("6 recordings so far, but openWakeWord's models are missing")
+                .doesNotContain("not enough");
+        });
+    }
+
+    /** Below training's minimum, the take count is the obstacle, and the card says so. */
+    @Test
+    void tooFewWakeTakesSayHowManyTrainingNeeds(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            panel.accept(event(voiceStatus(0, 3, true, true, 100)));
+
+            assertThat(cardTexts(panel, "Voice"))
+                .contains("3 recordings so far - training needs at least 5.");
+        });
+    }
+
+    private static String voiceStatus(int referenceTakes, int wakeTakes, boolean speakerModel,
+                                      boolean featureModels, int negatives) {
+        return "{\"ev\":\"voice.status\",\"reference\":false,\"wakeModel\":false,"
+            + "\"speakerModel\":" + speakerModel + ",\"featureModels\":" + featureModels
+            + ",\"referenceTakes\":" + referenceTakes + ",\"wakeTakes\":" + wakeTakes
+            + ",\"negatives\":" + negatives + ",\"listening\":false}";
+    }
+
     private static StatusPanel panel(Path logDir) {
         StatusPanel[] panel = new StatusPanel[1];
         onEdt(() -> panel[0] = new StatusPanel(

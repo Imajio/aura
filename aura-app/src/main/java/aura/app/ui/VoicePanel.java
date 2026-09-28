@@ -86,12 +86,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
     /** Below this a take is too quiet to train on. record-voice-samples.py's number. */
     private static final double QUIET = 0.005;
 
-    /** Under this many wake takes, training refuses outright - training.py's number. */
-    private static final int WAKE_MINIMUM = 5;
-
-    /** And this many is what it takes to be any good. */
-    private static final int WAKE_RECOMMENDED = 20;
-
     /**
      * Seconds between agreeing to record and the microphone opening.
      *
@@ -800,8 +794,9 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         boolean idle = pendingId == null && !reference.counting() && !wake.counting();
         boolean live = idle && answered && !unavailable;
         reference.apply(live, referenceTakes, hasReference, enrolReason(),
-            referenceTakes > 0 && hasSpeakerModel, waiting());
-        wake.apply(live, wakeTakes, hasWakeModel, trainReason(), canTrain(), waiting());
+            VoicePreconditions.canEnrol(referenceTakes, hasSpeakerModel), waiting());
+        wake.apply(live, wakeTakes, hasWakeModel, trainReason(),
+            VoicePreconditions.canTrain(wakeTakes, featureModels, negatives), waiting());
 
         listenState.setText(listening ? "on" : "off");
         UiTheme.recolour(listenState, listening ? "success" : "text.secondary");
@@ -842,18 +837,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
 
     private String enrolReason() {
         String waiting = waiting();
-        if (!waiting.isEmpty()) {
-            return waiting;
-        }
-        if (referenceTakes == 0) {
-            return "no takes yet - record some first";
-        }
-        if (!hasSpeakerModel) {
-            // The one precondition that is not a recording: enrolment runs the
-            // takes through models/speaker.onnx, which is downloaded by hand.
-            return "the speaker model is missing - see models\\speaker.onnx";
-        }
-        return "";
+        return waiting.isEmpty()
+            ? VoicePreconditions.enrolBlocker(referenceTakes, hasSpeakerModel) : waiting;
     }
 
     private String trainReason() {
@@ -861,30 +846,21 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         if (!waiting.isEmpty()) {
             return waiting;
         }
-        String recommendation = WAKE_RECOMMENDED + " takes recommended; " + wakeTakes
-            + " recorded";
-        if (wakeTakes < WAKE_MINIMUM) {
+        String recommendation = VoicePreconditions.WAKE_RECOMMENDED + " takes recommended; "
+            + wakeTakes + " recorded";
+        if (wakeTakes < VoicePreconditions.WAKE_MINIMUM) {
             return recommendation;
         }
         // Takes are not training's only precondition, any more than they are
-        // enrolment's. Without these two the sidecar answers NO_FEATURE_MODELS
-        // or refuses for want of anything to train against - both of which the
-        // panel can see coming in voice.status.
-        if (!featureModels) {
-            return "openWakeWord's models are missing - see models\\openwakeword";
+        // enrolment's.
+        String blocker = VoicePreconditions.trainBlocker(featureModels, negatives);
+        if (!blocker.isEmpty()) {
+            return blocker;
         }
-        if (negatives == 0) {
-            return "nothing to train against - no audio that is not the wake word";
-        }
-        if (wakeTakes < WAKE_RECOMMENDED) {
+        if (wakeTakes < VoicePreconditions.WAKE_RECOMMENDED) {
             return recommendation;
         }
         return "";
-    }
-
-    /** Whether {@code train.wake} would get past its own preconditions. */
-    private boolean canTrain() {
-        return wakeTakes >= WAKE_MINIMUM && featureModels && negatives > 0;
     }
 
     /** A row of controls, left-packed, that gives its spare width away to nothing. */
