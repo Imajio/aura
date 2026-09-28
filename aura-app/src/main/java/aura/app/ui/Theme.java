@@ -2,6 +2,7 @@ package aura.app.ui;
 
 import java.awt.Color;
 import java.awt.Window;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.swing.SwingUtilities;
@@ -91,8 +92,22 @@ public final class Theme {
      *
      * <p>A listener that throws is logged and does not stop the remaining
      * listeners from running, nor this call from completing.
+     *
+     * <p>All of it happens on the event dispatch thread. Called from any other
+     * thread, this waits until the event thread has done the work, so the mode
+     * is switched and every listener has run by the time it returns, wherever
+     * it was called from. The tree walk and the listeners set colours, borders
+     * and text on live components, and a component touched off that thread
+     * while the event thread is changing the same tree fails rarely and
+     * somewhere unrelated. It happened here: the window was built on the main
+     * thread, and this ran there while the event thread was still adding the
+     * sections the walk was meant to reach.
      */
     public static void install(Mode m) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            installFromAnotherThread(m);
+            return;
+        }
         mode = m;
         applyToLookAndFeel();
         for (Window window : Window.getWindows()) {
@@ -104,6 +119,32 @@ public final class Theme {
             } catch (Exception e) {
                 log.warn("a theme change listener threw, continuing with the others", e);
             }
+        }
+    }
+
+    /**
+     * Runs {@link #install(Mode)} on the event thread and waits for it.
+     *
+     * <p>An interrupt ends the wait but not the switch, which is already queued
+     * and still happens; the interrupt is put back for the caller to see. A
+     * listener's exception never gets here, since the loop above logs it, so
+     * what arrives wrapped is the tree walk's own and is rethrown as it was.
+     */
+    private static void installFromAnotherThread(Mode m) {
+        try {
+            SwingUtilities.invokeAndWait(() -> install(m));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("interrupted while waiting for the switch to {} on the event thread", m);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException unchecked) {
+                throw unchecked;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("switching the theme failed", cause);
         }
     }
 

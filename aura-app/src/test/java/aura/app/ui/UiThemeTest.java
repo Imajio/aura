@@ -19,6 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -379,6 +380,29 @@ class UiThemeTest {
             assertThat(calls).containsExactly("kept");
         } finally {
             kept.run();
+        }
+    }
+
+    @Test
+    void installCalledFromAnotherThreadSwitchesOnTheEventThreadBeforeItReturns() throws Exception {
+        // Breaks if Theme.install stops moving itself onto the event thread:
+        // the listener would then run on this test's own thread, the way it
+        // ran on Main's thread while the event thread was still adding the
+        // window's sections. Breaks as well if the move becomes invokeLater
+        // rather than a wait, because the mode and the listener's record
+        // would then not be settled when install returns.
+        assertThat(SwingUtilities.isEventDispatchThread()).as("the test's own thread").isFalse();
+        Theme.Mode other = Theme.mode() == Theme.Mode.DARK ? Theme.Mode.LIGHT : Theme.Mode.DARK;
+        List<Boolean> onEventThread = new ArrayList<>();
+        Runnable unsubscribe = Theme.onChange(
+            () -> onEventThread.add(SwingUtilities.isEventDispatchThread()));
+        try {
+            Theme.install(other);
+
+            assertThat(Theme.mode()).isEqualTo(other);
+            assertThat(onEventThread).containsExactly(true);
+        } finally {
+            unsubscribe.run();
         }
     }
 

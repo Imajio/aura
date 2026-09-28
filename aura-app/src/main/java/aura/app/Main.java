@@ -18,16 +18,20 @@ import aura.policy.PermissionPolicy;
 import aura.policy.ToolRequest;
 import aura.policy.TrayConfirmationProvider;
 import java.awt.GraphicsEnvironment;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -342,7 +346,12 @@ public final class Main {
             // an out-parameter array for a window that already exists by then
             // would be a third one in this method. Built, not shown: Aura still
             // starts in the tray, which is what the owner asked to keep.
-            AuraWindow window = new AuraWindow(
+            //
+            // Built on the event thread, like every other touch of a component:
+            // the constructor adds its sections and installs the theme, and from
+            // this thread the install used to run while the event thread was
+            // still adding the sections it was meant to reach.
+            AuraWindow window = onEventThread(() -> new AuraWindow(
                 // Every panel may call this unconditionally. Without a sidecar
                 // there is nothing to send to, and a panel that has to ask first
                 // is a panel that will one day forget.
@@ -355,7 +364,7 @@ public final class Main {
                 supervisor::close,
                 registry,
                 logDir,
-                configFile);
+                configFile));
             windowRef[0] = window;
             // Null when there is no sidecar directory at all - see where
             // sidecarEvents is assigned. Nothing to listen to, and the window
@@ -415,6 +424,30 @@ public final class Main {
             }
             System.exit(1);
         }
+    }
+
+    /**
+     * Runs {@code build} on the event dispatch thread, waits for it, and
+     * returns what it built.
+     *
+     * <p>What {@code build} throws is rethrown as it was thrown, not wrapped:
+     * the startup failure dialog shows the exception's own message, and the
+     * wrapper's is null.
+     */
+    private static <T> T onEventThread(Supplier<T> build) throws Exception {
+        List<T> built = new ArrayList<>(1);
+        try {
+            SwingUtilities.invokeAndWait(() -> built.add(build.get()));
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof Exception cause) {
+                throw cause;
+            }
+            if (e.getCause() instanceof Error cause) {
+                throw cause;
+            }
+            throw e;
+        }
+        return built.get(0);
     }
 
     /**

@@ -64,11 +64,15 @@ import org.slf4j.LoggerFactory;
  * it, and every subscriber registered through {@link #subscribe} is called on
  * that thread as a consequence. Sections do not need to hop again.
  *
- * <p>The constructor is the one exception, by necessity rather than oversight:
- * it builds the frame and its panels on whichever thread calls it, the
- * traditional place for a Swing application's first frame - before the frame is
- * realised or shown, which is what {@link #show} still fences. {@code Main}
- * calls it from the main thread, not the EDT.
+ * <p>The constructor is meant to be called on the event dispatch thread too, and
+ * {@code Main} builds the window there. It does more than build: it adds the
+ * sections and installs the theme, which walks the whole tree. Called from any
+ * other thread, each {@link #addTab} would only be queued, and the install at
+ * the end would have run beside them on the calling thread, reaching whichever
+ * sections the event thread had attached so far. {@link Theme#install} now
+ * moves itself onto the event thread, behind those queued sections, so even
+ * that call no longer races; building here is still what keeps the rest of the
+ * constructor off a tree the event thread is changing.
  *
  * <p>The two methods that touch no component - {@link #subscribe} and {@link
  * #hasSection} - are safe from any thread instead, because they are held in
@@ -103,9 +107,11 @@ import org.slf4j.LoggerFactory;
  * <p>{@link Theme#install} is called from here exactly once, as the constructor's
  * last statement rather than its first: it calls {@code updateComponentTreeUI},
  * which only reaches components already attached to a window, and the panels are
- * not attached until this constructor has built the frame around them. The rail
- * once showed the system's own blue selection bar on a window nobody had switched,
- * because install ran before the list was attached.
+ * not attached until this constructor has built the frame around them. On the
+ * event thread each {@link #addTab} attaches its section before returning, so by
+ * that last statement all four are there. The rail once showed the system's own
+ * blue selection bar on a window nobody had switched, because install ran before
+ * the list was attached.
  */
 public final class AuraWindow implements Consumer<SidecarEvent> {
 
@@ -346,7 +352,9 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         subscribe(tasks);
 
         // Last, after every child above is already attached to frame - not, as it
-        // is tempting to write it, first. Theme.install calls
+        // is tempting to write it, first. Attached means on the event thread,
+        // where Main builds this window: anywhere else the addTab calls above
+        // are only queued, and Theme.install then waits behind them. It calls
         // SwingUtilities.updateComponentTreeUI, which only walks components already
         // in a window's tree; run any earlier, and a component that is not attached
         // yet keeps whatever its look and feel gave it until the next switch.
