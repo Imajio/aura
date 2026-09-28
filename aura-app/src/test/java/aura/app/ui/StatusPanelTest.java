@@ -37,7 +37,7 @@ class StatusPanelTest {
      * - +150 over thirty events, measured before this fix, 5 per event with
      * a floor of 1 because logCard's button is unconditional. Breaks if
      * StatusPanel goes back to building a fresh JButton per rebuild instead
-     * of writing to its five cached ones.
+     * of writing to its cached ones.
      */
     @Test
     void rebuildingManyTimesDoesNotAccumulateThemeListenersWithoutBound(@TempDir Path tmp) {
@@ -159,6 +159,25 @@ class StatusPanelTest {
 
             assertThat(cardTexts(panel, "Voice"))
                 .contains("3 recordings so far - training needs at least 5.");
+        });
+    }
+
+    /**
+     * The speaker model is a download, and its "Set this up" opened Voice setup,
+     * where nothing produces it and, with no takes yet, nothing even named it.
+     * Breaks if the row offers that button again, or stops saying where the
+     * download is described.
+     */
+    @Test
+    void aMissingSpeakerModelSaysWhereToGetItInsteadOfOfferingVoiceSetup(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            panel.accept(event(voiceStatus(0, 0, false, false, 0)));
+
+            List<String> voice = cardTexts(panel, "Voice");
+            assertThat(voice).contains("A download rather than a recording: "
+                + "sidecar\\README.md has the command.");
+            assertThat(voice).filteredOn("Set this up"::equals).hasSize(2);
         });
     }
 

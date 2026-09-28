@@ -86,6 +86,24 @@ class VoicePanelTest {
         });
     }
 
+    /**
+     * With no takes and no speaker model, the reason used to ask for takes, and
+     * nothing in the section mentioned the model Status had sent people here to
+     * fix. Breaks if the takes are named ahead of the model, which no recording
+     * can produce, or if the reason stops pointing at where the download is
+     * described.
+     */
+    @Test
+    void theMissingSpeakerModelIsNamedBeforeTheMissingTakes() {
+        onEdt(() -> {
+            Panel panel = new Panel();
+            panel.status(0, 0, false, false, false, false);
+
+            assertThat(text(panel.voice, "voice.reference.reason"))
+                .contains("speaker model").contains("sidecar\\README.md");
+        });
+    }
+
     @Test
     void trainIsDisabledBelowFiveTakesAndSaysHowFarOffItIs() {
         // Breaks if the panel disables Train at anything short of twenty, or

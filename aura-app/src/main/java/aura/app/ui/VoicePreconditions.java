@@ -30,15 +30,19 @@ final class VoicePreconditions {
      * Why {@code enrol} cannot run, or {@code ""} when it can. Enrolment averages
      * the takes through the speaker model, so it needs at least one take and the
      * model.
+     *
+     * <p>The model is named first. It blocks enrolment however many takes there
+     * are, and nothing in the window produces it: it is WeSpeaker's ResNet-34,
+     * downloaded by hand with the command sidecar/README.md carries. Named after
+     * the takes, it stayed out of sight until a recording had been made, while
+     * Status sent people to Voice setup to fix it.
      */
     static String enrolBlocker(int referenceTakes, boolean speakerModel) {
+        if (!speakerModel) {
+            return "the speaker model is missing - see sidecar\\README.md";
+        }
         if (referenceTakes == 0) {
             return "no takes yet - record some first";
-        }
-        if (!speakerModel) {
-            // The one precondition that is not a recording: enrolment runs the
-            // takes through models/speaker.onnx, which is downloaded by hand.
-            return "the speaker model is missing - see models\\speaker.onnx";
         }
         return "";
     }

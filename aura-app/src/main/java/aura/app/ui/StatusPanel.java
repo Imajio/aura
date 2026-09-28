@@ -68,7 +68,6 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     // its frame, as well as on every event afterwards. Caching sidesteps
     // displayability entirely - a button that is never recreated has no new
     // listener to leak, shown or not.
-    private final JButton speakerModelSetupButton;
     private final JButton referenceSetupButton;
     private final JButton wakeModelSetupButton;
     private final JButton listeningSetupButton;
@@ -101,7 +100,6 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         this.hasSection = hasSection;
         this.goToSection = goToSection;
 
-        speakerModelSetupButton = newSetupButton("status.speakerModel.setup");
         referenceSetupButton = newSetupButton("status.reference.setup");
         wakeModelSetupButton = newSetupButton("status.wakeModel.setup");
         listeningSetupButton = newSetupButton("status.listening.setup");
@@ -202,15 +200,15 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * cost nothing to recreate, and a panel that edits itself in place needs a
      * handle on every label it might later have to change - which is how a card
      * ends up showing two states at once because one of the handles was missed.
-     * The five buttons are the deliberate exception: {@link #speakerModelSetupButton}
-     * and its four siblings are built once by the constructor and only placed into
+     * The four buttons are the deliberate exception: {@link #referenceSetupButton}
+     * and its three siblings are built once by the constructor and only placed into
      * whichever new card wants them here, never recreated - see the field comment
      * for why.
      */
     private void rebuild() {
         // A cached button the new cards do not place would otherwise keep a
         // parent pointer into a card that is about to be thrown away.
-        for (JButton button : List.of(speakerModelSetupButton, referenceSetupButton,
+        for (JButton button : List.of(referenceSetupButton,
                 wakeModelSetupButton, listeningSetupButton, logFolderButton)) {
             Container parent = button.getParent();
             if (parent != null) {
@@ -293,7 +291,13 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
                 : "Nothing to ask until the sidecar is running.");
             return card;
         }
-        artefact(card, "Speaker model", speakerModel, "trained", -1, speakerModelSetupButton, "");
+        // No "Set this up" for the speaker model: Voice setup records and trains,
+        // and this one is a download. The instruction goes where it is reported.
+        card.line("Speaker model", speakerModel
+            ? UiTheme.status("trained", "success") : UiTheme.status("missing", "warning"), null);
+        if (!speakerModel) {
+            card.note("A download rather than a recording: sidecar\\README.md has the command.");
+        }
         artefact(card, "Voice reference", reference, "recorded", referenceTakes,
             referenceSetupButton, enrolNext());
         artefact(card, "Wake-word model", wakeModel, "trained", wakeTakes,
@@ -308,8 +312,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * <p>The take count rides in the third column when the artefact exists, and
      * drops to a line of its own only when it does not - where it stops being
      * trivia and starts being the answer to "how far off am I?", followed by
-     * {@code next}, what stands between those takes and the artefact. Pass a
-     * negative count for an artefact that has no recordings behind it. {@code
+     * {@code next}, what stands between those takes and the artefact. {@code
      * setupButton} is one of this panel's own cached buttons, placed into this row
      * rather than built for it.
      */
@@ -317,7 +320,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
                           JButton setupButton, String next) {
         card.line(name,
             present ? UiTheme.status(yes, "success") : UiTheme.status("missing", "warning"),
-            present ? (count < 0 ? null : UiTheme.hint(takes(count))) : setupButton);
+            present ? UiTheme.hint(takes(count)) : setupButton);
         if (!present && count > 0) {
             card.note(takes(count) + " so far" + next);
         }
@@ -519,7 +522,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
     }
 
     /**
-     * Builds one of the four cached buttons that go to the section which fixes
+     * Builds one of the three cached buttons that go to the section which fixes
      * voice setup. Its enabled state is not decided here: {@code AuraWindow} adds
      * this panel before it adds the Voice section, so {@link #hasSection} would
      * always answer false the one time a constructor could ask it. {@link
@@ -545,7 +548,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
 
     /**
      * Brings every cached "Set this up" button's enabled state and tooltip up to
-     * date. Run once per call rather than once per button use - all four ask
+     * date. Run once per call rather than once per button use - all three ask
      * {@link #hasSection} the same question, and the answer cannot differ between
      * them.
      */
@@ -553,7 +556,6 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         boolean available = hasSection.test(AuraWindow.VOICE_SECTION);
         String unavailableReason =
             "The " + AuraWindow.VOICE_SECTION + " section is not in this build yet.";
-        refreshSetupButton(speakerModelSetupButton, available, unavailableReason);
         refreshSetupButton(referenceSetupButton, available, unavailableReason);
         refreshSetupButton(wakeModelSetupButton, available, unavailableReason);
         refreshSetupButton(listeningSetupButton, available, unavailableReason);
