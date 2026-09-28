@@ -123,6 +123,11 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     // longer proof of anything - taskRouted/taskNotStarted are what actually
     // end this, whenever Main's queued dispatch resolves.
     private boolean dispatchPending;
+    // The phrase this panel's own Send dispatched, until Main answers for it.
+    // The tray and the microphone share the dispatch and their answers reach
+    // this panel too; only this one's own phrase goes back into the field.
+    private String sentPhrase;
+    private final JLabel sendReport = UiTheme.wrapped("", "error");
 
     TasksPanel(Consumer<String> dispatch, Runnable onStopAgent, ProjectRegistry registry,
                Path registryFile) {
@@ -202,6 +207,9 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         row.add(buttons, BorderLayout.EAST);
 
         card.row(row);
+        sendReport.setName("tasks.report");
+        sendReport.setVisible(false);
+        card.note(sendReport);
         card.note("Name the project in the phrase, or leave it out to reuse the last one used.");
         return card;
     }
@@ -215,6 +223,8 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
             return;
         }
         phraseField.setText("");
+        sentPhrase = phrase;
+        sendReport.setVisible(false);
         dispatchPending = true;
         sendButton.setEnabled(false);
         sendButton.setText("Sending…");
@@ -417,13 +427,34 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
     void taskRouted(String phrase, String projectName) {
         addRow("Task: " + phrase, "text.primary");
         addRow("Routed to project " + projectName, "success");
+        if (phrase.equals(sentPhrase)) {
+            sentPhrase = null;
+        }
         endDispatch();
     }
 
-    /** The counterpart to {@link #taskRouted}: the phrase went nowhere, and why. */
+    /**
+     * The counterpart to {@link #taskRouted}: the phrase went nowhere, and why.
+     *
+     * <p>Activity keeps the record, as it does for every phrase. A phrase sent
+     * from this panel also comes back into the field, unless something has been
+     * typed there since, with the reason under it: "Name the project in the
+     * phrase" is advice to act on where the phrase is, and Activity sits two
+     * cards further down, below the fold at the minimum size.
+     */
     void taskNotStarted(String phrase, String reason) {
         addRow("Task: " + phrase, "text.primary");
         addRow(reason, "error");
+        if (phrase.equals(sentPhrase)) {
+            sentPhrase = null;
+            if (phraseField.getText().isEmpty()) {
+                phraseField.setText(phrase);
+            }
+            sendReport.setText(UiTheme.html(reason));
+            sendReport.setVisible(true);
+            revalidate();
+            ContentPane.revealWhenLaidOut(sendReport);
+        }
         endDispatch();
     }
 

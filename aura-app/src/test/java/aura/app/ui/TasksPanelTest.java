@@ -306,6 +306,62 @@ class TasksPanelTest {
         assertThat(rows.get(1).token()).isEqualTo("error");
     }
 
+    /**
+     * Send cleared the field at once, and the reason a phrase went nowhere
+     * landed in Activity, two cards down and at the minimum size off screen,
+     * with the phrase it asked to correct already gone. Breaks if a phrase this
+     * panel sent does not come back into the field when it fails, or its reason
+     * stops appearing under the field.
+     */
+    @Test
+    void aPhraseSentHereThatDoesNotStartComesBackWithItsReasonUnderTheField() {
+        Panel panel = panel();
+        onEdt(() -> {
+            phraseField(panel.tasks).setText("почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+            JLabel report = (JLabel) find(panel.tasks, "tasks.report");
+            assertThat(report.isVisible()).isFalse();
+
+            panel.tasks.taskNotStarted("почини баг",
+                "Could not tell which project. Name the project in the phrase.");
+
+            assertThat(phraseField(panel.tasks).getText()).isEqualTo("почини баг");
+            assertThat(report.isVisible()).isTrue();
+            assertThat(plain(report.getText())).contains("Could not tell which project");
+            assertThat(report.getForeground()).isEqualTo(UiTheme.color("error"));
+
+            phraseField(panel.tasks).setText("в проекте песочница почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+
+            assertThat(report.isVisible()).isFalse();
+        });
+    }
+
+    /**
+     * The tray and the microphone share the same dispatch, and their failures
+     * reach this panel too. Breaks if a phrase this panel never sent is put into
+     * the field or reported under it, or if a failure overwrites what somebody
+     * has typed since.
+     */
+    @Test
+    void aFailureThatIsNotThisPanelsOwnLeavesTheFieldAndItsReportAlone() {
+        Panel panel = panel();
+        onEdt(() -> {
+            panel.tasks.taskNotStarted("почини тесты", "Could not tell which project.");
+
+            assertThat(phraseField(panel.tasks).getText()).isEmpty();
+            assertThat(find(panel.tasks, "tasks.report").isVisible()).isFalse();
+
+            phraseField(panel.tasks).setText("почини баг");
+            button(panel.tasks, "tasks.send").doClick();
+            phraseField(panel.tasks).setText("прочитай readme");
+            panel.tasks.taskNotStarted("почини баг", "Could not tell which project.");
+
+            assertThat(phraseField(panel.tasks).getText()).isEqualTo("прочитай readme");
+            assertThat(find(panel.tasks, "tasks.report").isVisible()).isTrue();
+        });
+    }
+
     @Test
     void eachAgentEventRendersOneRowWithItsKindAndTarget() {
         // Breaks if a non-DONE event stops rendering its kind or its target - the
