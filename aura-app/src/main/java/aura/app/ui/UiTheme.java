@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Insets;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
 import javax.swing.border.AbstractBorder;
 import javax.swing.border.Border;
 
@@ -335,7 +337,7 @@ public final class UiTheme {
      * UIResource} does not, because that is the look and feel talking, not a
      * caller.
      */
-    private static final class TokenLabel extends JLabel {
+    private static class TokenLabel extends JLabel {
 
         private String token;
 
@@ -361,6 +363,108 @@ public final class UiTheme {
         @Override
         public void firePropertyChange(String property, Object before, Object after) {
             super.firePropertyChange(property, before, after);
+        }
+    }
+
+    /**
+     * The label {@link #fitted} builds. It asks for the width of its sentence on
+     * one line, and when a layout gives it less, it wraps the sentence at the
+     * width it was given and asks for the height that takes.
+     *
+     * <p>A layout decides a component's width and height in the same pass, from
+     * sizes it asks for before it knows either, so the height of the wrapped
+     * sentence can only be answered after the width has been handed out. The
+     * label therefore re-lays its page out once more, after the pass that gave
+     * it the new width has finished, the way the Status card's model row does:
+     * a revalidate from inside that pass would be marked done by the pass
+     * itself and lost. The second pass hands out the same width, and nothing
+     * changes after it.
+     */
+    private static final class FittedLabel extends TokenLabel {
+
+        // No initializers: JLabel's constructor calls setText, which sets both,
+        // before this class's field initializers would run and reset them.
+        private String sentence;
+        // The width the markup wraps at, or 0 while the sentence is on one line.
+        private int wrapWidth;
+        private boolean passPending;
+
+        FittedLabel(String text, String token) {
+            super(text, token);
+        }
+
+        @Override
+        public void setText(String text) {
+            String plain = text == null ? "" : text;
+            if (plain.equals(sentence)) {
+                return;
+            }
+            sentence = plain;
+            wrapWidth = 0;
+            super.setText(plain);
+        }
+
+        /** The sentence as it reads, without the markup a wrapped one carries. */
+        String sentence() {
+            return sentence;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            if (isPreferredSizeSet()) {
+                return super.getPreferredSize();
+            }
+            return new Dimension(oneLine(), super.getPreferredSize().height);
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            if (isMinimumSizeSet()) {
+                return super.getMinimumSize();
+            }
+            return new Dimension(Math.min(oneLine(), longestWord()), super.getPreferredSize().height);
+        }
+
+        @Override
+        public Dimension getMaximumSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public void setBounds(int x, int y, int width, int height) {
+            super.setBounds(x, y, width, height);
+            if (width <= 0) {
+                return;
+            }
+            int wanted = width >= oneLine() ? 0 : width;
+            if (wanted == wrapWidth) {
+                return;
+            }
+            wrapWidth = wanted;
+            Insets insets = getInsets();
+            super.setText(wanted == 0 ? sentence : html(sentence, wanted - insets.left - insets.right));
+            if (!passPending) {
+                passPending = true;
+                SwingUtilities.invokeLater(() -> {
+                    passPending = false;
+                    revalidate();
+                });
+            }
+        }
+
+        private int oneLine() {
+            Insets insets = getInsets();
+            return getFontMetrics(getFont()).stringWidth(sentence) + insets.left + insets.right;
+        }
+
+        private int longestWord() {
+            FontMetrics metrics = getFontMetrics(getFont());
+            int widest = 0;
+            for (String word : sentence.split("\\s+")) {
+                widest = Math.max(widest, metrics.stringWidth(word));
+            }
+            Insets insets = getInsets();
+            return widest + insets.left + insets.right;
         }
     }
 
@@ -445,6 +549,28 @@ public final class UiTheme {
     public static JLabel elastic(JLabel label) {
         label.setMinimumSize(new Dimension(0, label.getPreferredSize().height));
         label.setToolTipText(label.getText());
+        return label;
+    }
+
+    /**
+     * A sentence that shares a row with a name or a button: one line while the
+     * row has the room, and as many lines as it takes, at the width it is given,
+     * when it has not.
+     *
+     * <p>For the sentence that says why a control is off or what to do next.
+     * {@link #elastic} would ellipsise it at the window's minimum size and leave
+     * the rest to a tooltip, and a sentence that names the next step is the one
+     * thing on its card that has to be read whole. A {@link #wrapped} note does
+     * not fit here either: it wraps at one fixed width, which beside a button is
+     * either too narrow for a wide window or too wide for a narrow one.
+     *
+     * <p>Its minimum width is its longest word, so a row short of room takes the
+     * room from this sentence before anything else, and never breaks a word.
+     */
+    public static JLabel fitted(String text, String token) {
+        JLabel label = new FittedLabel(text, token);
+        label.setFont(body());
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
     }
 

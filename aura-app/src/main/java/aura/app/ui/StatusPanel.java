@@ -362,11 +362,12 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             // No button: the switch in Voice setup cannot move until a sidecar
             // answers, and nothing there starts one. The Sidecar card above says
             // where to look instead.
-            card.line("Why not", UiTheme.body("the sidecar is not running"), null);
+            card.line("Why not", UiTheme.fitted("the sidecar is not running", "text.primary"), null);
         } else if (voiceUnavailable) {
-            card.line("Why not", UiTheme.body("this sidecar has no voice support"), null);
+            card.line("Why not", UiTheme.fitted("this sidecar has no voice support", "text.primary"), null);
         } else if (voiceAnswered && !wakeModel) {
-            card.line("Why not", UiTheme.body("there is no wake-word model to listen for"),
+            card.line("Why not",
+                UiTheme.fitted("there is no wake-word model to listen for", "text.primary"),
                 listeningSetupButton);
         } else {
             // The switch itself lives in the Voice section, beside the model it
@@ -374,7 +375,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             // second copy of it. Until protocol.py's `configure` learned to read
             // `listen` there was no switch to send anyone to, and this card
             // could only name a line of config.yaml.
-            card.line("Why not", UiTheme.body("it has not been switched on"), listeningSetupButton);
+            card.line("Why not", UiTheme.fitted("it has not been switched on", "text.primary"),
+                listeningSetupButton);
             card.note("Switching it on in the Voice section takes effect at once. "
                 + "listen: true in %APPDATA%\\Aura\\config.yaml is what starts it with "
                 + "Aura, for a machine that is left running.");

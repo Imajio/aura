@@ -102,6 +102,55 @@ class ContentPaneTest {
         });
     }
 
+    @Test
+    void onAWideWindowTheColumnStopsAtTheReadableWidthAndKeepsToTheLeft() {
+        // Breaks if the column goes back to tracking the whole viewport: at the
+        // 1455 px this screen allows, a Status row's "Set this up" sat 863 px
+        // from the "missing" it fixes.
+        onEdt(() -> {
+            JPanel column = new JPanel();
+            ContentPane content = new ContentPane(column);
+            JScrollPane scroll = new JScrollPane(content);
+            scroll.setPreferredSize(new Dimension(ContentPane.READABLE_WIDTH + 500, 300));
+            JFrame frame = new JFrame();
+            try {
+                frame.add(scroll);
+                frame.pack();
+                frame.validate();
+
+                assertThat(content.getWidth()).as("the page still spans the viewport")
+                    .isGreaterThan(ContentPane.READABLE_WIDTH);
+                assertThat(column.getWidth()).isEqualTo(ContentPane.READABLE_WIDTH);
+                assertThat(column.getX()).isZero();
+            } finally {
+                frame.dispose();
+            }
+        });
+    }
+
+    @Test
+    void belowTheReadableWidthTheColumnIsAsWideAsTheViewport() {
+        // Breaks if the cap turns into a fixed width: a column wider than a
+        // narrow window would put its right edge past the window's.
+        onEdt(() -> {
+            JPanel column = new JPanel();
+            ContentPane content = new ContentPane(column);
+            JScrollPane scroll = new JScrollPane(content);
+            scroll.setPreferredSize(new Dimension(400, 300));
+            JFrame frame = new JFrame();
+            try {
+                frame.add(scroll);
+                frame.pack();
+                frame.validate();
+
+                assertThat(content.getWidth()).isLessThan(ContentPane.READABLE_WIDTH);
+                assertThat(column.getWidth()).isEqualTo(content.getWidth());
+            } finally {
+                frame.dispose();
+            }
+        });
+    }
+
     /** A page taller than its window, padded as every section page is, with {@code last} at its foot. */
     private static final class Page {
 

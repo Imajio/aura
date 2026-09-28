@@ -157,6 +157,14 @@ final class Card extends JPanel {
     /**
      * A row label of fixed width, so that the state words in every card start at
      * the same x.
+     *
+     * <p>Fixed as its minimum too, not only as its preferred width. A row short
+     * of room sends GridBagLayout to every column's minimum, and a name's own
+     * minimum is its text: below about 870 px the Log card's "Folder" fell to 36
+     * of its 140 px and its path started 104 px left of every other card's
+     * value. With the name held, the room comes out of the value column, which
+     * is where {@link UiTheme#fitted} and {@link UiTheme#elastic} values know
+     * what to do with less.
      */
     private static JLabel nameColumn(String name) {
         JLabel label = UiTheme.body(name);
@@ -165,7 +173,9 @@ final class Card extends JPanel {
         // otherwise be cut off in silence. This way a name that outgrows the
         // column pushes its own row wider - visibly out of line with the rest,
         // which is a bug report rather than a missing word.
-        label.setPreferredSize(new Dimension(Math.max(NAME_WIDTH, natural.width), natural.height));
+        Dimension fixed = new Dimension(Math.max(NAME_WIDTH, natural.width), natural.height);
+        label.setPreferredSize(fixed);
+        label.setMinimumSize(fixed);
         return label;
     }
 }

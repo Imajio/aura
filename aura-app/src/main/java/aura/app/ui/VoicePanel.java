@@ -127,7 +127,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
 
     private final JCheckBox listenToggle = JetControls.checkBox("Listen for the wake word");
     private final JLabel listenState = UiTheme.status("off", "text.secondary");
-    private final JLabel listenReason = UiTheme.elastic(UiTheme.hint(""));
+    private final JLabel listenReason = UiTheme.fitted("", "text.secondary");
     private final JLabel listenReport = UiTheme.wrapped("");
     private String listenMessage = "";
 
@@ -455,8 +455,8 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         private final JButton action;
         private final JLabel takesValue = UiTheme.status("", "text.secondary");
         private final JLabel artefactValue = UiTheme.status("", "text.secondary");
-        private final JLabel reason = UiTheme.elastic(UiTheme.hint(""));
-        private final JLabel recordReason = UiTheme.elastic(UiTheme.hint(""));
+        private final JLabel reason = UiTheme.fitted("", "text.secondary");
+        private final JLabel recordReason = UiTheme.fitted("", "text.secondary");
         private final JLabel warning = UiTheme.wrapped("", "warning");
         private final JProgressBar progress = JetControls.progressBar();
         private final JLabel report = UiTheme.wrapped("");
@@ -773,7 +773,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             UiTheme.recolour(artefactValue, artefact ? "success" : "warning");
             record.setEnabled(live && !armed);
             recordReason.setText(whyNoRecording);
-            recordReason.setToolTipText(whyNoRecording.isEmpty() ? null : whyNoRecording);
             confirm.setEnabled(live && armed);
             // The one button that stays live while the panel is busy: until the
             // count reaches zero nothing has been asked of the microphone, and
@@ -784,7 +783,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             armRow.setVisible(armed || counting());
             action.setEnabled(live && actionable);
             reason.setText(why);
-            reason.setToolTipText(why.isEmpty() ? null : why);
             progress.setVisible(pendingSection == this);
         }
     }
@@ -807,7 +805,6 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
             why = "there is no wake-word model to listen for";
         }
         listenReason.setText(why);
-        listenReason.setToolTipText(why.isEmpty() ? null : why);
         listenReport.setVisible(!listenMessage.isEmpty());
 
         revalidate();

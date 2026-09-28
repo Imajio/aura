@@ -481,6 +481,29 @@ class UiThemeTest {
     }
 
     @Test
+    void aFittedSentenceWrapsAtANarrowerWidthAndReturnsToOneLineWhenTheRoomComesBack() {
+        // Breaks if fitted() stops wrapping at the width a layout hands it, or
+        // keeps the wrapped markup once the window is wide again: a sentence left
+        // at two lines in a wide card reads as a layout nobody finished.
+        String sentence = "the speaker model is missing - see sidecar\\README.md";
+        JLabel label = UiTheme.fitted(sentence, "text.secondary");
+        Dimension oneLine = label.getPreferredSize();
+
+        assertThat(label.getMinimumSize().width).as("a word is never broken, but the rest can go")
+            .isLessThan(oneLine.width)
+            .isPositive();
+
+        label.setBounds(0, 0, oneLine.width / 2, oneLine.height);
+        assertThat(label.getText()).startsWith("<html>").contains("sidecar\\README.md");
+        assertThat(label.getPreferredSize().height).as("the height the wrapped sentence takes")
+            .isGreaterThan(oneLine.height);
+
+        label.setBounds(0, 0, oneLine.width, oneLine.height);
+        assertThat(label.getText()).isEqualTo(sentence);
+        assertThat(label.getPreferredSize()).isEqualTo(oneLine);
+    }
+
+    @Test
     void aFactoryLabelFollowsAThemeSwitchRatherThanTheModeItWasBuiltUnder() {
         // Breaks if styled() goes back to setForeground at construction. A
         // colour read once is right until the theme changes and wrong forever
