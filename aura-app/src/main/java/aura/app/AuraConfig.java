@@ -36,7 +36,9 @@ public record AuraConfig(
     Path speakerModel,
     Path speakerReference,
     boolean listen,
-    Theme.Mode theme
+    Theme.Mode theme,
+    int windowWidth,
+    int windowHeight
 ) {
 
     /**
@@ -62,7 +64,7 @@ public record AuraConfig(
     public AuraConfig withVoice(String voice, String profile) {
         return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
             idleTimeout, confirmTimeout, sidecarDir, pythonExe, voice, profile, wakeModel,
-            speakerModel, speakerReference, listen, theme);
+            speakerModel, speakerReference, listen, theme, windowWidth, windowHeight);
     }
 
     /**
@@ -75,7 +77,7 @@ public record AuraConfig(
     public AuraConfig withTheme(Theme.Mode theme) {
         return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
             idleTimeout, confirmTimeout, sidecarDir, pythonExe, voice, profile, wakeModel,
-            speakerModel, speakerReference, listen, theme);
+            speakerModel, speakerReference, listen, theme, windowWidth, windowHeight);
     }
 
     public static AuraConfig defaults() {
@@ -119,7 +121,13 @@ public record AuraConfig(
             // installs dark before building anything - so an owner who has never
             // touched config.yaml gets the theme the design system ships with,
             // not a choice this project invented on top of it.
-            Theme.Mode.DARK);
+            Theme.Mode.DARK,
+            // No window size until the window has been closed once. Zero is
+            // "not saved", and the window then opens at its own default size,
+            // which can change in code without a stale copy of it in every
+            // config file pinning the old one.
+            0,
+            0);
     }
 
     public static AuraConfig load(Path yamlFile) {
@@ -149,7 +157,9 @@ public record AuraConfig(
                 path(root, "speakerModel", defaults.speakerModel()).toAbsolutePath(),
                 path(root, "speakerReference", defaults.speakerReference()).toAbsolutePath(),
                 flag(root, "listen", defaults.listen()),
-                theme(root, "theme", defaults.theme()));
+                theme(root, "theme", defaults.theme()),
+                pixels(root, "windowWidth"),
+                pixels(root, "windowHeight"));
         } catch (Exception e) {
             // The cause's own message is folded in rather than left to the log. The
             // startup dialog shows this message and nothing else, and naming the file
@@ -182,17 +192,44 @@ public record AuraConfig(
      * the whole file as one string, and detecting both the terminator and the trailing
      * newline from it, is what keeps a file the application never rewrote look
      * unrewritten in every byte save() does not own.
+     *
+     * <p>The window size is not among the four: {@link #saveWindowSize} writes it,
+     * and a save here leaves its two lines exactly as they were.
      */
     public void save(Path yamlFile) throws IOException {
+        rewrite(yamlFile,
+            "voice", voice,
+            "profile", profile,
+            "listen", Boolean.toString(listen),
+            "theme", theme.name().toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Writes {@code windowWidth} and {@code windowHeight} into {@code yamlFile}, and
+     * nothing else, by the same targeted rewrite as {@link #save}.
+     *
+     * <p>Its own method rather than two more keys in {@link #save}. The window saves
+     * its size every time it closes, and a save of all four settings would append
+     * {@code voice} and {@code profile} lines, at their defaults, to a file that had
+     * never set them - a config quietly growing keys nobody chose, from closing a
+     * window.
+     */
+    public static void saveWindowSize(Path yamlFile, int width, int height) throws IOException {
+        rewrite(yamlFile,
+            "windowWidth", Integer.toString(width),
+            "windowHeight", Integer.toString(height));
+    }
+
+    /** Sets each key to its value, in place or appended, and touches nothing else. */
+    private static void rewrite(Path yamlFile, String... keysAndValues) throws IOException {
         String original = Files.isRegularFile(yamlFile)
             ? Files.readString(yamlFile, StandardCharsets.UTF_8)
             : "";
         String terminator = lineTerminatorOf(original);
         List<String> lines = linesOf(original);
-        lines = upsert(lines, "voice", voice);
-        lines = upsert(lines, "profile", profile);
-        lines = upsert(lines, "listen", Boolean.toString(listen));
-        lines = upsert(lines, "theme", theme.name().toLowerCase(Locale.ROOT));
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            lines = upsert(lines, keysAndValues[i], keysAndValues[i + 1]);
+        }
         Files.writeString(yamlFile, join(lines, terminator, endsWithNewline(original)),
             StandardCharsets.UTF_8);
     }
@@ -365,5 +402,30 @@ public record AuraConfig(
         }
         throw new IllegalArgumentException(
             key + ": expected dark or light, got '" + literal + "'");
+    }
+
+    /**
+     * A window dimension in pixels, or 0 when the key is absent. Refuses to guess,
+     * like {@link #flag} and {@link #theme}: a value that is not a whole number
+     * above zero is named rather than quietly replaced by the default. Whether it
+     * fits the screen is the window's question, asked when it opens, because the
+     * screen can change between two starts and this file cannot know.
+     */
+    private static int pixels(Map<String, Object> root, String key) {
+        Object value = root.get(key);
+        if (value == null) {
+            return 0;
+        }
+        String literal = String.valueOf(value).trim();
+        try {
+            int pixels = Integer.parseInt(literal);
+            if (pixels > 0) {
+                return pixels;
+            }
+        } catch (NumberFormatException e) {
+            // Named below, with the key, like every other value this file refuses.
+        }
+        throw new IllegalArgumentException(
+            key + ": expected a whole number of pixels above zero, got '" + literal + "'");
     }
 }

@@ -31,7 +31,7 @@ class AuraConfigTest {
             Duration.ofMinutes(15), Duration.ofSeconds(20),
             Path.of("sidecar"), PYTHON_EXE,
             "", "en",
-            wakeModel, speakerModel, speakerReference, listen, Theme.Mode.DARK);
+            wakeModel, speakerModel, speakerReference, listen, Theme.Mode.DARK, 0, 0);
     }
 
     @Test
@@ -395,6 +395,8 @@ class AuraConfigTest {
             "listen: true",
             "voice: aidar",
             "profile: en",
+            "windowWidth: 1000",
+            "windowHeight: 700",
             ""));
         AuraConfig original = AuraConfig.load(yaml);
 
@@ -407,6 +409,8 @@ class AuraConfigTest {
         assertThat(changed.idleTimeout()).isEqualTo(original.idleTimeout());
         assertThat(changed.listen()).isEqualTo(original.listen());
         assertThat(changed.theme()).isEqualTo(original.theme());
+        assertThat(changed.windowWidth()).isEqualTo(1000);
+        assertThat(changed.windowHeight()).isEqualTo(700);
     }
 
     /**
@@ -427,6 +431,8 @@ class AuraConfigTest {
             "voice: aidar",
             "profile: en",
             "theme: light",
+            "windowWidth: 1000",
+            "windowHeight: 700",
             ""));
         AuraConfig original = AuraConfig.load(yaml);
 
@@ -439,5 +445,162 @@ class AuraConfigTest {
         assertThat(changed.hookJar()).isEqualTo(original.hookJar());
         assertThat(changed.idleTimeout()).isEqualTo(original.idleTimeout());
         assertThat(changed.listen()).isEqualTo(original.listen());
+        assertThat(changed.windowWidth()).isEqualTo(1000);
+        assertThat(changed.windowHeight()).isEqualTo(700);
+    }
+
+    // windowWidth and windowHeight: the size the window closed at, written by
+    // saveWindowSize() alone. save() writes the four settings the window's controls
+    // change and must leave these two lines as it found them, and saveWindowSize()
+    // must leave everything else - including the line ending and the trailing
+    // newline the save() tests above pin - exactly as it found it.
+
+    @Test
+    void loadReadsTheWindowSize(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"),
+            "windowWidth: 1000\nwindowHeight: 700\n");
+
+        AuraConfig config = AuraConfig.load(yaml);
+
+        assertThat(config.windowWidth()).isEqualTo(1000);
+        assertThat(config.windowHeight()).isEqualTo(700);
+    }
+
+    /** Zero is "never saved": the window then opens at its own default size. */
+    @Test
+    void loadLeavesTheWindowSizeUnsavedWhenTheKeysAreAbsent(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "claudeExe: claude\n");
+
+        AuraConfig config = AuraConfig.load(yaml);
+
+        assertThat(config.windowWidth()).isZero();
+        assertThat(config.windowHeight()).isZero();
+        assertThat(AuraConfig.defaults().windowWidth()).isZero();
+        assertThat(AuraConfig.defaults().windowHeight()).isZero();
+    }
+
+    /**
+     * Breaks if a size that is not a whole number above zero is quietly replaced by
+     * the default instead of being named, the way listen and theme already refuse
+     * to guess.
+     */
+    @Test
+    void loadRejectsAWindowSizeThatIsNotAWholeNumberAboveZero(@TempDir Path tmp) throws Exception {
+        for (String line : List.of("windowWidth: wide", "windowHeight: 0", "windowWidth: -900",
+                "windowHeight: 640.5")) {
+            Path yaml = Files.writeString(tmp.resolve("config.yaml"), line + "\n");
+            String key = line.substring(0, line.indexOf(':'));
+            String literal = line.substring(line.indexOf(':') + 1).trim();
+
+            assertThatThrownBy(() -> AuraConfig.load(yaml))
+                .as(line)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(key)
+                .hasMessageContaining("got '" + literal + "'");
+        }
+    }
+
+    /**
+     * Closing the window must not add settings nobody chose. Breaks if
+     * saveWindowSize() ever goes through save(), which appends voice, profile,
+     * listen and theme at their defaults to a file that never set them.
+     */
+    @Test
+    void saveWindowSizeWritesItsTwoKeysAndNothingElse(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, String.join("\n",
+            "# a setting written by hand",
+            "claudeExe: C:\\tools\\claude.exe",
+            "idleTimeoutSec: 900",
+            ""));
+
+        AuraConfig.saveWindowSize(yaml, 1000, 700);
+
+        assertThat(Files.readString(yaml)).isEqualTo(String.join("\n",
+            "# a setting written by hand",
+            "claudeExe: C:\\tools\\claude.exe",
+            "idleTimeoutSec: 900",
+            "windowWidth: 1000",
+            "windowHeight: 700",
+            ""));
+    }
+
+    /** The same guarantee savePreservesTheFilesLineEndingAndTrailingNewlineExactly pins for save(). */
+    @Test
+    void saveWindowSizePreservesTheFilesLineEndingAndTrailingNewlineExactly(@TempDir Path tmp)
+            throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, ("hookJar: C:\\tools\\claude.exe\nvoice: aidar\nprofile: en\nlisten: false")
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.saveWindowSize(yaml, 1000, 700);
+
+        assertThat(Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8)).isEqualTo(
+            "hookJar: C:\\tools\\claude.exe\nvoice: aidar\nprofile: en\nlisten: false"
+                + "\nwindowWidth: 1000\nwindowHeight: 700");
+    }
+
+    @Test
+    void saveWindowSizePreservesCrlfAndATrailingNewlineWhenTheFileHasThem(@TempDir Path tmp)
+            throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, "voice: aidar\r\nprofile: en\r\nlisten: false\r\n"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.saveWindowSize(yaml, 1000, 700);
+
+        assertThat(Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8)).isEqualTo(
+            "voice: aidar\r\nprofile: en\r\nlisten: false\r\nwindowWidth: 1000\r\nwindowHeight: 700\r\n");
+    }
+
+    /**
+     * The window saves on every close, so a file that appended instead of replacing
+     * would grow two lines a day. Each line is replaced where it stands, with the
+     * line between them left alone.
+     */
+    @Test
+    void saveWindowSizeReplacesTheLinesAlreadyThereRatherThanDuplicatingThem(@TempDir Path tmp)
+            throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, "windowWidth: 900\ntheme: light\nwindowHeight: 640\n");
+
+        AuraConfig.saveWindowSize(yaml, 1000, 700);
+        AuraConfig.saveWindowSize(yaml, 1100, 750);
+
+        assertThat(Files.readString(yaml))
+            .isEqualTo("windowWidth: 1100\ntheme: light\nwindowHeight: 750\n");
+    }
+
+    @Test
+    void saveWindowSizeCreatesTheFileWhenItDoesNotExistYet(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("new-config.yaml");
+
+        AuraConfig.saveWindowSize(yaml, 1000, 700);
+
+        assertThat(Files.readString(yaml)).isEqualTo("windowWidth: 1000\nwindowHeight: 700\n");
+        assertThat(AuraConfig.load(yaml).windowWidth()).isEqualTo(1000);
+        assertThat(AuraConfig.load(yaml).windowHeight()).isEqualTo(700);
+    }
+
+    /**
+     * Breaks if save() starts writing the window size. A theme press or a voice
+     * choice must leave the two lines exactly as the last close wrote them, and must
+     * not add them to a file that has none, even from a config that holds a size.
+     */
+    @Test
+    void saveLeavesTheWindowSizeLinesExactlyAsItFoundThem(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, "voice: aidar\nwindowWidth: 1000\nprofile: en\nlisten: false\n"
+            + "theme: dark\nwindowHeight: 700\n");
+        Path other = tmp.resolve("other.yaml");
+        Files.writeString(other, "voice: aidar\n");
+        AuraConfig loaded = AuraConfig.load(yaml);
+
+        loaded.withTheme(Theme.Mode.LIGHT).save(yaml);
+        loaded.save(other);
+
+        assertThat(Files.readString(yaml)).isEqualTo("voice: aidar\nwindowWidth: 1000\nprofile: en\n"
+            + "listen: false\ntheme: light\nwindowHeight: 700\n");
+        assertThat(Files.readString(other)).doesNotContain("window");
     }
 }

@@ -10,8 +10,15 @@ import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Frame;
+import java.awt.GraphicsConfiguration;
+import java.awt.Insets;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.FocusEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +82,11 @@ import org.slf4j.LoggerFactory;
  * idempotent - there is one frame for the lifetime of this object, so a second
  * call raises the one that exists instead of opening another.
  *
+ * <p>The size the window is closed at is written to {@code config.yaml} and is
+ * the size the next start opens at. The section and the position are not: a
+ * start opens on Status, which answers "what is missing?", in the middle of the
+ * screen.
+ *
  * <h2>Theme</h2>
  *
  * <p>The rail's scroll pane and column, the foot under it and the body are the
@@ -114,6 +126,10 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     static final int RAIL_WIDTH = 200;
     static final int MINIMUM_WIDTH = 720;
     static final int MINIMUM_HEIGHT = 480;
+
+    /** The size the window opens at until it has been closed at another one. */
+    private static final int DEFAULT_WIDTH = 900;
+    private static final int DEFAULT_HEIGHT = 640;
 
     static {
         // Once, before the first component exists: a look and feel set after a
@@ -155,6 +171,12 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     // with the list's rows and carrying the rail's separator line past it.
     private final JPanel railFoot = new JPanel(new BorderLayout());
     private final JLabel themeReport = UiTheme.wrapped("", "error");
+    // Both touched only on the EDT once the frame is shown. normalSize is the
+    // last size the frame had while it was neither maximised nor minimised;
+    // sizeNextStart is the size the next start would open at if nothing were
+    // saved now, so a window nobody resized writes nothing.
+    private Dimension normalSize;
+    private Dimension sizeNextStart;
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -171,9 +193,11 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
      *                 Tasks section so a person can see what routing will match
      * @param logDir the folder the Log card offers to open
      * @param configFile {@code config.yaml} - read once here for the theme to start
-     *                   in and for the registry file an empty Projects card names,
-     *                   then read and rewritten again by the voice choice section's
-     *                   {@code Use this voice} button and by the theme control
+     *                   in, the size to open at and the registry file an empty
+     *                   Projects card names, then read and rewritten again by the
+     *                   voice choice section's {@code Use this voice} button, by
+     *                   the theme control, and by the window itself when it closes
+     *                   at a new size
      */
     public AuraWindow(Consumer<Map<String, Object>> toSidecar, Consumer<String> dispatch,
                       Runnable onStopAgent, ProjectRegistry registry, Path logDir,
@@ -248,9 +272,36 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         frame.setLayout(new BorderLayout());
         frame.add(railColumn, BorderLayout.WEST);
         frame.add(body, BorderLayout.CENTER);
-        frame.setSize(900, 640);
-        frame.setMinimumSize(new Dimension(MINIMUM_WIDTH, MINIMUM_HEIGHT));
+        Dimension minimum = new Dimension(MINIMUM_WIDTH, MINIMUM_HEIGHT);
+        frame.setMinimumSize(minimum);
+        // The size the window last closed at, fitted to this screen, or the
+        // default size before it has ever been closed. The position is not
+        // kept: a window opened from the tray belongs in the middle of the
+        // screen, and a saved position would have to be checked against
+        // screens that can come and go between two starts.
+        Dimension opening = WindowSize.opening(settings.windowWidth(), settings.windowHeight(),
+            new Dimension(DEFAULT_WIDTH, DEFAULT_HEIGHT), minimum, usableScreen());
+        frame.setSize(opening);
         frame.setLocationRelativeTo(null);
+        normalSize = opening;
+        sizeNextStart = opening;
+        frame.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                // Only a size somebody dragged the window to. A maximised frame
+                // reports the whole work area, and saving that would open the
+                // next start at the maximised size with nothing to restore to.
+                if (frame.getExtendedState() == Frame.NORMAL) {
+                    normalSize = frame.getSize();
+                }
+            }
+        });
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                saveSize(configFile);
+            }
+        });
 
         // Focus that arrives by keyboard, or by a panel moving it, scrolls its
         // page to it. Not focus from a click: whatever the pointer reached is
@@ -331,6 +382,44 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         themeToggle.setText(Theme.mode() == Theme.Mode.DARK
             ? "Switch to light theme" : "Switch to dark theme");
         frame.repaint();
+    }
+
+    /**
+     * Writes the window's size into {@code config.yaml} as it closes, when that
+     * size differs from the one the next start would open at anyway.
+     *
+     * <p>Through {@link AuraConfig#saveWindowSize}, which rewrites the two
+     * size lines and nothing else, and only when the size has changed: a
+     * window closed at the default size leaves no size in the file, so the
+     * default can change in code without every config file pinning the old
+     * one. A failed save is logged and nothing more. The window is closing,
+     * so there is nowhere left to say it, and what it costs is one start at
+     * the previous size.
+     */
+    private void saveSize(Path configFile) {
+        Dimension size = normalSize;
+        if (size.equals(sizeNextStart)) {
+            return;
+        }
+        try {
+            AuraConfig.saveWindowSize(configFile, size.width, size.height);
+            sizeNextStart = size;
+        } catch (Exception e) {
+            log.warn("could not save the window size to {}", configFile, e);
+        }
+    }
+
+    /**
+     * The bounds of the screen the frame opens on, less its taskbars: the room
+     * a window can take and still show its title bar and its bottom edge.
+     */
+    private Rectangle usableScreen() {
+        GraphicsConfiguration screen = frame.getGraphicsConfiguration();
+        Rectangle bounds = screen.getBounds();
+        Insets taskbars = Toolkit.getDefaultToolkit().getScreenInsets(screen);
+        return new Rectangle(bounds.x + taskbars.left, bounds.y + taskbars.top,
+            bounds.width - taskbars.left - taskbars.right,
+            bounds.height - taskbars.top - taskbars.bottom);
     }
 
     /**
