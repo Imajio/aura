@@ -350,6 +350,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             if (sectionNames.getSize() == 1) {
                 sectionList.setSelectedIndex(0);
             }
+            status.sectionsChanged();
         });
     }
 

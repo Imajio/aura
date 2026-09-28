@@ -99,10 +99,10 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         this.hasSection = hasSection;
         this.goToSection = goToSection;
 
-        speakerModelSetupButton = newSetupButton();
-        referenceSetupButton = newSetupButton();
-        wakeModelSetupButton = newSetupButton();
-        listeningSetupButton = newSetupButton();
+        speakerModelSetupButton = newSetupButton("status.speakerModel.setup");
+        referenceSetupButton = newSetupButton("status.reference.setup");
+        wakeModelSetupButton = newSetupButton("status.wakeModel.setup");
+        listeningSetupButton = newSetupButton("status.listening.setup");
         logFolderButton = newLogFolderButton();
 
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
@@ -269,7 +269,8 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         } else {
             card.line("Process", UiTheme.status("not running", "warning"), null);
             card.note("Aura still dispatches typed tasks and gates tool calls without it. "
-                + "What it cannot do is hear or speak.");
+                + "What it cannot do is hear or speak. If it stays this way, the log below "
+                + "says why.");
         }
         return card;
     }
@@ -322,6 +323,13 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
             null);
         if (listening) {
             card.note("Aura is waiting for the wake word. Nothing leaves this machine.");
+        } else if (!sidecarReady && !voiceAnswered) {
+            // No button: the switch in Voice setup cannot move until a sidecar
+            // answers, and nothing there starts one. The Sidecar card above says
+            // where to look instead.
+            card.line("Why not", UiTheme.body("the sidecar is not running"), null);
+        } else if (voiceUnavailable) {
+            card.line("Why not", UiTheme.body("this sidecar has no voice support"), null);
         } else if (voiceAnswered && !wakeModel) {
             card.line("Why not", UiTheme.body("there is no wake-word model to listen for"),
                 listeningSetupButton);
@@ -488,20 +496,31 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
      * voice setup. Its enabled state is not decided here: {@code AuraWindow} adds
      * this panel before it adds the Voice section, so {@link #hasSection} would
      * always answer false the one time a constructor could ask it. {@link
-     * #refreshSetupButtons()} asks instead, once per {@link #rebuild()}, by which
-     * time the answer is settled.
+     * #refreshSetupButtons()} asks instead, from every {@link #rebuild()} and from
+     * {@link #sectionsChanged()}.
      */
-    private JButton newSetupButton() {
+    private JButton newSetupButton(String name) {
         JButton button = JetControls.button("Set this up");
+        button.setName(name);
         button.addActionListener(e -> goToSection.accept(AuraWindow.VOICE_SECTION));
         return button;
     }
 
     /**
+     * Tells the panel the window gained a section. {@code AuraWindow} calls it
+     * after each {@code addTab}: a rebuild alone came too late when no sidecar
+     * ever spoke, and the buttons stayed dead with a tooltip saying Voice setup
+     * was not in this build while it sat in the rail.
+     */
+    void sectionsChanged() {
+        refreshSetupButtons();
+    }
+
+    /**
      * Brings every cached "Set this up" button's enabled state and tooltip up to
-     * date. Run once per {@link #rebuild()} rather than once per button use - all
-     * four ask {@link #hasSection} the same question, and the answer cannot
-     * differ between them.
+     * date. Run once per call rather than once per button use - all four ask
+     * {@link #hasSection} the same question, and the answer cannot differ between
+     * them.
      */
     private void refreshSetupButtons() {
         boolean available = hasSection.test(AuraWindow.VOICE_SECTION);

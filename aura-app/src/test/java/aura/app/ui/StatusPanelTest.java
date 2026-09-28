@@ -4,8 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.awt.Component;
+import java.awt.Container;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.AbstractButton;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +53,119 @@ class StatusPanelTest {
         }
 
         assertThat(Theme.listenerCount() - afterConstruction).isZero();
+    }
+
+    /**
+     * AuraWindow builds this panel before any section exists, so the "Set this
+     * up" buttons were decided against a window with no Voice setup in it, and
+     * only a later rebuild corrected them. With no sidecar event to rebuild the
+     * cards, they stayed dead, with a tooltip saying the section was not in this
+     * build. Breaks if the panel stops answering sectionsChanged, the call
+     * AuraWindow makes after each addTab, without waiting for a rebuild.
+     */
+    @Test
+    void setupButtonsFollowASectionAddedAfterTheLastRebuild(@TempDir Path tmp) {
+        AtomicBoolean added = new AtomicBoolean(false);
+        StatusPanel[] panel = new StatusPanel[1];
+        onEdt(() -> panel[0] = new StatusPanel(
+            command -> { }, tmp, section -> added.get(), section -> { }));
+        onEdt(() -> {
+            panel[0].accept(event("{\"ev\":\"ready\",\"devices\":{},\"models\":{}}"));
+            AbstractButton setup = (AbstractButton) find(panel[0], "status.listening.setup");
+            assertThat(setup.isEnabled()).isFalse();
+            assertThat(setup.getToolTipText()).contains("not in this build");
+
+            added.set(true);
+            panel[0].sectionsChanged();
+
+            assertThat(setup.isEnabled()).isTrue();
+            assertThat(setup.getToolTipText()).isNull();
+        });
+    }
+
+    /**
+     * With no sidecar the Listening card said "it has not been switched on" and
+     * sent people to a switch that cannot move until the sidecar answers. Breaks
+     * if the card goes back to switch advice, or to a button, before a sidecar
+     * has said anything, or if the Sidecar card stops pointing at the log.
+     */
+    @Test
+    void listeningNamesTheMissingSidecarAndOffersNoSwitchBeforeAnyEvent(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            assertThat(cardTexts(panel, "Listening")).contains("the sidecar is not running")
+                .noneMatch(text -> text.contains("switched on"))
+                .doesNotContain("Set this up");
+            assertThat(String.join(" ", cardTexts(panel, "Sidecar"))).contains("the log");
+        });
+    }
+
+    /** The same for a sidecar built without voice support: it has no switch to offer. */
+    @Test
+    void listeningNamesAMissingVoiceBuildAndOffersNoSwitch(@TempDir Path tmp) {
+        StatusPanel panel = panel(tmp);
+        onEdt(() -> {
+            panel.accept(event("{\"ev\":\"ready\",\"devices\":{},\"models\":{}}"));
+            panel.accept(event("{\"ev\":\"error\",\"code\":\"VOICE_UNAVAILABLE\"}"));
+
+            assertThat(cardTexts(panel, "Listening")).contains("this sidecar has no voice support")
+                .doesNotContain("Set this up");
+        });
+    }
+
+    private static StatusPanel panel(Path logDir) {
+        StatusPanel[] panel = new StatusPanel[1];
+        onEdt(() -> panel[0] = new StatusPanel(
+            command -> { }, logDir, section -> true, section -> { }));
+        return panel[0];
+    }
+
+    /** The plain text of every label and button in the card with this heading. */
+    private static List<String> cardTexts(Container root, String heading) {
+        for (Component child : root.getComponents()) {
+            if (child instanceof Card card && card.getComponent(0) instanceof JLabel title
+                    && heading.equals(title.getText())) {
+                List<String> texts = new ArrayList<>();
+                collectTexts(card, texts);
+                return texts;
+            }
+            if (child instanceof Container inner) {
+                List<String> found = cardTexts(inner, heading);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void collectTexts(Container root, List<String> texts) {
+        for (Component child : root.getComponents()) {
+            String raw = child instanceof JLabel label ? label.getText()
+                : child instanceof AbstractButton button ? button.getText() : null;
+            if (raw != null && !raw.isEmpty()) {
+                texts.add(raw.replaceAll("<[^>]*>", " ").replace("&amp;", "&")
+                    .replace("&lt;", "<").replaceAll("\\s+", " ").trim());
+            }
+            if (child instanceof Container inner) {
+                collectTexts(inner, texts);
+            }
+        }
+    }
+
+    private static Component find(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) {
+                return child;
+            }
+            if (child instanceof Container inner) {
+                Component found = find(inner, name);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static SidecarEvent event(String json) {
