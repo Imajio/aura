@@ -691,10 +691,11 @@ public final class JetControls {
 
     /**
      * The same, for a list that sits straight on another surface rather than
-     * on a card: the section rail, whose rows lie on the window's canvas. The
-     * list's background and a {@link RowRenderer}'s resting and hovered rows
-     * start from {@code surfaceToken} instead of {@code surface.primary}; the
-     * selection is the same full {@code surface.selection} tint and stripe.
+     * on a card: the section rail, whose rows lie on the rail's own {@code
+     * surface.secondary}. The list's background and a {@link RowRenderer}'s
+     * resting and hovered rows start from {@code surfaceToken} instead of
+     * {@code surface.primary}; the selection is the same full {@code
+     * surface.selection} tint and stripe.
      */
     public static <T> JList<T> list(JList<T> target, String surfaceToken) {
         UiTheme.color(surfaceToken);

@@ -425,8 +425,8 @@ class JetControlsTest {
     void aListOnAnotherSurfaceRestsOnItAndItsRowsHoverFromIt() {
         // Breaks if list(target, token) ignores the token, or if the rows
         // hover and rest from surface.primary whatever the list sits on. The
-        // section rail sits on the canvas, and its rows used to be a plain
-        // DefaultListCellRenderer with no hover and no stripe at all.
+        // section rail sits on surface.secondary, and its rows used to be a
+        // plain DefaultListCellRenderer with no hover and no stripe at all.
         for (Theme.Mode mode : Theme.Mode.values()) {
             Theme.install(mode);
             JetControls.RowRenderer<String> renderer = new JetControls.RowRenderer<>() {
@@ -435,7 +435,8 @@ class JetControlsTest {
                     return value;
                 }
             };
-            JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()), "surface.app");
+            JList<String> list = JetControls.list(new JList<>(new DefaultListModel<>()), "surface.secondary");
+            Color rail = UiTheme.color("surface.secondary");
 
             renderer.getListCellRendererComponent(list, "Status", 0, false, false);
             Color rest = renderer.getBackground();
@@ -443,10 +444,10 @@ class JetControlsTest {
             renderer.getListCellRendererComponent(list, "Status", 0, false, false);
             Color hover = renderer.getBackground();
 
-            assertThat(list.getBackground()).as(mode + " list").isEqualTo(UiTheme.canvas());
-            assertThat(rest).as(mode + " resting row").isEqualTo(UiTheme.canvas());
+            assertThat(list.getBackground()).as(mode + " list").isEqualTo(rail);
+            assertThat(rest).as(mode + " resting row").isEqualTo(rail);
             assertThat(hover).as(mode + " hovered row")
-                .isEqualTo(JetControls.mix(UiTheme.canvas(), UiTheme.color("surface.selection"), 0.55));
+                .isEqualTo(JetControls.mix(rail, UiTheme.color("surface.selection"), 0.55));
         }
     }
 

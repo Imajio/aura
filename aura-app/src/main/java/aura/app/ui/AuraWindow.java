@@ -127,6 +127,14 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     static final int MINIMUM_WIDTH = 720;
     static final int MINIMUM_HEIGHT = 480;
 
+    /**
+     * The rail's surface, a step off the canvas the sections sit on, as the
+     * design system's own AppShell gives its navigation. On the canvas the rail
+     * read as part of the page, set apart only by its divider, which in light
+     * is the faintest mark in the window at 1.19:1.
+     */
+    private static final String RAIL_SURFACE = "surface.secondary";
+
     /** The size the window opens at until it has been closed at another one. */
     private static final int DEFAULT_WIDTH = 900;
     private static final int DEFAULT_HEIGHT = 640;
@@ -169,7 +177,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     private final JPanel railColumn = new JPanel(new BorderLayout());
     // Holds themeToggle below the section list, padded so the button lines up
     // with the list's rows and carrying the rail's separator line past it.
-    private final JPanel railFoot = new JPanel(new BorderLayout());
+    private final JPanel railFoot = new JPanel(new BorderLayout(0, UiTheme.GAP));
     private final JLabel themeReport = UiTheme.wrapped("", "error");
     // Both touched only on the EDT once the frame is shown. normalSize is the
     // last size the frame had while it was neither maximised nor minimised;
@@ -209,12 +217,13 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         sectionList.setFont(UiTheme.body());
         sectionList.setBorder(UiTheme.pad(UiTheme.GAP));
         // The same rows as the voice list - hover, a selection tint with its
-        // accent stripe - resting on the canvas rather than on a card, and a
-        // ring round the row that holds keyboard focus. The rail is the first
-        // Tab stop in every section, and it has no outline of its own to show
-        // focus with. JetControls.list keeps the background and foreground on
-        // the palette across a switch, so refreshChrome does not touch them.
-        JetControls.list(sectionList, "surface.app");
+        // accent stripe - resting on the rail's own surface rather than on a
+        // card, and a ring round the row that holds keyboard focus. The rail is
+        // the first Tab stop in every section, and it has no outline of its own
+        // to show focus with. JetControls.list keeps the background and
+        // foreground on the palette across a switch, so refreshChrome does not
+        // touch them.
+        JetControls.list(sectionList, RAIL_SURFACE);
         sectionList.setCellRenderer(new JetControls.RowRenderer<String>(true) {
             @Override
             protected String text(String title) {
@@ -252,7 +261,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
             // the next start, and nothing else in the window would say so.
             themeReport.setText(problem.isEmpty() ? ""
                 : UiTheme.html("Not saved to config.yaml: " + problem
-                    + ". The theme resets when Aura restarts.", RAIL_WIDTH - 1 - 2 * UiTheme.GAP));
+                    + ". The theme resets when Aura restarts.", RAIL_WIDTH - 1 - 4 * UiTheme.GAP));
             themeReport.setToolTipText(problem.isEmpty() ? null : configFile.toString());
             themeReport.setVisible(!problem.isEmpty());
             railFoot.revalidate();
@@ -260,7 +269,12 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
         themeReport.setName("theme.report");
         themeReport.setVisible(false);
-        themeReport.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
+        // On a card's surface rather than the rail's: error is 4.26:1 on
+        // surface.secondary in dark and 4.48:1 in light, under the 4.5:1 a
+        // sentence needs, and 4.64:1 and 4.91:1 on surface.primary. The gap
+        // above it is the foot's, so the button does not sit on that surface.
+        themeReport.setOpaque(true);
+        themeReport.setBorder(UiTheme.pad(UiTheme.GAP));
         railFoot.setOpaque(false);
         railFoot.add(themeToggle, BorderLayout.CENTER);
         railFoot.add(themeReport, BorderLayout.SOUTH);
@@ -347,18 +361,18 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
 
     /**
      * Re-reads {@link UiTheme}'s live accessors into the chrome this class paints
-     * directly - the rail's border and viewport, the rail column's and the body's
-     * backgrounds, and the rail
-     * foot's border - plus the theme control's own label, and repaints. Called
-     * once, right after the window is built, and again from every {@link
-     * Theme#onChange}, so construction and a later switch produce the chrome the
-     * same way instead of two code paths that could disagree.
+     * directly - the rail's border and viewport, the rail column's, the body's
+     * and the theme report's backgrounds, and the rail foot's border - plus the
+     * theme control's own label, and repaints. Called once, right after the
+     * window is built, and again from every {@link Theme#onChange}, so
+     * construction and a later switch produce the chrome the same way instead
+     * of two code paths that could disagree.
      *
      * <p>{@code themeToggle} gets its label here and no colour at all. It is a
      * {@link JetControls#button}, which paints its own face and outline and
      * re-reads its tokens on every switch, like every other button in the
      * window, so a colour set here would only fight it. What surrounds it is
-     * this class's chrome, though: the rail column's canvas shows round the
+     * this class's chrome, though: the rail column's surface shows round the
      * button's rounded corners and in the padding that lines it up with the
      * section rows, and the foot's border carries the rail's separator down past
      * the button. Left to the look and feel, the column behind that padding
@@ -366,6 +380,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
      */
     private void refreshChrome() {
         Color canvas = UiTheme.canvas();
+        Color railSurface = UiTheme.color(RAIL_SURFACE);
         body.setBackground(canvas);
         rail.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.line()));
         // sectionList already covers the whole viewport (it stretches to fill it,
@@ -375,8 +390,9 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         // scroll pane in this codebase already follows now that Theme.install no
         // longer sets Viewport.background itself, so rail does not become the
         // one exception if sectionList's coverage of it ever stops being total.
-        rail.getViewport().setBackground(canvas);
-        railColumn.setBackground(canvas);
+        rail.getViewport().setBackground(railSurface);
+        railColumn.setBackground(railSurface);
+        themeReport.setBackground(UiTheme.surface());
         railFoot.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 0, 1, UiTheme.line()), UiTheme.pad(UiTheme.GAP)));
         themeToggle.setText(Theme.mode() == Theme.Mode.DARK
