@@ -16,6 +16,11 @@ the desktop window the tray now opens. A typed phrase reaches Aura from the
 tray menu or from the window's `Tasks` section, which is also where a
 dispatched task can be watched running.
 
+The window opens in a dark theme by default. The button at the foot of its section rail
+switches it to light and back, and the choice, like the window's size, is kept
+across restarts in `%APPDATA%\Aura\config.yaml`. Ctrl+1 to Ctrl+4 select its
+four sections: `Status`, `Voice setup`, `Choose a voice` and `Tasks`.
+
 ## Design documents
 
 The requirements, architecture, decision records and risk register are **not
