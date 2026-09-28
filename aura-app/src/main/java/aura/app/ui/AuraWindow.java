@@ -460,7 +460,11 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         });
     }
 
-    /** Adds a section to the rail and the body. The first one added is selected. */
+    /**
+     * Adds a section to the rail and the body. The first one added is selected,
+     * and Ctrl with the section's place in the rail selects it from anywhere in
+     * the window (see {@link SectionShortcuts}).
+     */
     public void addTab(String title, JComponent panel) {
         onEdt(() -> {
             if (sections.putIfAbsent(title, panel) != null) {
@@ -469,6 +473,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
                 return;
             }
             sectionNames.addElement(title);
+            SectionShortcuts.bind(frame.getRootPane(), sectionNames.getSize(), () -> select(title));
             body.add(panel, title);
             if (sectionNames.getSize() == 1) {
                 sectionList.setSelectedIndex(0);
