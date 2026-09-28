@@ -212,6 +212,9 @@ public final class UiTheme {
     // arithmetic, not anything this codebase controls.
     private static final int NOTE_WIDTH = 300;
 
+    /** Java2D pixels per CSS "px" in an HTML label's inline width - see NOTE_WIDTH. */
+    private static final float CSS_PX = 1.3f;
+
     // The type scale, from jet-swing-design-system's TYPOGRAPHY.md. Its bands
     // are application title 20 to 24, section title 15 to 16, control text
     // 13, metadata 12 and status text 11 to 12. title() keeps the 20 it
@@ -400,8 +403,21 @@ public final class UiTheme {
      * removed from a card as answers arrive are rows that get left behind.
      */
     public static String html(List<String> lines) {
+        return html(lines, NOTE_WIDTH);
+    }
+
+    /**
+     * One sentence wrapped at {@code width} screen pixels rather than at a card
+     * note's width, for a place narrower than a card: under the theme control, in
+     * a rail 200 pixels wide.
+     */
+    static String html(String text, int width) {
+        return html(List.of(text), (int) (width / CSS_PX));
+    }
+
+    private static String html(List<String> lines, int cssWidth) {
         StringBuilder markup = new StringBuilder("<html><body style='width:")
-            .append(NOTE_WIDTH).append("px'>");
+            .append(cssWidth).append("px'>");
         for (int i = 0; i < lines.size(); i++) {
             if (i > 0) {
                 markup.append("<br>");

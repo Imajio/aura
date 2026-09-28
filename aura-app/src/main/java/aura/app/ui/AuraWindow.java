@@ -23,6 +23,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -153,6 +154,7 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
     // Holds themeToggle below the section list, padded so the button lines up
     // with the list's rows and carrying the rail's separator line past it.
     private final JPanel railFoot = new JPanel(new BorderLayout());
+    private final JLabel themeReport = UiTheme.wrapped("", "error");
 
     /**
      * Builds the window without showing it. Aura still starts in the tray.
@@ -215,15 +217,29 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         themeToggle.addActionListener(e -> {
             Theme.Mode next = Theme.mode() == Theme.Mode.DARK ? Theme.Mode.LIGHT : Theme.Mode.DARK;
             Theme.install(next);
+            String problem = "";
             try {
                 AuraConfig.load(configFile).withTheme(next).save(configFile);
             } catch (Exception ex) {
                 log.warn("could not save the chosen theme to {}", configFile, ex);
+                problem = FailureText.of(ex);
             }
+            // The switch has happened either way. What a failed save changes is
+            // the next start, and nothing else in the window would say so.
+            themeReport.setText(problem.isEmpty() ? ""
+                : UiTheme.html("Not saved to config.yaml: " + problem
+                    + ". The theme resets when Aura restarts.", RAIL_WIDTH - 1 - 2 * UiTheme.GAP));
+            themeReport.setToolTipText(problem.isEmpty() ? null : configFile.toString());
+            themeReport.setVisible(!problem.isEmpty());
+            railFoot.revalidate();
         });
 
+        themeReport.setName("theme.report");
+        themeReport.setVisible(false);
+        themeReport.setBorder(BorderFactory.createEmptyBorder(UiTheme.GAP, 0, 0, 0));
         railFoot.setOpaque(false);
         railFoot.add(themeToggle, BorderLayout.CENTER);
+        railFoot.add(themeReport, BorderLayout.SOUTH);
         railColumn.add(rail, BorderLayout.CENTER);
         railColumn.add(railFoot, BorderLayout.SOUTH);
 
