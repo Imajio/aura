@@ -758,6 +758,45 @@ class JetControlsTest {
     }
 
     @Test
+    void aScrollPaneKeepsTheBorderItsCallerSetThroughALookAndFeelRefresh() {
+        // Breaks if TokenScrollPane.updateUI stops putting the chosen border
+        // back. Every Theme.install runs updateComponentTreeUI, and the look
+        // and feel's installBorder then frames a page whose border was set to
+        // null, and swaps a list's outline for its own frame. Renders found
+        // exactly that frame round the Tasks page and the voice list.
+        JScrollPane page = JetControls.scrollPane(new JPanel(),
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        page.setBorder(null);
+        JScrollPane framed = JetControls.listScrollPane(
+            JetControls.list(new JList<>(new DefaultListModel<String>())),
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        Border outline = framed.getBorder();
+
+        SwingUtilities.updateComponentTreeUI(page);
+        SwingUtilities.updateComponentTreeUI(framed);
+
+        assertThat(page.getBorder()).as("a page set to no border").isNull();
+        assertThat(outline).isInstanceOf(JetControls.ListOutline.class);
+        assertThat(framed.getBorder()).as("a list's outline").isSameAs(outline);
+    }
+
+    @Test
+    void aScrollPaneKeepsItsOwnScrollbarsThroughALookAndFeelRefresh() {
+        // Breaks if TokenScrollBar.updateUI installs the look and feel's own
+        // delegate, even if only on a refresh: the platform scrollbar would
+        // come back on the first theme switch and stay.
+        JScrollPane pane = JetControls.scrollPane(new JPanel(),
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
+
+        SwingUtilities.updateComponentTreeUI(pane);
+
+        assertThat(pane.getVerticalScrollBar().getUI().getClass().getEnclosingClass())
+            .as("the vertical scrollbar's delegate").isEqualTo(JetControls.class);
+        assertThat(pane.getHorizontalScrollBar().getUI().getClass().getEnclosingClass())
+            .as("the horizontal scrollbar's delegate").isEqualTo(JetControls.class);
+    }
+
+    @Test
     void aSpinnerCopiesTheCurrentTextTokenOntoItsFieldWhenItPaints() {
         // Breaks if the field's colours are set once at construction. The
         // field belongs to JSpinner and cannot resolve tokens itself, so a
