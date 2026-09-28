@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -20,8 +22,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import javax.swing.AbstractButton;
 import javax.swing.DefaultListModel;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
@@ -488,6 +492,106 @@ class TasksPanelTest {
             assertThat(anyLabelContains(panel.tasks, REGISTRY_FILE.toString())).isTrue();
             assertThat(anyLabelContains(panel.tasks, "restart Aura")).isTrue();
         });
+    }
+
+    /**
+     * The phrase field was an empty box: nothing on screen showed what a task
+     * looks like until one had been sent. Breaks if the field loses its example,
+     * or if the example stops being painted in text.tertiary, read when it
+     * paints, so that a theme switch reaches it.
+     */
+    @Test
+    void theEmptyPhraseFieldShowsWhatATaskLooksLikeInTheModeItPaintsIn() {
+        Theme.Mode before = Theme.mode();
+        try {
+            Panel panel = panel();
+            onEdt(() -> {
+                JTextField field = phraseField(panel.tasks);
+                assertThat(((JetControls.PlaceholderField) field).placeholder())
+                    .isEqualTo(TasksPanel.PHRASE_EXAMPLE).isNotBlank();
+                for (Theme.Mode mode : Theme.Mode.values()) {
+                    Theme.install(mode);
+                    assertThat(count(render(field, 240, 32), UiTheme.color("text.tertiary")))
+                        .as(mode + " example").isPositive();
+                }
+            });
+        } finally {
+            Theme.install(before);
+        }
+    }
+
+    /**
+     * With no task yet the Activity card was a blank box six rows tall. Breaks
+     * if the empty list stops saying so, or paints it in a colour read once
+     * rather than text.secondary read when it paints.
+     */
+    @Test
+    void anEmptyActivityListSaysNothingHasRunYetInTheModeItPaintsIn() {
+        Theme.Mode before = Theme.mode();
+        try {
+            Panel panel = panel();
+            onEdt(() -> {
+                JList<?> activity = (JList<?>) find(panel.tasks, "tasks.log");
+                assertThat(panel.tasks.emptyLine()).isEqualTo(TasksPanel.NOTHING_YET);
+                for (Theme.Mode mode : Theme.Mode.values()) {
+                    Theme.install(mode);
+                    assertThat(count(render(activity, 420, 120), UiTheme.color("text.secondary")))
+                        .as(mode + " line").isPositive();
+                }
+            });
+        } finally {
+            Theme.install(before);
+        }
+    }
+
+    /**
+     * The line stands in for rows, so it has to go the moment one arrives,
+     * whichever of the panel's inputs brought it. Breaks if it is tied to one
+     * of them, such as this panel's own Send, and stays under a row that came
+     * from the tray, the microphone or the agent.
+     */
+    @Test
+    void theNothingYetLineGoesWithTheFirstRowWhateverBroughtIt() {
+        List<Consumer<Panel>> sources = List.of(
+            p -> p.tasks.taskRouted("run the tests", "sandbox"),
+            p -> p.tasks.taskNotStarted("deploy it", "Could not tell which project."),
+            p -> p.tasks.acceptAgentEvent(event(EventKind.TOOL_START, ToolClass.READ, "readme.txt", null, "")),
+            p -> p.event("{\"ev\":\"narration\",\"text\":\"Reading the readme file.\"}"));
+        for (Consumer<Panel> source : sources) {
+            Panel panel = panel();
+            onEdt(() -> {
+                source.accept(panel);
+                assertThat(panel.tasks.emptyLine()).isEmpty();
+            });
+        }
+    }
+
+    private static BufferedImage render(JComponent control, int width, int height) {
+        control.setSize(width, height);
+        control.doLayout();
+        BufferedImage image = new BufferedImage(width * 2, height * 2, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.scale(2, 2);
+            control.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    /** How many device pixels are exactly {@code colour}: the solid cores of glyphs painted in it. */
+    private static int count(BufferedImage image, Color colour) {
+        int rgb = colour.getRGB();
+        int found = 0;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if (image.getRGB(x, y) == rgb) {
+                    found++;
+                }
+            }
+        }
+        return found;
     }
 
     private static AgentEvent event(EventKind kind, ToolClass toolClass, String target,

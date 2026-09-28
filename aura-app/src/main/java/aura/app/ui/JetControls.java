@@ -1134,7 +1134,7 @@ public final class JetControls {
     }
 
     /** A 32 px text field with a placeholder painted by hand - see {@link #textField}. */
-    private static final class PlaceholderField extends JTextField {
+    static final class PlaceholderField extends JTextField {
 
         private final String placeholder;
         private boolean focused;

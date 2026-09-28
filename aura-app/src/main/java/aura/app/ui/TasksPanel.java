@@ -11,6 +11,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -31,6 +33,7 @@ import javax.swing.JViewport;
 import javax.swing.ListCellRenderer;
 import javax.swing.ScrollPaneLayout;
 import javax.swing.SwingUtilities;
+import javax.swing.plaf.basic.BasicGraphicsUtils;
 
 /**
  * The section that dispatches a task and follows it.
@@ -101,6 +104,19 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
      */
     private static final int SELECTION_STRIPE = 3;
 
+    /**
+     * What the phrase field shows while it is empty: a task as routing reads
+     * one, something to do and the project to do it in.
+     */
+    static final String PHRASE_EXAMPLE = "run the tests in backend";
+
+    /**
+     * What the Activity list says until its first row arrives, from this
+     * panel, the tray, the microphone or the agent. It is painted on one line,
+     * about 280 px of the 410 the list has at the window's minimum size.
+     */
+    static final String NOTHING_YET = "Nothing has run yet. Send a task above to start.";
+
     private final Consumer<String> dispatch;
     private final Runnable onStopAgent;
 
@@ -114,9 +130,33 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         public Color getBackground() {
             return UiTheme.surface();
         }
+
+        /**
+         * Paints {@link #emptyLine} where the first row's text will stand, in
+         * text.secondary read now, so a theme switch needs only a repaint.
+         * Painted rather than added as a row: a row would be selectable, taken
+         * by the arrow keys, and counted against {@link #MAX_ROWS}.
+         */
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            String line = emptyLine();
+            if (line.isEmpty()) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setFont(getFont());
+                g2.setColor(UiTheme.color("text.secondary"));
+                BasicGraphicsUtils.drawString(this, g2, line, UiTheme.TIGHT,
+                    UiTheme.TIGHT + g2.getFontMetrics().getAscent());
+            } finally {
+                g2.dispose();
+            }
+        }
     };
     private boolean scrollPending;
-    private final JTextField phraseField = JetControls.textField("");
+    private final JTextField phraseField = JetControls.textField(PHRASE_EXAMPLE);
     private final JButton sendButton = JetControls.button("Send");
     // dispatch.accept(phrase) now hands the work to Main's own background
     // executor and returns before anything has happened, so returning is no
@@ -531,6 +571,11 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
                 }
             });
         }
+    }
+
+    /** The line the empty Activity list paints, or nothing once it holds a row. */
+    String emptyLine() {
+        return rows.isEmpty() ? NOTHING_YET : "";
     }
 
     /** One line of the transcript: what it says, and which token says how it went. */
