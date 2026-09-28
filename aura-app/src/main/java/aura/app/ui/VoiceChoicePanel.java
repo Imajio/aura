@@ -362,7 +362,10 @@ public final class VoiceChoicePanel extends JPanel {
     private void applyEnablement() {
         AuditionVoice selected = voiceList.getSelectedValue();
         useButton.setEnabled(selected != null);
-        String whyNotUsable = selected == null ? "select a voice above first" : "";
+        // With no samples the list is empty, and "select a voice" would point at
+        // an action nobody can take; the card note above says how to get them.
+        String whyNotUsable = voices.isEmpty() ? "no samples to choose from yet"
+            : selected == null ? "select a voice above first" : "";
         useReason.setText(whyNotUsable);
         // useReason is elastic (UiTheme.elastic), which sets its tooltip once at
         // construction from the text at that moment - empty, since nothing has been

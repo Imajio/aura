@@ -42,6 +42,23 @@ class VoiceChoicePanelTest {
         });
     }
 
+    /**
+     * With no audition folder the list is empty, and the reason beside "Use this
+     * voice" still said "select a voice above first", an action nobody could
+     * take, one row under the note that says how to get samples. Breaks if the
+     * empty state goes back to asking for a selection.
+     */
+    @Test
+    void withNoSamplesTheUseReasonDoesNotAskForASelection(@TempDir Path tmp) throws Exception {
+        Panel panel = panel(tmp.resolve("no-audition-here"), tmp.resolve("config.yaml"), 1L);
+
+        onEdt(() -> {
+            assertThat(button(panel.panel, "voice.choice.use").isEnabled()).isFalse();
+            assertThat(text(panel.panel, "voice.choice.useReason"))
+                .isNotEmpty().doesNotContain("select");
+        });
+    }
+
     /** Breaks if a line button ignores which lines the selected voice actually has. */
     @Test
     void lineButtonsAreEnabledOnlyForLinesTheSelectedVoiceActuallyHas(@TempDir Path tmp) throws Exception {
