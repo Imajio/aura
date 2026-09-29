@@ -313,7 +313,14 @@ public final class UiTheme {
         tracked.repaint();
     }
 
+    /**
+     * Checks {@code token} before building, the same as {@link #recolour} does:
+     * the label resolves its token only when it paints, and a misspelt one would
+     * otherwise throw from the middle of a paint on the event thread, far from
+     * the panel that named it, rather than here where the panel is built.
+     */
     private static JLabel styled(String text, Font font, String token) {
+        color(token);
         JLabel label = new TokenLabel(text, token);
         label.setFont(font);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -568,6 +575,7 @@ public final class UiTheme {
      * room from this sentence before anything else, and never breaks a word.
      */
     public static JLabel fitted(String text, String token) {
+        color(token);
         JLabel label = new FittedLabel(text, token);
         label.setFont(body());
         label.setAlignmentX(Component.LEFT_ALIGNMENT);

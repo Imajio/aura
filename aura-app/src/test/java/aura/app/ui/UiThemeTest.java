@@ -645,6 +645,26 @@ class UiThemeTest {
     }
 
     @Test
+    void aFactoryRefusesAnUnknownTokenWhenTheLabelIsBuilt() {
+        // Breaks if styled() or fitted() stores the token without checking it.
+        // The label resolves its token only when it paints, so a misspelt one
+        // would build without complaint and throw later from a paint on the
+        // event thread, where no panel test is looking.
+        assertThatThrownBy(() -> UiTheme.status("recorded", "sucess"))
+            .as("status, through styled()")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("sucess");
+        assertThatThrownBy(() -> UiTheme.wrapped("a note", "warnig"))
+            .as("wrapped, through styled()")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("warnig");
+        assertThatThrownBy(() -> UiTheme.fitted("a sentence", "text.secondry"))
+            .as("fitted")
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("text.secondry");
+    }
+
+    @Test
     void recolourRepaintsTheGlyphsOfAWrappedLabelAndNotOnlyItsForeground() {
         // Breaks if recolour only swaps the token and repaints. A wrapped label
         // is HTML, and Swing bakes the foreground into the HTML view when the
