@@ -2,6 +2,9 @@ package aura.app.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -62,6 +65,46 @@ class CardTest {
         assertThat(why.getHeight()).as("on more than one line").isGreaterThan(oneLineHeight);
         assertThat(why.getX() + why.getWidth()).as("clear of its button").isLessThanOrEqualTo(setUp.getX());
         assertThat(setUp.getWidth()).isEqualTo(setUp.getPreferredSize().width);
+    }
+
+    @Test
+    void aCardPaintsItsEdgeInTheCurrentThemesSubtleBorder() {
+        // Breaks if Card.paintComponent draws its edge from a colour fixed
+        // once, whether a field read at construction or one palette's entry:
+        // after a switch the edge would keep the other theme's line, the way
+        // the Activity card's outline once stayed light on a dark window.
+        Theme.Mode before = Theme.mode();
+        try {
+            for (Theme.Mode mode : Theme.Mode.values()) {
+                Theme.install(mode);
+                Card card = new Card("Log");
+                card.setSize(120, 60);
+                BufferedImage image = paintedAtTwice(card);
+
+                assertThat(new Color(image.getRGB(120, 0))).as("the top edge in " + mode)
+                    .isEqualTo(UiTheme.color("border.subtle"));
+                assertThat(new Color(image.getRGB(0, 60))).as("the left edge in " + mode)
+                    .isEqualTo(UiTheme.color("border.subtle"));
+                assertThat(new Color(image.getRGB(120, 60))).as("the surface inside in " + mode)
+                    .isEqualTo(UiTheme.surface());
+            }
+        } finally {
+            Theme.install(before);
+        }
+    }
+
+    /** The card painted at this machine's 2.0 device scale. */
+    private static BufferedImage paintedAtTwice(Card card) {
+        BufferedImage image = new BufferedImage(card.getWidth() * 2, card.getHeight() * 2,
+            BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.scale(2.0, 2.0);
+            card.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
     }
 
     private static void layOut(Card card) {

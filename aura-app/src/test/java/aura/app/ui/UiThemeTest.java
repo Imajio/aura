@@ -407,6 +407,32 @@ class UiThemeTest {
     }
 
     @Test
+    void theCardBorderPaintsItsOutlineInTheCurrentThemesSubtleBorder() {
+        // Breaks if UiTheme.card()'s outline takes its colour once, from a
+        // field or from one palette: the Activity card, the one card built on
+        // it, had a lighter edge than every Card beside it in the dark theme
+        // until the outline read the token each time it painted.
+        for (Theme.Mode mode : Theme.Mode.values()) {
+            Theme.install(mode);
+            JPanel host = new JPanel();
+            host.setSize(120, 60);
+            BufferedImage image = new BufferedImage(240, 120, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            try {
+                g.scale(2.0, 2.0);
+                UiTheme.card().paintBorder(host, g, 0, 0, 120, 60);
+            } finally {
+                g.dispose();
+            }
+
+            assertThat(new Color(image.getRGB(120, 0))).as("the top edge in " + mode)
+                .isEqualTo(UiTheme.color("border.subtle"));
+            assertThat(new Color(image.getRGB(239, 60))).as("the right edge in " + mode)
+                .isEqualTo(UiTheme.color("border.subtle"));
+        }
+    }
+
+    @Test
     void aPanelRegisteredThroughOnChangeIsCalledAndReadsTheNewPaletteAfterASwitch() {
         // This is the rule Task 2's brief states and every later task follows: a
         // component reads a token when the theme changes, never once at
