@@ -9,7 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * The mark is the owner's logo rather than something drawn on the fly, so what
+ * The mark is a custom logo rather than something drawn on the fly, so what
  * a test can check is that every state still produces an image at every size
  * the taskbar might ask for, that READY is the plain logo with no badge on
  * it, and that the one state meant to be noticed, WAITING, is the only one

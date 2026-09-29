@@ -71,8 +71,8 @@ public record AuraConfig(
      * The same settings with a different theme - the one field the window's theme
      * control changes. A copy, not a mutation, for the same reason {@link #withVoice}
      * is: every other field is carried over from the receiver, never re-derived from
-     * {@link #defaults()}, which would reset the owner's own paths and timeouts to the
-     * factory ones the moment the theme was switched.
+     * {@link #defaults()}, which would reset the user's own paths and timeouts to
+     * the factory ones the moment the theme was switched.
      */
     public AuraConfig withTheme(Theme.Mode theme) {
         return new AuraConfig(claudeExe, codexExe, projectsFile, hookJar, javaExe, runDir,
@@ -118,7 +118,7 @@ public record AuraConfig(
             // what main.py's own --listen help text already says.
             false,
             // Dark is jet-swing-design-system's own default - its reference Main
-            // installs dark before building anything - so an owner who has never
+            // installs dark before building anything - so a user who has never
             // touched config.yaml gets the theme the design system ships with,
             // not a choice this project invented on top of it.
             Theme.Mode.DARK,

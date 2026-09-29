@@ -15,7 +15,7 @@ import java.util.List;
 import javax.imageio.ImageIO;
 
 /**
- * Draws Aura's mark: the owner's sound wave logo, with the running state shown
+ * Draws Aura's mark: the custom sound wave logo, with the running state shown
  * as a small round badge in the bottom right corner.
  *
  * <p>The logo is loaded once from the classpath, cropped to its own alpha
