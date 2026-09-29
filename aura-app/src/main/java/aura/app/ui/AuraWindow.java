@@ -245,18 +245,16 @@ public final class AuraWindow implements Consumer<SidecarEvent> {
         rail.setPreferredSize(new Dimension(RAIL_WIDTH, 0));
 
         themeToggle.setName("theme.toggle");
-        // Loads and saves config.yaml fresh on every press rather than holding an
-        // AuraConfig field across the window's lifetime, the same choice
-        // VoiceChoicePanel's "Use this voice" button makes for the same reason:
-        // what matters is not what this writes, it is that it leaves every other
-        // setting exactly as it found it, which a fresh load-then-save guarantees
-        // and a long-held stale copy would not.
+        // Rewrites the one theme line in config.yaml on every press, and nothing
+        // else: what matters is not what this writes, it is that it leaves every
+        // other setting exactly as it found it, including a setting the file has
+        // never had and should not gain from a theme switch.
         themeToggle.addActionListener(e -> {
             Theme.Mode next = Theme.mode() == Theme.Mode.DARK ? Theme.Mode.LIGHT : Theme.Mode.DARK;
             Theme.install(next);
             String problem = "";
             try {
-                AuraConfig.load(configFile).withTheme(next).save(configFile);
+                AuraConfig.saveTheme(configFile, next);
             } catch (Exception ex) {
                 log.warn("could not save the chosen theme to {}", configFile, ex);
                 problem = FailureText.of(ex);

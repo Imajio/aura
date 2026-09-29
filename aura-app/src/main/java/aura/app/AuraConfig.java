@@ -194,7 +194,8 @@ public record AuraConfig(
      * unrewritten in every byte save() does not own.
      *
      * <p>The window size is not among the four: {@link #saveWindowSize} writes it,
-     * and a save here leaves its two lines exactly as they were.
+     * and a save here leaves its two lines exactly as they were. The theme control
+     * does not come through here either, but through {@link #saveTheme}.
      */
     public void save(Path yamlFile) throws IOException {
         rewrite(yamlFile,
@@ -218,6 +219,20 @@ public record AuraConfig(
         rewrite(yamlFile,
             "windowWidth", Integer.toString(width),
             "windowHeight", Integer.toString(height));
+    }
+
+    /**
+     * Writes {@code theme} into {@code yamlFile}, and nothing else, by the same
+     * targeted rewrite as {@link #save}.
+     *
+     * <p>What the window's theme control saves, and its own method for the reason
+     * {@link #saveWindowSize} is: a save of all four settings appends {@code
+     * voice}, {@code profile} and {@code listen} to a file that never set them, so
+     * one switch of the theme pinned today's defaults for all three into the
+     * user's file.
+     */
+    public static void saveTheme(Path yamlFile, Theme.Mode theme) throws IOException {
+        rewrite(yamlFile, "theme", theme.name().toLowerCase(Locale.ROOT));
     }
 
     /** Sets each key to its value, in place or appended, and touches nothing else. */

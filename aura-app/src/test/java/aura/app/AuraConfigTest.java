@@ -603,4 +603,62 @@ class AuraConfigTest {
             + "listen: false\ntheme: light\nwindowHeight: 700\n");
         assertThat(Files.readString(other)).doesNotContain("window");
     }
+
+    /**
+     * A theme switch must not add settings nobody chose. Breaks if saveTheme()
+     * goes through save(), which appends voice, profile and listen to a file that
+     * never set them: one switch of the theme used to leave "voice: ",
+     * "profile: en" and "listen: false" in a file that held none of the three.
+     */
+    @Test
+    void saveThemeWritesItsOneKeyAndNothingElse(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.writeString(yaml, String.join("\n",
+            "# a setting written by hand",
+            "idleTimeoutSec: 900",
+            "theme: dark",
+            "windowWidth: 1000",
+            ""));
+
+        AuraConfig.saveTheme(yaml, Theme.Mode.LIGHT);
+
+        assertThat(Files.readString(yaml)).isEqualTo(String.join("\n",
+            "# a setting written by hand",
+            "idleTimeoutSec: 900",
+            "theme: light",
+            "windowWidth: 1000",
+            ""));
+        assertThat(AuraConfig.load(yaml).theme()).isEqualTo(Theme.Mode.LIGHT);
+    }
+
+    /** The same guarantee the save() and saveWindowSize() tests pin for the file's own bytes. */
+    @Test
+    void saveThemeAppendsItsKeyAndKeepsCrlfAndTheMissingTrailingNewline(@TempDir Path tmp)
+            throws Exception {
+        Path yaml = tmp.resolve("config.yaml");
+        Files.write(yaml, "voice: aidar\r\nlisten: true"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AuraConfig.saveTheme(yaml, Theme.Mode.DARK);
+
+        assertThat(Files.readString(yaml, java.nio.charset.StandardCharsets.UTF_8))
+            .isEqualTo("voice: aidar\r\nlisten: true\r\ntheme: dark");
+    }
+
+    /**
+     * Breaks if a failed write is swallowed here: the theme control says under
+     * itself that the choice was not saved, and it can only do that if this throws.
+     */
+    @Test
+    void saveThemeThrowsWhenTheFileCannotBeWritten(@TempDir Path tmp) throws Exception {
+        Path yaml = Files.writeString(tmp.resolve("config.yaml"), "theme: dark\n");
+        assertThat(yaml.toFile().setReadOnly()).isTrue();
+        try {
+            assertThatThrownBy(() -> AuraConfig.saveTheme(yaml, Theme.Mode.LIGHT))
+                .isInstanceOf(java.nio.file.AccessDeniedException.class);
+            assertThat(Files.readString(yaml)).isEqualTo("theme: dark\n");
+        } finally {
+            yaml.toFile().setWritable(true);
+        }
+    }
 }
