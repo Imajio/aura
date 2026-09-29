@@ -466,10 +466,10 @@ class UiThemeTest {
         // Fix round 1 on Task 2: rendering a real AuraWindow through
         // install(DARK), install(LIGHT) and install(DARK) again found every
         // button in the window washed out to near-illegibility in both
-        // modes. The cause was this method's own applyToLookAndFeel pushing
-        // Button.foreground (and, the same shape, CheckBox/TextField/List/
-        // Spinner/ProgressBar/Label's foreground and a few backgrounds) into
-        // UIManager: SwingUtilities.updateComponentTreeUI only copies a
+        // modes. The cause was install's applyToLookAndFeel, since removed,
+        // pushing Button.foreground (and, the same shape, CheckBox/TextField/
+        // List/Spinner/ProgressBar/Label's foreground and a few backgrounds)
+        // into UIManager: SwingUtilities.updateComponentTreeUI only copies a
         // UIManager colour into a component's own cached field the first
         // time its updateUI() runs after the key is already correct, not on
         // every later install, so a button attached during the first (dark)
@@ -489,6 +489,10 @@ class UiThemeTest {
         // opaque JScrollPane painted that gap from whichever mode installed
         // first and never again. Rendered as a solid bar under "Activity"
         // that survived a switch to light and a switch back.
+        //
+        // Component.borderColor and Component.focusColor, the last two keys,
+        // went with the method itself in the final review: no look and feel
+        // this application runs under reads either.
         List<String> keys = List.of(
             "Label.foreground",
             "Button.foreground",
@@ -498,7 +502,8 @@ class UiThemeTest {
             "List.selectionForeground", "List.selectionBackground",
             "Spinner.foreground", "Spinner.background",
             "ProgressBar.foreground", "ProgressBar.background",
-            "Panel.background", "Viewport.background", "ScrollPane.background");
+            "Panel.background", "Viewport.background", "ScrollPane.background",
+            "Component.borderColor", "Component.focusColor");
 
         Theme.install(Theme.Mode.DARK);
         Map<String, Object> afterDark = new LinkedHashMap<>();

@@ -411,11 +411,6 @@ public final class UiTheme {
             super.setText(plain);
         }
 
-        /** The sentence as it reads, without the markup a wrapped one carries. */
-        String sentence() {
-            return sentence;
-        }
-
         @Override
         public Dimension getPreferredSize() {
             if (isPreferredSizeSet()) {

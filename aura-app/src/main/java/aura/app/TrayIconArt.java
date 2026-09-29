@@ -35,9 +35,6 @@ public final class TrayIconArt {
 
     private static final String RESOURCE_NAME = "aura-logo.png";
 
-    /** Reads on both light and dark taskbars without looking disabled. */
-    public static final Color IDLE = new Color(0x8B, 0x8D, 0x98);
-
     /** Indigo violet, distinct from the default blue every tray application uses. */
     public static final Color ACCENT = new Color(0x7C, 0x5C, 0xFF);
 
@@ -53,7 +50,7 @@ public final class TrayIconArt {
     /** What Aura is doing, in the only vocabulary a bottom corner badge can hold. */
     public enum State {
         /** Running; nothing is happening. The plain logo, no badge. */
-        READY(IDLE),
+        READY(null),
         /** An agent is working. */
         WORKING(ACCENT),
         /** Narrating right now. Shares WORKING's badge; the tooltip says which. */
@@ -69,6 +66,7 @@ public final class TrayIconArt {
             this.colour = colour;
         }
 
+        /** The badge's colour, or null for {@link #READY}, which has no badge. */
         public Color colour() {
             return colour;
         }
