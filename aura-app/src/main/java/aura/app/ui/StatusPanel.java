@@ -2,7 +2,6 @@ package aura.app.ui;
 
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Desktop;
@@ -21,8 +20,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,29 +111,7 @@ public final class StatusPanel extends JPanel implements Consumer<SidecarEvent> 
         column.setOpaque(false);
         column.setBorder(UiTheme.pad(UiTheme.WIDE));
 
-        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
-            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
-
-        setLayout(new BorderLayout());
-        add(scroll, BorderLayout.CENTER);
-
-        // A plain JPanel's and a JViewport's background both hold whatever colour
-        // they were given, the same as a Border - neither has a paintComponent this
-        // class can read a token from, so both are re-applied from this listener
-        // instead, the way VoiceChoicePanel's own canvas is. Called once right here
-        // as well as registered, the way JetControls.list, Button and
-        // PlaceholderField all do: AuraWindow builds this panel before it calls
-        // Theme.install, so without the immediate call this panel would keep the
-        // look and feel's cached background until the first switch.
-        Runnable refreshCanvas = () -> {
-            setBackground(UiTheme.canvas());
-            scroll.getViewport().setBackground(UiTheme.canvas());
-        };
-        Theme.onChange(refreshCanvas);
-        refreshCanvas.run();
+        ContentPane.page(this, column);
 
         rebuild();
     }

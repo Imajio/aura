@@ -151,6 +151,44 @@ class ContentPaneTest {
         });
     }
 
+    @Test
+    void aPageTakesTheCanvasOfTheThemeItIsBuiltUnderAndOfEverySwitchAfter() {
+        // Breaks if page() registers its canvas listener without also running it
+        // once: AuraWindow builds every section before it installs the first
+        // theme, and a section that only listened kept the look and feel's own
+        // background until the first switch. Breaks as well if the listener
+        // stops reaching the viewport, which is what shows below a column
+        // shorter than the window.
+        Theme.Mode before = Theme.mode();
+        try {
+            for (Theme.Mode built : Theme.Mode.values()) {
+                Theme.install(built);
+                JPanel section = new JPanel();
+                JScrollPane[] scroll = new JScrollPane[1];
+                onEdt(() -> scroll[0] = ContentPane.page(section, new JPanel()));
+
+                onEdt(() -> {
+                    assertThat(section.getComponents()).containsExactly(scroll[0]);
+                    assertThat(scroll[0].getBorder()).isNull();
+                    assertThat(scroll[0].getVerticalScrollBar().getUnitIncrement()).isEqualTo(UiTheme.SECTION);
+                    assertThat(section.getBackground()).as("built under " + built).isEqualTo(UiTheme.canvas());
+                    assertThat(scroll[0].getViewport().getBackground()).as("built under " + built)
+                        .isEqualTo(UiTheme.canvas());
+                });
+
+                Theme.Mode switched = built == Theme.Mode.DARK ? Theme.Mode.LIGHT : Theme.Mode.DARK;
+                Theme.install(switched);
+                onEdt(() -> {
+                    assertThat(section.getBackground()).as("switched to " + switched).isEqualTo(UiTheme.canvas());
+                    assertThat(scroll[0].getViewport().getBackground()).as("switched to " + switched)
+                        .isEqualTo(UiTheme.canvas());
+                });
+            }
+        } finally {
+            Theme.install(before);
+        }
+    }
+
     /** A page taller than its window, padded as every section page is, with {@code last} at its foot. */
     private static final class Page {
 

@@ -197,30 +197,7 @@ public final class TasksPanel extends JPanel implements Consumer<SidecarEvent> {
         // than being squeezed into a sliver nobody could read. The Activity
         // card keeps its own inner scroll besides, sized to a handful of rows
         // that stays constant however tall the page above it grows.
-        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
-            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
-
-        setLayout(new BorderLayout());
-        add(scroll, BorderLayout.CENTER);
-
-        // A plain JPanel's and a JViewport's background both hold whatever
-        // colour they were given, the same as a Border - neither has a
-        // paintComponent this class can read a token from, so both are
-        // re-applied from this listener instead, the way StatusPanel's and
-        // VoiceChoicePanel's own canvas already are. Called once right here
-        // as well as registered, the way JetControls.list, Button and
-        // PlaceholderField all do: AuraWindow builds this panel before it
-        // calls Theme.install, so without the immediate call this panel
-        // would keep the look and feel's cached background until the first
-        // switch.
-        Runnable refreshCanvas = () -> {
-            setBackground(UiTheme.canvas());
-            scroll.getViewport().setBackground(UiTheme.canvas());
-        };
-        Theme.onChange(refreshCanvas);
-        refreshCanvas.run();
+        ContentPane.page(this, column);
     }
 
     private JComponent inputCard() {

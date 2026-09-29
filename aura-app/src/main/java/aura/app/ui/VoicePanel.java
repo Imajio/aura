@@ -2,7 +2,6 @@ package aura.app.ui;
 
 import aura.app.SidecarEvents.SidecarEvent;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
@@ -22,10 +21,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.KeyStroke;
-import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -186,25 +183,7 @@ public final class VoicePanel extends JPanel implements Consumer<SidecarEvent> {
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
         column.add(listeningCard());
 
-        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
-            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
-
-        setLayout(new BorderLayout());
-        add(scroll, BorderLayout.CENTER);
-
-        // The panel and its viewport hold whatever background they were last
-        // given, so both are set again on every switch, and once now, because
-        // AuraWindow builds this panel before it installs the first theme.
-        // Everything inside the cards paints from tokens and needs neither.
-        Runnable refreshCanvas = () -> {
-            setBackground(UiTheme.canvas());
-            scroll.getViewport().setBackground(UiTheme.canvas());
-        };
-        Theme.onChange(refreshCanvas);
-        refreshCanvas.run();
+        ContentPane.page(this, column);
 
         applyState();
     }

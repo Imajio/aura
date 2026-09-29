@@ -1,5 +1,6 @@
 package aura.app.ui;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -10,6 +11,7 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 
@@ -52,6 +54,44 @@ final class ContentPane extends JPanel implements Scrollable {
         super(new ReadableColumn());
         setOpaque(false);
         add(content);
+    }
+
+    /**
+     * Makes {@code section} a page: {@code column} on a {@code
+     * ContentPane}, in a token scroll pane with no border that moves a {@link
+     * UiTheme#SECTION} at a time, filling {@code section} from edge to edge.
+     *
+     * <p>The section and the scroll pane's viewport are painted in {@link
+     * UiTheme#canvas()}, now and again after every {@link Theme#onChange}. A
+     * plain panel's and a viewport's background both hold whatever colour they
+     * were given, the same as a border does, and neither has a paint method
+     * that could read a token instead. The call made now matters as much as the
+     * listener: {@code AuraWindow} builds every section before it installs the
+     * first theme, and a page that only listened kept the look and feel's own
+     * background until the first switch. Everything inside the cards paints
+     * from tokens and needs neither.
+     *
+     * <p>One method for all four sections, so no section can be given the
+     * listener without the call. Written out in each section, the call went
+     * missing more than once and had to be added to each copy in turn.
+     *
+     * @return the scroll pane now filling {@code section}
+     */
+    static JScrollPane page(JPanel section, JComponent column) {
+        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
+        section.setLayout(new BorderLayout());
+        section.add(scroll, BorderLayout.CENTER);
+        Runnable refreshCanvas = () -> {
+            section.setBackground(UiTheme.canvas());
+            scroll.getViewport().setBackground(UiTheme.canvas());
+        };
+        Theme.onChange(refreshCanvas);
+        refreshCanvas.run();
+        return scroll;
     }
 
     /**

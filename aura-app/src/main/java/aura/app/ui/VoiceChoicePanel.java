@@ -2,7 +2,6 @@ package aura.app.ui;
 
 import aura.app.AuraConfig;
 import aura.app.ui.AuditionLibrary.AuditionVoice;
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.GridLayout;
 import java.nio.file.Path;
@@ -155,33 +154,10 @@ public final class VoiceChoicePanel extends JPanel {
         column.add(Box.createVerticalStrut(UiTheme.SPACE));
         column.add(linesCard());
 
-        JScrollPane scroll = JetControls.scrollPane(new ContentPane(column),
-            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(UiTheme.SECTION);
-
-        setLayout(new BorderLayout());
-        add(scroll, BorderLayout.CENTER);
-
-        // A plain JPanel's and a JViewport's background both hold whatever colour
-        // they were given, the same as a Border - neither has a paintComponent this
-        // class can read a token from, so both are re-applied from this listener
-        // instead, the way AuraWindow's own chrome is. The two reports need nothing
-        // here: they are UiTheme labels pointed at a token by UiTheme.recolour, and
-        // resolve it every time they paint. Called once right here as well as
-        // registered, the way
-        // JetControls.list, Button and PlaceholderField all do - without the
-        // immediate call this panel keeps the look and feel's cached background
-        // until the next switch, which happens to be harmless in production only
-        // because AuraWindow always calls Theme.install after building this panel,
-        // an ordering this class has no business depending on.
-        Runnable refreshCanvas = () -> {
-            setBackground(UiTheme.canvas());
-            scroll.getViewport().setBackground(UiTheme.canvas());
-        };
-        Theme.onChange(refreshCanvas);
-        refreshCanvas.run();
+        // The page keeps its canvas on the theme. The two reports need no
+        // listener of their own: they are UiTheme labels pointed at a token by
+        // UiTheme.recolour, and resolve it every time they paint.
+        ContentPane.page(this, column);
 
         for (AuditionVoice voice : voices) {
             voiceListModel.addElement(voice);
